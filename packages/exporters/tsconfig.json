@@ -1,0 +1,4 @@
+{
+  "extends": "@agent-blueprint/tsconfig/library.json",
+  "include": ["src", "tests", "vitest.config.ts", "eslint.config.js"]
+}

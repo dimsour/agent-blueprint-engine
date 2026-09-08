@@ -1,0 +1,29 @@
+{
+  "name": "@agent-blueprint/fixtures",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Fixture blueprint projects shared by tests across packages.",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@agent-blueprint/eslint-config": "workspace:*",
+    "@agent-blueprint/tsconfig": "workspace:*",
+    "@types/node": "26.5.0",
+    "eslint": "9.39.5",
+    "typescript": "5.9.3",
+    "vitest": "5.0.0"
+  }
+}

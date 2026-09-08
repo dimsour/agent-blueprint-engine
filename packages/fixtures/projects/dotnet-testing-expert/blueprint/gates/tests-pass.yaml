@@ -1,0 +1,6 @@
+name: Tests must pass
+description: The task cannot be reported as complete while any test fails.
+criteria:
+  - kind: tests-pass
+    description: All tests in the affected projects pass.
+    command: dotnet test

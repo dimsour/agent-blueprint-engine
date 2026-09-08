@@ -1,0 +1,42 @@
+schemaVersion: "1.0"
+id: dotnet-testing-expert
+name: .NET Testing Expert
+version: 1.0.0
+description: An expert .NET agent that writes and reviews high-quality xUnit unit tests.
+settings:
+  primaryAgentId: testing-expert
+targets:
+  - harnessId: claude-code
+  - harnessId: codex
+artifacts:
+  agents:
+    - testing-expert
+  skills:
+    - xunit
+    - test-design
+    - fluent-assertions
+  workflows:
+    - write-tests
+    - review-tests
+  ironLaws:
+    - never-fake-verification
+    - deterministic-tests
+    - no-implementation-details
+  rules:
+    - prefer-existing-framework
+  hooks:
+    - run-tests-after-change
+  gates:
+    - tests-pass
+  tools:
+    - dotnet-cli
+    - filesystem
+  references:
+    - testing-patterns
+  memories:
+    - project-conventions
+  requirements:
+    - verify-before-claiming
+    - use-existing-framework
+  scenarios:
+    - payment-service-tests

@@ -1,0 +1,32 @@
+{
+  "name": "@agent-blueprint/ai",
+  "version": "0.1.0",
+  "private": true,
+  "description": "OpenAI-compatible AI client, prompts and operations that produce reviewable ChangeSets.",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@agent-blueprint/core": "workspace:*",
+    "zod": "4.5.4"
+  },
+  "devDependencies": {
+    "@agent-blueprint/eslint-config": "workspace:*",
+    "@agent-blueprint/tsconfig": "workspace:*",
+    "@types/node": "26.5.0",
+    "eslint": "9.39.5",
+    "typescript": "5.9.3",
+    "vitest": "5.0.0"
+  }
+}

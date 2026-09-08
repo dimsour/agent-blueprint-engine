@@ -1,0 +1,10 @@
+node_modules
+dist
+.next
+.turbo
+coverage
+pnpm-lock.yaml
+packages/fixtures/projects/**/*.md
+packages/fixtures/projects/**/*.json
+packages/fixtures/projects/**/*.yaml
+CHANGELOG.md
