@@ -37,6 +37,17 @@ export interface AIPreset {
    * for the whole endpoint, `'probe'` when it depends on the model behind it.
    */
   jsonSchema: boolean | 'probe'
+  /**
+   * Whether this endpoint needs OpenAI's strict dialect, where every property is required and
+   * an optional one is expressed as "or null".
+   *
+   * Only OpenAI's own API does. Everywhere else it is pure cost: the model has to write every
+   * optional field of every artifact, mostly as `null`, and on a large schema that is the
+   * difference between finishing and not. Measured on a local model drafting a whole Blueprint —
+   * 2 650 tokens and done in 86s with the plain schema, still unfinished at 6 000 tokens with
+   * the strict one.
+   */
+  strictSchema: boolean
   /** Shown under the picker. Says what the user has to do outside this app, if anything. */
   note: string
   docsUrl: string
@@ -50,6 +61,7 @@ export const AI_PRESETS: Record<PresetId, AIPreset> = {
     authHeader: 'bearer',
     requiresKey: true,
     jsonSchema: true,
+    strictSchema: true,
     note: 'Structured output is supported directly.',
     docsUrl: 'https://platform.openai.com/docs/api-reference/chat',
   },
@@ -62,6 +74,7 @@ export const AI_PRESETS: Record<PresetId, AIPreset> = {
     // Verified 2026-09-09: the route accepts response_format and ignores it, so asking for a
     // schema here would silently return prose. See docs/06-ai-layer.md.
     jsonSchema: false,
+    strictSchema: false,
     note: 'A compatibility layer for testing models, not a production surface. response_format is ignored, so schemas are enforced by re-asking.',
     docsUrl: 'https://platform.claude.com/docs/en/cli-sdks-libraries/libraries/openai-sdk',
   },
@@ -72,6 +85,7 @@ export const AI_PRESETS: Record<PresetId, AIPreset> = {
     authHeader: 'bearer',
     requiresKey: true,
     jsonSchema: 'probe',
+    strictSchema: false,
     note: 'Schema support depends on the model routed to. HTTP-Referer and X-Title may be sent as extra headers.',
     docsUrl: 'https://openrouter.ai/docs/api-reference/overview',
   },
@@ -82,6 +96,7 @@ export const AI_PRESETS: Record<PresetId, AIPreset> = {
     authHeader: 'none',
     requiresKey: false,
     jsonSchema: 'probe',
+    strictSchema: false,
     note: 'The browser needs OLLAMA_ORIGINS to include this app, or turn the proxy on.',
     docsUrl: 'https://docs.ollama.com/api/openai-compatibility',
   },
@@ -92,6 +107,7 @@ export const AI_PRESETS: Record<PresetId, AIPreset> = {
     authHeader: 'none',
     requiresKey: false,
     jsonSchema: 'probe',
+    strictSchema: false,
     note: "Enable CORS in LM Studio's server settings, or turn the proxy on.",
     docsUrl: 'https://lmstudio.ai/docs/app/api/endpoints/openai',
   },
@@ -102,6 +118,7 @@ export const AI_PRESETS: Record<PresetId, AIPreset> = {
     authHeader: 'none',
     requiresKey: false,
     jsonSchema: 'probe',
+    strictSchema: false,
     note: 'Guided JSON works when the server was started with a backend that supports it.',
     docsUrl: 'https://docs.vllm.ai/en/latest/serving/openai_compatible_server.html',
   },
@@ -112,6 +129,7 @@ export const AI_PRESETS: Record<PresetId, AIPreset> = {
     authHeader: 'api-key',
     requiresKey: true,
     jsonSchema: true,
+    strictSchema: true,
     note: 'Base URL is https://<resource>.openai.azure.com/openai/deployments/<deployment>?api-version=<version>; the model is the deployment name.',
     docsUrl: 'https://learn.microsoft.com/azure/ai-services/openai/reference',
   },
@@ -122,6 +140,7 @@ export const AI_PRESETS: Record<PresetId, AIPreset> = {
     authHeader: 'bearer',
     requiresKey: false,
     jsonSchema: 'probe',
+    strictSchema: false,
     note: 'Anything that speaks POST /chat/completions.',
     docsUrl: 'https://platform.openai.com/docs/api-reference/chat',
   },

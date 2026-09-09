@@ -68,6 +68,11 @@ export interface AIClientConfig {
   presetId?: PresetId
   /** Overrides the preset. `bearer` when neither says. */
   authHeader?: AuthHeaderStyle
+  /**
+   * Overrides the preset's `strictSchema`. Off when neither says, because the strict dialect
+   * is only required by OpenAI and costs every other endpoint a great deal of output.
+   */
+  strictSchema?: boolean
   /** Route through the app's own proxy, for endpoints that send no CORS headers. */
   viaProxy?: boolean
   /** Where that proxy lives. Default `/api/ai/proxy`. */

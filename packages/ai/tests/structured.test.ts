@@ -43,11 +43,15 @@ function reply(content: string): Response {
 
 interface Sent {
   messages: { role: string; content: string }[]
-  response_format?: { json_schema?: { schema?: Record<string, unknown> } }
+  response_format?: { json_schema?: { schema?: Record<string, unknown>; strict?: boolean } }
 }
 
 /** A client whose endpoint answers from a script, and that records what it was asked. */
-function clientWith(answers: (string | Response)[], features: { jsonSchema?: boolean } = {}) {
+function clientWith(
+  answers: (string | Response)[],
+  features: { jsonSchema?: boolean } = {},
+  presetId?: AIClientConfig['presetId'],
+) {
   const sent: Sent[] = []
   const fetch = ((_url: string, init: RequestInit) => {
     sent.push(JSON.parse(init.body as string) as Sent)
@@ -60,12 +64,13 @@ function clientWith(answers: (string | Response)[], features: { jsonSchema?: boo
     baseUrl: 'https://example.test/v1',
     model: 'gpt-test',
     features,
+    ...(presetId ? { presetId } : {}),
   }
   return { client: createAIClient(config, { fetch }), sent }
 }
 
 describe('structured', () => {
-  it('asks for a strict schema when the endpoint supports one', async () => {
+  it('asks for a schema when the endpoint supports one', async () => {
     const { client, sent } = clientWith(['{"id":"xunit","name":"xUnit"}'], { jsonSchema: true })
     const result = await structured(client, skill, [{ role: 'user', content: 'a skill' }])
 
@@ -75,9 +80,30 @@ describe('structured', () => {
     expect(result.usage).toEqual({ promptTokens: 10, completionTokens: 5 })
     // No prompt-side contract: the endpoint is enforcing the shape.
     expect(sent[0]!.messages).toHaveLength(1)
+    // Plain by default: only what is genuinely required is required.
     expect(sent[0]!.response_format?.json_schema?.schema).toMatchObject({
+      required: ['id', 'name'],
+    })
+    expect(sent[0]!.response_format?.json_schema?.strict).toBeUndefined()
+  })
+
+  it('uses the strict dialect only where the endpoint demands it', async () => {
+    // OpenAI requires every property to be required, with optional expressed as "or null".
+    // Everywhere else that is pure cost — the model writes every optional field as null, and on
+    // a whole-Blueprint schema that was the difference between finishing and not.
+    const openai = clientWith(['{"id":"a","name":"A"}'], { jsonSchema: true }, 'openai')
+    await structured(openai.client, skill, [{ role: 'user', content: 'a skill' }])
+    expect(openai.sent[0]!.response_format?.json_schema?.strict).toBe(true)
+    expect(openai.sent[0]!.response_format?.json_schema?.schema).toMatchObject({
       additionalProperties: false,
       required: ['id', 'name', 'whenToUse', 'tags'],
+    })
+
+    const local = clientWith(['{"id":"a","name":"A"}'], { jsonSchema: true }, 'lm-studio')
+    await structured(local.client, skill, [{ role: 'user', content: 'a skill' }])
+    expect(local.sent[0]!.response_format?.json_schema?.strict).toBeUndefined()
+    expect(local.sent[0]!.response_format?.json_schema?.schema).toMatchObject({
+      required: ['id', 'name'],
     })
   })
 

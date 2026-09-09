@@ -405,7 +405,7 @@ this code. Only failures reproduced with the model loaded are treated as finding
 
 ### What it found
 
-Five bugs, none of which a fake `fetch` could have produced. Each has a regression test named
+Six bugs, none of which a fake `fetch` could have produced. Each has a regression test named
 after the model that caused it.
 
 1. **The probe was blind to reasoning models.** `max_tokens: 20` was spent on reasoning before
@@ -423,7 +423,16 @@ after the model that caused it.
 4. **A context overflow arrived as a shrug.** LM Studio says "exceeds the available context
    size", which matched none of the phrasings mapped to `context-too-large`, so the most
    actionable failure a local endpoint produces was reported as a generic 400.
-5. **One invented permission destroyed the whole draft.** `permissions.operations` is a map
+5. **The strict dialect was being paid for everywhere, and it does not have to be.** OpenAI's
+   strict mode requires every property to be `required`, so an optional field becomes "or
+   null" — and the model must then write out every optional field of every artifact. On the
+   whole-Blueprint schema that is thousands of tokens of padding. Measured on `a local model`:
+   2 650 tokens and finished in 86s with the plain schema, still unfinished at 6 000 tokens
+   with the strict one. Only OpenAI's own API requires that dialect; endpoints backed by
+   grammar-constrained decoding (llama.cpp, so LM Studio and Ollama) handle optional properties
+   natively. The dialect is now chosen per preset, and correctness is unaffected because both
+   paths end at the same Zod parse.
+6. **One invented permission destroyed the whole draft.** `permissions.operations` is a map
    keyed by a closed enum, so `a local model` asking for `git.fetch` and `git.checkout` failed
    the entire agent — and then the workflow's reference to it was removed as dangling and the
    primary agent ignored for not existing. The result was nineteen changes describing a system
@@ -435,6 +444,8 @@ Two things that are not bugs but are worth knowing. The 120 000 ms default timeo
 a hosted API and short for a local model drafting a whole Blueprint (roadmap P6-10). And
 `generateBlueprint` is by far the heaviest operation — its schema is the union of eleven entity
 schemas — so it is the one that strains a small local model while every other operation is
-comfortable.
+comfortable. How much a model chooses to write for it also varies run to run: `a local model`
+drafted 16 ops in 60s on one attempt and 7 ops in 38s on the next, and a run that writes far
+more than usual is what exhausts a timeout.
 
 - No live network calls in CI; the fake `fetch` is installed globally in the Vitest setup file.

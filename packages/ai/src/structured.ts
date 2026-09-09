@@ -17,7 +17,8 @@
 import type * as z from 'zod'
 
 import { AIError, looksLikeSecret } from './client/errors'
-import type { AIClient, ChatMessage, TokenUsage } from './client/types'
+import { presetFor } from './client/presets'
+import type { AIClient, ChatMessage, JsonSchemaResponseFormat, TokenUsage } from './client/types'
 import { dropNulls, extractJson, issueLines, toJsonSchema, toStrictJsonSchema } from './json-schema'
 
 export interface StructuredOptions {
@@ -70,12 +71,7 @@ export async function structured<T>(
       .chat(conversation, {
         ...wire,
         ...(mode === 'json-schema'
-          ? {
-              responseFormat: {
-                type: 'json_schema',
-                json_schema: { name, schema: toStrictJsonSchema(schema), strict: true },
-              },
-            }
+          ? { responseFormat: responseFormatFor(client, name, schema) }
           : {}),
       })
       .catch((error: unknown) => {
@@ -119,6 +115,38 @@ export async function structured<T>(
       },
     ]
   }
+}
+
+/**
+ * Which dialect of JSON Schema to send.
+ *
+ * OpenAI's strict mode is the only one that demands every property be required, with an
+ * optional field expressed as "or null". That is a real guarantee and worth having where it is
+ * offered — but it is also the only place it is *required*, and everywhere else it is pure
+ * cost: the model has to write out every optional field of every artifact, mostly as `null`.
+ *
+ * On a large schema that is the difference between working and not. Drafting a whole Blueprint
+ * on a local model: 2 650 tokens and finished in 86 seconds with the plain schema, still going at
+ * 6 000 tokens with the strict one, which is why two of the five models checked could not
+ * complete that operation at all. Endpoints backed by grammar-constrained decoding — llama.cpp,
+ * and so LM Studio and Ollama — handle optional properties natively and need none of it.
+ *
+ * Correctness does not rest on this either way: both paths end at the same Zod parse, with a
+ * repair round trip behind it.
+ */
+function responseFormatFor(
+  client: AIClient,
+  name: string,
+  schema: z.ZodType,
+): JsonSchemaResponseFormat {
+  const strict =
+    client.config.strictSchema ?? presetFor(client.config.presetId)?.strictSchema ?? false
+  return strict
+    ? {
+        type: 'json_schema',
+        json_schema: { name, schema: toStrictJsonSchema(schema), strict: true },
+      }
+    : { type: 'json_schema', json_schema: { name, schema: toJsonSchema(schema) } }
 }
 
 type Validation<T> =
