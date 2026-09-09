@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import {
   CheckIcon,
+  SearchIcon,
   CloudUploadIcon,
   DownloadIcon,
   LoaderIcon,
@@ -12,8 +13,9 @@ import {
 
 import { ThemeToggle } from '@/components/theme'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/primitives'
+import { Badge, Kbd } from '@/components/ui/primitives'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/overlays'
+import { useModifierLabel } from '@/lib/shortcuts'
 import { useWorkspace } from '@/lib/state/workspace-store'
 
 /** Actions that are not built yet are shown disabled with the reason, not hidden. */
@@ -42,11 +44,12 @@ function PendingAction({
   )
 }
 
-export function TopBar() {
+export function TopBar({ onOpenPalette }: { onOpenPalette: () => void }) {
   const blueprint = useWorkspace((state) => state.blueprint)
   const dirty = useWorkspace((state) => state.dirty)
   const saving = useWorkspace((state) => state.saving)
   const save = useWorkspace((state) => state.save)
+  const mod = useModifierLabel()
 
   return (
     <>
@@ -74,6 +77,11 @@ export function TopBar() {
       ) : null}
 
       <div className="flex items-center gap-1">
+        <Button variant="outline" size="sm" onClick={onOpenPalette} className="gap-2">
+          <SearchIcon />
+          <span className="hidden sm:inline">Commands</span>
+          <Kbd>{mod}K</Kbd>
+        </Button>
         <Button variant="ghost" size="sm" onClick={() => void save()} disabled={!dirty || saving}>
           {saving ? <LoaderIcon className="animate-spin" /> : <SaveIcon />}
           Save

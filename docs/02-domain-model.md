@@ -400,18 +400,19 @@ Model and schemas
 
 Blueprint operations (all pure; they return new objects)
 
-| Signature                                                                      | Description                                                  |
-| ------------------------------------------------------------------------------ | ------------------------------------------------------------ |
-| `createEmptyBlueprint({ id, name, description?, version? }): Blueprint`        | Valid empty Blueprint with defaults                          |
-| `normalizeBlueprint(input: unknown): Blueprint`                                | Parse + canonicalize (throws ZodError on invalid input)      |
-| `getCollection(bp, kind): EntityOf<K>[]`                                       | The array for a kind                                         |
-| `findEntity(bp, kind, id)`, `hasEntity(bp, ref)`                               | Lookups                                                      |
-| `listEntityRefs(bp)`, `countEntities(bp)`, `buildEntityIndex(bp): EntityIndex` | Enumeration                                                  |
-| `upsertEntity(bp, kind, input): Blueprint`                                     | Insert or replace after validating through the kind's schema |
-| `removeEntityRaw(bp, ref): Blueprint`                                          | Remove without touching references (prefer `deleteEntity`)   |
-| `renameEntity(bp, kind, oldId, newId): { blueprint, updatedRefs }`             | Id refactor; throws `RenameError`                            |
-| `deleteEntity(bp, ref): { blueprint, impact, removedRefs }`                    | Delete + reference clean-up + impact report                  |
-| `visitRefs(bp, visitor)`, `collectRefs(bp): EntityReference[]`                 | Reference walking                                            |
+| Signature                                                                      | Description                                                                                                                                                   |
+| ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `createEmptyBlueprint({ id, name, description?, version? }): Blueprint`        | Valid empty Blueprint with defaults                                                                                                                           |
+| `normalizeBlueprint(input: unknown): Blueprint`                                | Parse + canonicalize (throws ZodError on invalid input)                                                                                                       |
+| `createEntity(bp, kind, { name, id?, description? }): EntityOf<K>`             | A new, valid artifact of any kind; seeds the fields the schema cannot default, and derives a free slug from the name. Not inserted: pass it to `upsertEntity` |
+| `getCollection(bp, kind): EntityOf<K>[]`                                       | The array for a kind                                                                                                                                          |
+| `findEntity(bp, kind, id)`, `hasEntity(bp, ref)`                               | Lookups                                                                                                                                                       |
+| `listEntityRefs(bp)`, `countEntities(bp)`, `buildEntityIndex(bp): EntityIndex` | Enumeration                                                                                                                                                   |
+| `upsertEntity(bp, kind, input): Blueprint`                                     | Insert or replace after validating through the kind's schema                                                                                                  |
+| `removeEntityRaw(bp, ref): Blueprint`                                          | Remove without touching references (prefer `deleteEntity`)                                                                                                    |
+| `renameEntity(bp, kind, oldId, newId): { blueprint, updatedRefs }`             | Id refactor; throws `RenameError`                                                                                                                             |
+| `deleteEntity(bp, ref): { blueprint, impact, removedRefs }`                    | Delete + reference clean-up + impact report                                                                                                                   |
+| `visitRefs(bp, visitor)`, `collectRefs(bp): EntityReference[]`                 | Reference walking                                                                                                                                             |
 
 Dependencies
 

@@ -137,15 +137,20 @@ Every ChangeSet, whether from AI, a template or Compound, goes through the same 
 
 Actions, grouped:
 
-| Group    | Actions                                                                                                                                                                                                                                                  |
-| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Create   | Blueprint, Agent, Skill, Workflow, Iron Law, Rule, Hook, Gate, Tool, Reference, Memory, Requirement, Scenario                                                                                                                                            |
-| AI (P6)  | Generate with AI, Improve, Rewrite, Make more specific, Add examples, Add edge cases, Add verification, Create workflow, Create Iron Laws, Find contradictions, Find missing components, Evaluate Blueprint, Compound knowledge, Make portable, Simplify |
-| Verify   | Validate, Show health, Show compatibility                                                                                                                                                                                                                |
-| Deliver  | Export ZIP, Browse generated files, Push to GitHub (P7), Switch harness                                                                                                                                                                                  |
-| Navigate | every artifact by name, every view                                                                                                                                                                                                                       |
+| Group         | Actions                                                                                                   | State |
+| ------------- | --------------------------------------------------------------------------------------------------------- | ----- |
+| Create        | one per entity kind; `createEntity` seeds a valid artifact, which is then selected with its form open     | done  |
+| This artifact | Show the form, Show the project file, Show the preview (only for artifacts stored as Markdown)            | done  |
+| Verify        | Validate (flushes the debounce and reports the counts); Show health and Show compatibility arrive with P5 | P5    |
+| Blueprint     | Save, Undo, Redo                                                                                          | done  |
+| Targets       | enable or disable each compile target                                                                     | done  |
+| Deliver       | Export ZIP (P3-11), Browse generated files (P5), Push to GitHub (P7)                                      | P3-11 |
+| AI            | one disabled entry until an endpoint is configured; P6 replaces it with the fifteen operations in docs/06 | P6    |
+| Go to         | every artifact, matched on name or id                                                                     | done  |
 
-AI actions are context-aware: with an artifact selected they target it; with the overview open they target the whole Blueprint.
+An action that is not built yet is listed and disabled with the reason, the same rule the top bar follows: the palette is the map of the product, so hiding an action would hide the capability.
+
+AI actions will be context-aware: with an artifact selected they target it; with the overview open they target the whole Blueprint.
 
 ## Keyboard shortcuts
 
@@ -160,7 +165,9 @@ AI actions are context-aware: with an artifact selected they target it; with the
 | `⌘Z` / `⇧⌘Z` | Undo / redo           |
 | `Esc`        | Close panel or dialog |
 
-`Ctrl` replaces `⌘` on Windows and Linux.
+Either modifier fires the shortcut, so the same key works on any keyboard; menus print `⌘` on Apple hardware and `Ctrl+` elsewhere. While the focus is in a text field or the code editor only the palette and Save fire, because `⌘Z` there belongs to the field. `Esc` is handled by the dialogs themselves.
+
+`⌘E`, `⌘/` and `⌘⏎` are reserved: they are unbound until export (P3-11), the AI assistant (P6) and the ChangeSet review (P6) exist, so the key does whatever the browser would rather than nothing.
 
 ## Views (P4, P5)
 

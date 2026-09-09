@@ -7,6 +7,12 @@ import { afterEach } from 'vitest'
 // `globals: false`, so unmounting between tests is registered here instead.
 afterEach(cleanup)
 
+// jsdom has no layout, so it has no scrolling; the command palette scrolls its selection
+// into view on every keystroke.
+if (!Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = () => {}
+}
+
 // jsdom implements neither of these, and Radix and the resizable panels both need them.
 if (!globalThis.ResizeObserver) {
   globalThis.ResizeObserver = class {

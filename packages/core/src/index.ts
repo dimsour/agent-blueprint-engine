@@ -16,6 +16,7 @@ export * from './schema/index'
 
 // Blueprint operations
 export * from './blueprint/create'
+export * from './blueprint/create-entity'
 export * from './blueprint/entities'
 export * from './blueprint/normalize'
 export * from './blueprint/rename'

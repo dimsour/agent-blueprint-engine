@@ -11,6 +11,7 @@ import { ENTITY_KIND_INFO, getCollection } from '@agent-blueprint/core'
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 
+import { CommandPalette } from '@/components/command-palette/command-palette'
 import { ArtifactEditor } from '@/components/editor/artifact-editor'
 import { Inspector } from '@/components/inspector/inspector'
 import { HealthBar } from '@/components/layout/health-bar'
@@ -18,14 +19,29 @@ import { IdeShell, PanelSection } from '@/components/layout/ide-shell'
 import { TopBar } from '@/components/layout/top-bar'
 import { ProjectTree } from '@/components/tree/project-tree'
 import { Button } from '@/components/ui/button'
+import { hasPreview } from '@/lib/artifact-source'
+import { useShortcuts } from '@/lib/shortcuts'
 import { openProject } from '@/lib/storage'
-import { useWorkspace } from '@/lib/state/workspace-store'
+import { useWorkspace, workspaceHistory } from '@/lib/state/workspace-store'
 
 export function Workspace({ projectId }: { projectId: string }) {
   const load = useWorkspace((state) => state.load)
   const blueprint = useWorkspace((state) => state.blueprint)
   const loadedId = useWorkspace((state) => state.projectId)
   const [error, setError] = useState<string | undefined>()
+  const [paletteOpen, setPaletteOpen] = useState(false)
+
+  useShortcuts({
+    palette: () => setPaletteOpen((current) => !current),
+    save: () => void useWorkspace.getState().save(),
+    undo: workspaceHistory.undo,
+    redo: workspaceHistory.redo,
+    preview: () => {
+      // Only artifacts stored as Markdown have a preview; on the others the key is free.
+      const { selection, setArtifactTab } = useWorkspace.getState()
+      if (selection && hasPreview(selection)) setArtifactTab('preview')
+    },
+  })
 
   useEffect(() => {
     let cancelled = false
@@ -62,14 +78,17 @@ export function Workspace({ projectId }: { projectId: string }) {
   }
 
   return (
-    <IdeShell
-      topBar={<TopBar />}
-      sidebar={<ProjectTree />}
-      inspector={<Inspector />}
-      healthBar={<HealthBar />}
-    >
-      <Canvas />
-    </IdeShell>
+    <>
+      <IdeShell
+        topBar={<TopBar onOpenPalette={() => setPaletteOpen(true)} />}
+        sidebar={<ProjectTree />}
+        inspector={<Inspector />}
+        healthBar={<HealthBar />}
+      >
+        <Canvas />
+      </IdeShell>
+      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
+    </>
   )
 }
 

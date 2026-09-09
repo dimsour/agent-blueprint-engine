@@ -24,12 +24,12 @@ import {
   sourceLanguage,
   sourcePathFor,
 } from '@/lib/artifact-source'
-import { useWorkspace } from '@/lib/state/workspace-store'
-
-type Tab = 'visual' | 'source' | 'preview'
+import { type ArtifactTab, useWorkspace } from '@/lib/state/workspace-store'
 
 export function ArtifactEditor({ selection }: { selection: EntityRef }) {
-  const [tab, setTab] = useState<Tab>('visual')
+  // The tab lives in the store so a keyboard shortcut can reach it (docs/07, ⌘P).
+  const tab = useWorkspace((state) => state.artifactTab)
+  const setTab = useWorkspace((state) => state.setArtifactTab)
   const [sourceError, setSourceError] = useState<string | undefined>()
 
   const language = sourceLanguage(selection)
@@ -41,7 +41,7 @@ export function ArtifactEditor({ selection }: { selection: EntityRef }) {
       onValueChange={(next) => {
         // An unparseable file cannot be shown as a form, so leaving is refused until it parses.
         if (blocked && next !== 'source') return
-        setTab(next as Tab)
+        setTab(next as ArtifactTab)
       }}
       className="panel flex-1"
     >

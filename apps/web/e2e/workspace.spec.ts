@@ -169,6 +169,53 @@ test.describe('workspace layout', () => {
   })
 })
 
+test.describe('command palette', () => {
+  test('opens with the keyboard and creates a skill', async ({ page }) => {
+    await openStarter(page)
+    await page.keyboard.press('ControlOrMeta+k')
+
+    const palette = page.getByRole('dialog')
+    await expect(palette.getByLabel('Command')).toBeFocused()
+
+    await palette.getByLabel('Command').fill('Create Skill')
+    await palette.getByRole('option', { name: /Create Skill/ }).click()
+
+    // The new skill is selected and its form is open, ready to be named.
+    await expect(page.getByRole('tab', { name: /Visual/ })).toHaveAttribute('data-state', 'active')
+    await expect(page.getByLabel('Name')).toHaveValue('New skill')
+    await expect(page.getByRole('button', { name: 'New skill' })).toBeVisible()
+  })
+
+  test('opens from the top bar and jumps to an artifact', async ({ page }) => {
+    await openStarter(page)
+    await page.getByRole('button', { name: /Commands/ }).click()
+
+    const palette = page.getByRole('dialog')
+    await palette.getByLabel('Command').fill('accessibility')
+    await palette.getByRole('option', { name: /Accessibility/ }).click()
+
+    await expect(page.getByRole('heading', { name: 'Accessibility' })).toBeVisible()
+  })
+
+  test('closes on Escape without doing anything', async ({ page }) => {
+    await openStarter(page)
+    await page.keyboard.press('ControlOrMeta+k')
+    await expect(page.getByRole('dialog')).toBeVisible()
+
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+  })
+
+  test('the preview shortcut opens the preview tab', async ({ page }) => {
+    await openStarter(page)
+    await page.getByRole('button', { name: 'React testing' }).click()
+    await page.keyboard.press('ControlOrMeta+p')
+
+    await expect(page.getByRole('tab', { name: /Preview/ })).toHaveAttribute('data-state', 'active')
+    await expect(page.getByRole('heading', { name: 'React testing', level: 1 })).toBeVisible()
+  })
+})
+
 test.describe('source editor', () => {
   test('shows the project file and applies an edit to the visual form', async ({ page }) => {
     await openStarter(page)

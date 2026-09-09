@@ -16,6 +16,7 @@ import {
   renameEntity as coreRenameEntity,
   upsertEntity as coreUpsertEntity,
   applyChangeSet,
+  createEntity,
   type Diagnostic,
   type EntityInputTypeMap,
   type EntityKind,
@@ -53,6 +54,9 @@ export const WORKSPACE_VIEWS = [
 
 export type WorkspaceView = (typeof WORKSPACE_VIEWS)[number]
 
+/** The canvas tab for the selected artifact. Store state so a shortcut can reach it. */
+export type ArtifactTab = 'visual' | 'source' | 'preview'
+
 export const VALIDATION_DEBOUNCE_MS = 250
 export const AUTOSAVE_DEBOUNCE_MS = 1200
 
@@ -61,6 +65,7 @@ export interface WorkspaceState {
   blueprint?: Blueprint | undefined
   selection?: EntityRef | undefined
   view: WorkspaceView
+  artifactTab: ArtifactTab
   diagnostics: Diagnostic[]
   /** True while diagnostics are older than the Blueprint. */
   validating: boolean
@@ -74,6 +79,8 @@ export interface WorkspaceState {
   close(): void
 
   upsert<K extends EntityKind>(kind: K, input: EntityInputTypeMap[K]): void
+  /** Adds a new artifact of `kind`, selects it, and returns where it went. */
+  create(kind: EntityKind, name: string): EntityRef | undefined
   rename(kind: EntityKind, oldId: string, newId: string): void
   remove(ref: EntityRef): void
   apply(changeSet: ChangeSet, accept?: string[]): void
@@ -83,6 +90,7 @@ export interface WorkspaceState {
 
   select(ref?: EntityRef): void
   setView(view: WorkspaceView): void
+  setArtifactTab(tab: ArtifactTab): void
 
   /** What would be affected by deleting this artifact; shown before a delete is confirmed. */
   impact(ref: EntityRef): ImpactReport | undefined
@@ -125,6 +133,7 @@ export const useWorkspace = create<WorkspaceState>()(
 
       return {
         view: 'overview',
+        artifactTab: 'visual',
         diagnostics: [],
         validating: false,
         dirty: false,
@@ -138,6 +147,7 @@ export const useWorkspace = create<WorkspaceState>()(
             diagnostics: diagnostics ?? validateBlueprint(blueprint),
             selection: undefined,
             view: 'overview',
+            artifactTab: 'visual',
             validating: false,
             dirty: false,
             saving: false,
@@ -162,6 +172,18 @@ export const useWorkspace = create<WorkspaceState>()(
           const blueprint = get().blueprint
           if (!blueprint) return
           commit(coreUpsertEntity(blueprint, kind, input))
+        },
+
+        create(kind, name) {
+          const blueprint = get().blueprint
+          if (!blueprint) return undefined
+          // `createEntity` owns what a minimum valid artifact of each kind is; the store
+          // only decides that a new one becomes the selection.
+          const entity = createEntity(blueprint, kind, { name })
+          commit(coreUpsertEntity(blueprint, kind, entity as never))
+          const ref = { kind, id: entity.id }
+          set({ selection: ref, artifactTab: 'visual' })
+          return ref
         },
 
         rename(kind, oldId, newId) {
@@ -198,11 +220,16 @@ export const useWorkspace = create<WorkspaceState>()(
         },
 
         select(ref) {
-          set({ selection: ref })
+          // A different artifact opens on its form, never on the tab the last one was on.
+          set({ selection: ref, artifactTab: 'visual' })
         },
 
         setView(view) {
           set({ view })
+        },
+
+        setArtifactTab(tab) {
+          set({ artifactTab: tab })
         },
 
         impact(ref) {
