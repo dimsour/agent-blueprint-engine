@@ -236,6 +236,72 @@ test.describe('overview graph', () => {
   })
 })
 
+test.describe('workflow editor', () => {
+  test('opens on the graph, and adds a step that survives a reload', async ({ page }) => {
+    await openStarter(page)
+    await artifact(page, 'Build a Component').click()
+
+    // A workflow is a drawing, so it opens as one.
+    await expect(page.getByRole('tab', { name: /Graph/ })).toHaveAttribute('data-state', 'active')
+    const before = await page.locator('.react-flow__node').count()
+
+    await page
+      .getByRole('group', { name: 'Step palette' })
+      .getByRole('button', {
+        name: 'Verification',
+      })
+      .click()
+    await expect(page.locator('.react-flow__node')).toHaveCount(before + 1)
+
+    // The step panel opens on the new step, and names it.
+    await expect(page.getByLabel('Label')).toHaveValue('Verification')
+    await page.getByLabel('Label').fill('Run the tests')
+
+    await expect(page.getByText('Saved', { exact: true })).toBeVisible({ timeout: 10_000 })
+    await page.reload()
+    await expect(page.locator('.react-flow__node')).toHaveCount(before + 1)
+    await expect(page.locator('.react-flow__node', { hasText: 'Run the tests' })).toBeVisible()
+  })
+
+  test('a disconnected step is reported on the step itself', async ({ page }) => {
+    await openStarter(page)
+    await artifact(page, 'Build a Component').click()
+
+    await page
+      .getByRole('group', { name: 'Step palette' })
+      .getByRole('button', { name: 'Review' })
+      .click()
+
+    // Nothing reaches it, which is exactly what BP-WF-010 is for.
+    await expect(page.getByText('BP-WF-010').first()).toBeVisible({ timeout: 10_000 })
+  })
+
+  test('tidy lays the steps out without moving them again', async ({ page }) => {
+    await openStarter(page)
+    await artifact(page, 'Build a Component').click()
+
+    await page.getByRole('button', { name: 'Tidy' }).click()
+    await expect(page.getByText('Tidied the graph')).toBeVisible()
+
+    const positions = async () =>
+      page
+        .locator('.react-flow__node')
+        .evaluateAll((nodes) => nodes.map((node) => (node as HTMLElement).style.transform))
+    const first = await positions()
+
+    await page.getByRole('button', { name: 'Tidy' }).click()
+    await expect(await positions()).toEqual(first)
+  })
+
+  test('the form is still there behind the graph', async ({ page }) => {
+    await openStarter(page)
+    await artifact(page, 'Build a Component').click()
+    await page.getByRole('tab', { name: /Visual/ }).click()
+
+    await expect(page.getByLabel('Name')).toHaveValue('Build a Component')
+  })
+})
+
 test.describe('addressable workspace', () => {
   test('selecting an artifact puts it in the address bar', async ({ page }) => {
     await openStarter(page)

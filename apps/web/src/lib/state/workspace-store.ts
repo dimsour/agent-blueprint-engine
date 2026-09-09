@@ -61,7 +61,12 @@ export function viewFromParam(value: string | null | undefined): WorkspaceView |
 }
 
 /** The canvas tab for the selected artifact. Store state so a shortcut can reach it. */
-export type ArtifactTab = 'visual' | 'source' | 'preview'
+export type ArtifactTab = 'visual' | 'graph' | 'source' | 'preview'
+
+/** A workflow opens on its graph: it is a drawing, and the form is the second-best view. */
+export function defaultTabFor(ref: EntityRef | undefined): ArtifactTab {
+  return ref?.kind === 'workflow' ? 'graph' : 'visual'
+}
 
 export const VALIDATION_DEBOUNCE_MS = 250
 export const AUTOSAVE_DEBOUNCE_MS = 1200
@@ -244,7 +249,12 @@ export const useWorkspace = create<WorkspaceState>()(
           // opening the new artifact is a separate decision from making it.
           const ref = get().add(kind, name)
           if (ref)
-            set({ selection: ref, view: kind, artifactTab: 'visual', sourceError: undefined })
+            set({
+              selection: ref,
+              view: kind,
+              artifactTab: defaultTabFor(ref),
+              sourceError: undefined,
+            })
           return ref
         },
 
@@ -298,7 +308,7 @@ export const useWorkspace = create<WorkspaceState>()(
           set({
             selection: ref,
             view: ref ? ref.kind : 'overview',
-            artifactTab: 'visual',
+            artifactTab: defaultTabFor(ref),
             sourceError: undefined,
           })
         },

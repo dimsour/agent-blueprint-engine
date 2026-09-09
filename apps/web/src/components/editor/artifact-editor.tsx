@@ -12,10 +12,17 @@
  * tab too, and a guard that only exists inside this component would not stop them.
  */
 import { ENTITY_KIND_INFO, type EntityRef } from '@agent-blueprint/core'
-import { AlertTriangleIcon, CodeIcon, EyeIcon, SlidersHorizontalIcon } from 'lucide-react'
+import {
+  AlertTriangleIcon,
+  CodeIcon,
+  EyeIcon,
+  SlidersHorizontalIcon,
+  WorkflowIcon,
+} from 'lucide-react'
 import { useState } from 'react'
 
 import { EntityForm } from '@/components/editors/entity-form'
+import { WorkflowEditor } from '@/components/graph/workflow/workflow-editor'
 import { CodeEditor } from '@/components/editor/code-editor'
 import { MarkdownPreview } from '@/components/editor/markdown-preview'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/overlays'
@@ -37,6 +44,8 @@ export function ArtifactEditor({ selection }: { selection: EntityRef }) {
 
   const language = sourceLanguage(selection)
   const blocked = sourceError !== undefined
+  // Only a workflow is a drawing; every other kind is a form and a file.
+  const hasGraph = selection.kind === 'workflow'
 
   return (
     <Tabs
@@ -47,6 +56,12 @@ export function ArtifactEditor({ selection }: { selection: EntityRef }) {
     >
       <div className="flex h-9 shrink-0 items-center gap-3 border-b px-3">
         <TabsList>
+          {hasGraph ? (
+            <TabsTrigger value="graph" disabled={blocked}>
+              <WorkflowIcon className="size-3" />
+              Graph
+            </TabsTrigger>
+          ) : null}
           <TabsTrigger value="visual" disabled={blocked}>
             <SlidersHorizontalIcon className="size-3" />
             Visual
@@ -72,6 +87,12 @@ export function ArtifactEditor({ selection }: { selection: EntityRef }) {
           <SourcePath selection={selection} />
         )}
       </div>
+
+      {hasGraph ? (
+        <TabsContent value="graph" className="min-h-0">
+          <WorkflowEditor workflowId={selection.id} />
+        </TabsContent>
+      ) : null}
 
       <TabsContent value="visual" className="overflow-auto">
         <EntityForm selection={selection} />
