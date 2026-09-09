@@ -1,0 +1,56 @@
+{
+  "note": "Two attempts at a release workflow. The first leaves the end step unreachable, which the schema accepts and the validator does not; the second, asked again with the validator's own words, connects it.",
+  "recordedAgainst": { "operation": "create-workflow", "promptVersion": 1 },
+  "answers": [
+    {
+      "workflow": {
+        "id": "release-the-build",
+        "name": "Release the build",
+        "entryNodeId": "start",
+        "nodes": [
+          { "id": "start", "type": "start", "label": "Start" },
+          {
+            "id": "test",
+            "type": "verification",
+            "label": "Run the suite",
+            "config": { "verification": { "method": "tests" } }
+          },
+          { "id": "done", "type": "end", "label": "Released" }
+        ],
+        "edges": [{ "id": "e1", "from": "start", "to": "test" }],
+        "body": "Run the suite, then release."
+      },
+      "note": "First pass."
+    },
+    {
+      "workflow": {
+        "id": "release-the-build",
+        "name": "Release the build",
+        "entryNodeId": "start",
+        "nodes": [
+          { "id": "start", "type": "start", "label": "Start" },
+          {
+            "id": "test",
+            "type": "verification",
+            "label": "Run the suite",
+            "config": { "verification": { "method": "tests", "command": "dotnet test" } }
+          },
+          {
+            "id": "gate",
+            "type": "gate",
+            "label": "Tests must pass",
+            "config": { "gateId": "tests-pass" }
+          },
+          { "id": "done", "type": "end", "label": "Released" }
+        ],
+        "edges": [
+          { "id": "e1", "from": "start", "to": "test" },
+          { "id": "e2", "from": "test", "to": "gate" },
+          { "id": "e3", "from": "gate", "to": "done" }
+        ],
+        "body": "Run the suite, hold at the gate until it passes, then release."
+      },
+      "note": "Connected the end step and put the existing gate in front of it."
+    }
+  ]
+}

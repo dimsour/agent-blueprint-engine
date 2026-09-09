@@ -1,0 +1,91 @@
+{
+  "note": "A first draft for a code-review system, with the mistakes a model actually makes: a skill id used twice, an agent pointing at a skill that was never written, and a rule with no guidance.",
+  "recordedAgainst": { "operation": "generate-blueprint", "promptVersion": 1 },
+  "answers": [
+    {
+      "name": "PR Review Crew",
+      "description": "Reviews pull requests in a .NET codebase and blocks merges that are not verified.",
+      "primaryAgentId": "reviewer",
+      "agents": [
+        {
+          "id": "reviewer",
+          "name": "Reviewer",
+          "role": "reviewer",
+          "expertise": ["C#", "code review"],
+          "responsibilities": ["Read the diff and report what is wrong with it"],
+          "skillIds": ["diff-reading", "diff-reading", "security-audit"],
+          "workflowIds": ["review-a-pull-request"],
+          "ironLawIds": ["no-unverified-approval"],
+          "body": "You review pull requests. You do not approve what you have not read."
+        },
+        {
+          "id": "verifier",
+          "name": "Verifier",
+          "role": "verifier",
+          "responsibilities": ["Run the build and the tests and report the output"],
+          "body": "You run things and report what happened, never what you expect to happen."
+        }
+      ],
+      "skills": [
+        {
+          "id": "diff-reading",
+          "name": "Reading a diff",
+          "whenToUse": "When a pull request has to be reviewed.",
+          "body": "Read the diff hunk by hunk. Name the file and line for every comment."
+        },
+        {
+          "id": "diff-reading",
+          "name": "Reading a large diff",
+          "whenToUse": "When the diff is larger than 500 lines.",
+          "body": "Review by file, largest first, and say which files you did not read."
+        }
+      ],
+      "workflows": [
+        {
+          "id": "review-a-pull-request",
+          "name": "Review a pull request",
+          "entryNodeId": "start",
+          "nodes": [
+            { "id": "start", "type": "start", "label": "Start" },
+            {
+              "id": "read",
+              "type": "agent",
+              "label": "Read the diff",
+              "config": { "agentId": "reviewer" }
+            },
+            {
+              "id": "verify",
+              "type": "verification",
+              "label": "Run the tests",
+              "config": { "verification": { "method": "command", "command": "dotnet test" } }
+            },
+            { "id": "done", "type": "end", "label": "Done" }
+          ],
+          "edges": [
+            { "id": "e1", "from": "start", "to": "read" },
+            { "id": "e2", "from": "read", "to": "verify" },
+            { "id": "e3", "from": "verify", "to": "done" }
+          ],
+          "body": "The reviewer reads the diff, then the change is verified before it is approved."
+        }
+      ],
+      "ironLaws": [
+        {
+          "id": "no-unverified-approval",
+          "name": "Never approve what was not verified",
+          "rule": "Never approve a pull request without reading its diff and observing the test output.",
+          "rationale": "An approval is a claim, and an unverified claim is worse than no review.",
+          "counterexamples": ["Looks fine to me."],
+          "severity": "critical",
+          "category": "process"
+        }
+      ],
+      "rules": [
+        {
+          "id": "small-comments",
+          "name": "Keep review comments short"
+        }
+      ]
+    }
+  ]
+}

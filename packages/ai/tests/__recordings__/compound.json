@@ -1,0 +1,44 @@
+{
+  "note": "Notes from a bad night, turned into knowledge. The last proposal carries no evidence, which the operation counts and says out loud rather than dropping.",
+  "recordedAgainst": { "operation": "compound", "promptVersion": 1 },
+  "answers": [
+    {
+      "summary": "Three things learned from the migration hotfix.",
+      "proposals": [
+        {
+          "kind": "iron-law",
+          "artifact": {
+            "id": "migrations-need-a-way-back",
+            "name": "Every migration has a way back",
+            "rule": "Never merge a schema migration without a tested rollback path in the same change.",
+            "rationale": "The migration that shipped without one cost four hours at 2am and a manual restore.",
+            "counterexamples": ["-- rollback: TODO"],
+            "severity": "critical",
+            "category": "data"
+          },
+          "note": "From \"shipped a migration without a rollback and had to hotfix at 2am\"."
+        },
+        {
+          "kind": "skill",
+          "artifact": {
+            "id": "writing-a-rollback",
+            "name": "Writing a rollback",
+            "whenToUse": "When a change includes a schema migration.",
+            "body": "Write the down migration first and run it against a copy of production data. A rollback that has never been executed is a comment."
+          },
+          "note": "From the note that nobody knew how to reverse the change."
+        },
+        {
+          "kind": "rule",
+          "artifact": {
+            "id": "deploy-on-a-weekday",
+            "name": "Deploy on a weekday",
+            "guidance": "Prefer deploying schema changes between Monday and Thursday.",
+            "category": "process",
+            "priority": "normal"
+          }
+        }
+      ]
+    }
+  ]
+}

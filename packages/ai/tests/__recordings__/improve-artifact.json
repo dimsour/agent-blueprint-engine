@@ -1,0 +1,16 @@
+{
+  "note": "\"Add verification\" on the fixture's xunit skill. The model renamed it on the way past, which is the thing the operation must not let through.",
+  "recordedAgainst": { "operation": "improve-artifact", "promptVersion": 1 },
+  "answers": [
+    {
+      "artifact": {
+        "id": "xunit-testing",
+        "name": "xUnit",
+        "description": "Writing xUnit tests for .NET code.",
+        "whenToUse": "When writing or changing tests in a .NET project that uses xUnit.",
+        "body": "## Writing the test\n\nOne assertion per behaviour. Name the test for the behaviour, not the method.\n\n## Verifying it\n\nRun `dotnet test --filter FullyQualifiedName~<TestName>` and read the output. A test that has not been run is not a test that passes; report the counts you saw."
+      },
+      "note": "Added a verification section naming the command and what to read from it."
+    }
+  ]
+}

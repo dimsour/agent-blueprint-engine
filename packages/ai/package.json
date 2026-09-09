@@ -23,6 +23,7 @@
   },
   "devDependencies": {
     "@agent-blueprint/eslint-config": "workspace:*",
+    "@agent-blueprint/fixtures": "workspace:*",
     "@agent-blueprint/tsconfig": "workspace:*",
     "@types/node": "26.5.0",
     "eslint": "9.39.5",

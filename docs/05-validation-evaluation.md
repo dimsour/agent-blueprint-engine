@@ -130,6 +130,25 @@ Quality judgements rather than correctness ones, so `validateBlueprint` never re
 
 The catalogue lives in code as well, in `packages/core/src/validation/codes.ts`; `packages/core/tests/docs.test.ts` fails when a code there is missing from this document.
 
+### 2.6 AI findings (implemented: `@agent-blueprint/ai`, `operations/codes.ts`)
+
+Findings a model produced rather than a rule. They are kept apart from the codes above because
+they are not deterministic and a user is entitled to know which kind they are reading: every one
+carries `data.source: 'ai'` and `data.claimedSeverity`, the UI marks them, and a filter removes
+them. They never come from `validateBlueprint`; an operation returns them and the caller decides
+whether to merge them into a view.
+
+A finding whose `ref` names an artifact that does not exist is dropped before it is returned,
+with a note. A finding in this product is something you click to get to the artifact, and one
+that goes nowhere teaches the user that the list is not to be trusted.
+
+| Code                | Severity                         | Meaning                                                                                                         |
+| ------------------- | -------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `BP-AI-CONTRA-001`  | warning                          | Two instructions that cannot both be followed. `ref` is the first artifact, `related` the second.               |
+| `BP-AI-MISSING-001` | warning (critical, high) or info | Something the Blueprint implies but does not specify. `ref` is the artifact that implies it, when there is one. |
+
+The catalogue lives in code in `packages/ai/src/operations/codes.ts`; `packages/ai/tests/docs.test.ts` fails when a code there is missing from this document.
+
 ## 3. Contradiction heuristic (implemented, `validation/contradictions.ts`)
 
 Deterministic first pass; the AI pass (docs/06-ai-layer.md) may add more findings with the same codes and `data.source: 'ai'`.

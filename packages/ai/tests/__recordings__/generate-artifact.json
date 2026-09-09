@@ -1,0 +1,18 @@
+{
+  "note": "One new skill for the fixture. The model does not attach it to anything; that is the operation's job.",
+  "recordedAgainst": { "operation": "generate-artifact", "promptVersion": 1 },
+  "answers": [
+    {
+      "artifact": {
+        "id": "property-based-testing",
+        "name": "Property-based testing",
+        "description": "Using FsCheck to state what must hold for every input rather than for three.",
+        "whenToUse": "When a function has a property that should hold across a range of inputs.",
+        "activation": { "filePatterns": ["**/*Tests.cs"], "intents": ["property test", "fscheck"] },
+        "allowedToolIds": ["dotnet-cli"],
+        "body": "State the property, generate inputs, and shrink failures to the smallest case before reporting."
+      },
+      "note": "Complements the example-based skills already here."
+    }
+  ]
+}

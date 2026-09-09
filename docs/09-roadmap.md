@@ -20,15 +20,16 @@ The backlog for building Agent Blueprint. Phases follow the plan; tasks inside a
 
 ## Status
 
-| Phase             | State | Notes                                                                                                                                                                                                                                     |
-| ----------------- | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| P0 Foundation     | done  | Workspace, docs, `@agent-blueprint/core` v0, fixture.                                                                                                                                                                                     |
-| P1 Core semantics | done  | P1-01 to P1-09 implemented and tested, including 29 artifact templates and 10 starter blueprints.                                                                                                                                         |
-| P2 Compiler       | done  | P2-01 to P2-09 implemented: adapter interface, registry, shared emitters, pipeline, build manifest, Claude Code and Codex in full, Copilot/OpenCode/Pi minimal, portability, golden tests.                                                |
-| P3 Web shell      | done  | P3-01 to P3-11 implemented and then reviewed end to end: the review found eight defects (undo across projects, non-deterministic export, a hydration failure and five more), and the gaps it found against docs/07 were built. See P3-12. |
-| P4 Graphs         | done  | P4-01 to P4-04: the overview graph, the workflow editor with all sixteen step types and eight connection kinds, tidy and template insertion, and the delete-impact dialog. Reviewed with P5; see P5-06.                                   |
-| P5 Trust surfaces | done  | P5-01 to P5-05: the health bar opens its findings, the evaluation and compatibility views, the export view with compiled output, and the rename dialog with a slug preview. P5-06 reviewed P4 and P5 end to end and fixed what it found.  |
-| P6 onward         | to do | P6 (AI), P7 (GitHub) and P8 (hardening) are specified below and not started.                                                                                                                                                              |
+| Phase             | State       | Notes                                                                                                                                                                                                                                     |
+| ----------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P0 Foundation     | done        | Workspace, docs, `@agent-blueprint/core` v0, fixture.                                                                                                                                                                                     |
+| P1 Core semantics | done        | P1-01 to P1-09 implemented and tested, including 29 artifact templates and 10 starter blueprints.                                                                                                                                         |
+| P2 Compiler       | done        | P2-01 to P2-09 implemented: adapter interface, registry, shared emitters, pipeline, build manifest, Claude Code and Codex in full, Copilot/OpenCode/Pi minimal, portability, golden tests.                                                |
+| P3 Web shell      | done        | P3-01 to P3-11 implemented and then reviewed end to end: the review found eight defects (undo across projects, non-deterministic export, a hydration failure and five more), and the gaps it found against docs/07 were built. See P3-12. |
+| P4 Graphs         | done        | P4-01 to P4-04: the overview graph, the workflow editor with all sixteen step types and eight connection kinds, tidy and template insertion, and the delete-impact dialog. Reviewed with P5; see P5-06.                                   |
+| P5 Trust surfaces | done        | P5-01 to P5-05: the health bar opens its findings, the evaluation and compatibility views, the export view with compiled output, and the rename dialog with a slug preview. P5-06 reviewed P4 and P5 end to end and fixed what it found.  |
+| P6 AI             | in progress | P6-01 to P6-04 built in `@agent-blueprint/ai`: the OpenAI-compatible client, structured output, the prompt catalogue and context builder, and the nine operations. P6-05 to P6-09 (the web app's side) are next.                          |
+| P7 onward         | to do       | P7 (GitHub) and P8 (hardening) are specified below and not started.                                                                                                                                                                       |
 
 ## P0 — Foundation (done)
 
@@ -380,7 +381,7 @@ Verification: `pnpm check` green; `pnpm --filter @agent-blueprint/core test` sho
 
 ## P6 — AI
 
-### P6-01 AI client
+### P6-01 AI client (done)
 
 - Package: `packages/ai/src/client/*`
 - Depends on: P0
@@ -388,7 +389,7 @@ Verification: `pnpm check` green; `pnpm --filter @agent-blueprint/core test` sho
 - Acceptance: tests with a mocked fetch for each preset's URL shape and for the probe; no `console.*` in the package.
 - Verify: `pnpm --filter @agent-blueprint/ai test`
 
-### P6-02 Structured output
+### P6-02 Structured output (done)
 
 - Package: `packages/ai/src/structured.ts`
 - Depends on: P6-01
@@ -396,7 +397,7 @@ Verification: `pnpm check` green; `pnpm --filter @agent-blueprint/core test` sho
 - Acceptance: tests covering both modes and the repair path.
 - Verify: `pnpm --filter @agent-blueprint/ai test`
 
-### P6-03 Prompt catalogue and context builder
+### P6-03 Prompt catalogue and context builder (done)
 
 - Package: `packages/ai/src/{prompts,context}/*`
 - Depends on: P6-02
@@ -404,13 +405,14 @@ Verification: `pnpm check` green; `pnpm --filter @agent-blueprint/core test` sho
 - Acceptance: snapshot tests; context for the fixture under 6k tokens.
 - Verify: `pnpm --filter @agent-blueprint/ai test`
 
-### P6-04 Operations returning ChangeSets
+### P6-04 Operations returning ChangeSets (done)
 
 - Package: `packages/ai/src/operations/*`
 - Depends on: P6-03
 - Description: `generateBlueprint(brief)`, `generateArtifact(kind, brief, ctx)`, `improveArtifact(ref, action, ctx)` (improve, rewrite, more specific, add examples, add edge cases, add verification, simplify, make portable), `createWorkflowFor`, `createIronLawsFor`, `findMissing`, `compound(notes)` → `ChangeSet`; `findContradictions`, `evaluate` → `Diagnostic[]`. Output schemas mirror core entity input schemas; every op validated with `entitySchemaFor` before it enters the ChangeSet.
 - Acceptance: tests with recorded model responses; malformed ops are dropped with a note, never applied.
 - Verify: `pnpm --filter @agent-blueprint/ai test`
+- Built: `assembleChangeSet` is the one gate between an answer and a Blueprint — schema, unique ids, reference resolution (a renamed id is followed only when nothing else took the original), deterministic grid layout for generated workflows, attachment computed rather than asked for, and a note for everything dropped. Lists of artifacts are tolerant per element so one bad field costs one artifact, not the answer. `createWorkflowFor` applies its own proposal to a throwaway Blueprint and hands new `BP-WF-*` findings back for exactly one second attempt. Recordings of real model output live in `packages/ai/tests/__recordings__`, each carrying at least one thing the model got wrong.
 
 ### P6-05 AI settings UI and optional proxy
 

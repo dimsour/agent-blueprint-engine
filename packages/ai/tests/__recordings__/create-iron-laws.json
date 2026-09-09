@@ -1,0 +1,30 @@
+{
+  "note": "Two laws for the fixture's testing expert. The first is the fixture's own never-fake-verification law in different words, which is exactly the failure the duplicate check exists for.",
+  "recordedAgainst": { "operation": "create-iron-laws", "promptVersion": 1 },
+  "answers": [
+    {
+      "ironLaws": [
+        {
+          "id": "verification-before-claims",
+          "name": "Verify before claiming",
+          "rule": "Never claim that code compiles, works or passes tests without running the verification and reading its output.",
+          "rationale": "A confident claim that was never checked is worse than an admitted unknown.",
+          "severity": "critical",
+          "category": "testing"
+        },
+        {
+          "id": "no-skipped-tests-in-main",
+          "name": "No skipped tests on the main branch",
+          "rule": "Never merge a test marked Skip without an issue link in the skip reason.",
+          "rationale": "A skipped test with no owner is a permanently green suite that proves nothing.",
+          "examples": ["[Fact(Skip = \"Blocked by #482, flaky on CI\")]"],
+          "counterexamples": ["[Fact(Skip = \"broken\")]"],
+          "violationBehavior": "Refuse the merge and say which test and which reason are missing.",
+          "severity": "high",
+          "category": "testing",
+          "enforcement": ["instruction", "gate"]
+        }
+      ]
+    }
+  ]
+}

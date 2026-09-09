@@ -1,0 +1,85 @@
+{
+  "note": "One recording per reporting operation, in the order the test runs them: contradictions, gaps, evaluation. Each carries one finding that points at an artifact which does not exist, because that is what a model does when it half-remembers the context.",
+  "recordedAgainst": {
+    "operation": "find-contradictions / find-missing / evaluate",
+    "promptVersion": 1
+  },
+  "answers": [
+    {
+      "contradictions": [
+        {
+          "first": { "kind": "iron-law", "id": "no-implementation-details" },
+          "second": { "kind": "skill", "id": "test-design" },
+          "conflict": "The law forbids asserting on mock interactions, and the skill tells the author to verify that the repository was called.",
+          "recommendation": "Narrow the skill: assert on the observable result, not on the call.",
+          "severity": "high"
+        },
+        {
+          "first": { "kind": "iron-law", "id": "no-flaky-tests" },
+          "second": { "kind": "skill", "id": "xunit" },
+          "conflict": "A law that does not exist cannot conflict with anything.",
+          "severity": "medium"
+        }
+      ]
+    },
+    {
+      "gaps": [
+        {
+          "title": "No scenario covers the review workflow",
+          "implicatedBy": { "kind": "workflow", "id": "review-tests" },
+          "why": "The workflow decides whether work is accepted, and nothing tests what it does with a bad diff.",
+          "severity": "high"
+        },
+        {
+          "title": "Nothing checks the imaginary agent",
+          "implicatedBy": { "kind": "agent", "id": "nobody" },
+          "why": "This agent is not in the Blueprint.",
+          "severity": "low"
+        }
+      ],
+      "proposals": [
+        {
+          "kind": "gate",
+          "artifact": {
+            "id": "review-complete",
+            "name": "Review complete",
+            "criteria": [
+              {
+                "kind": "review",
+                "description": "Every changed file has been read and commented on or explicitly passed over."
+              }
+            ],
+            "onFail": "block"
+          },
+          "note": "Closes the gap on the review workflow."
+        }
+      ]
+    },
+    {
+      "dimensions": [
+        {
+          "dimension": "verification",
+          "verdict": "Verification is named but not commanded: the workflow says tests must pass without saying how anyone runs them.",
+          "findings": [
+            {
+              "ref": { "kind": "workflow", "id": "write-tests" },
+              "problem": "The verification step has no command, so a harness cannot execute it.",
+              "suggestion": "Set the command to `dotnet test` on the verification step.",
+              "severity": "high"
+            },
+            {
+              "ref": { "kind": "skill", "id": "ghost-skill" },
+              "problem": "This skill is never activated.",
+              "severity": "low"
+            }
+          ]
+        },
+        {
+          "dimension": "ironLaws",
+          "verdict": "The three laws are specific and defensible.",
+          "findings": []
+        }
+      ]
+    }
+  ]
+}
