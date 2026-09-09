@@ -88,7 +88,7 @@ Phases P0, P1 and P2 are complete. P3 (the web IDE) is under way.
 - `@agent-blueprint/core`: model, project format, validation (structural, semantic, orphans, contradictions, requirements), dependency graph, evaluation and health, change-sets, migrations.
 - `@agent-blueprint/exporters`: the compiler. Claude Code and Codex map every concept; Copilot, OpenCode and Pi emit the portable artifacts and report what they cannot represent.
 - `@agent-blueprint/templates`: 29 artifact templates that produce reviewable change-sets, and 10 starter blueprints stored as real source projects.
-- `apps/web`: the IDE shell, local-first storage (IndexedDB, ZIP, File System Access), the workspace store with undo/redo, the dashboard and the workspace with a project tree, inspector and health bar. and a visual form for every artifact kind. The Markdown editor, the command palette and the wizard are still to come.
+- `apps/web`: the IDE shell, local-first storage (IndexedDB, ZIP, File System Access), the workspace store with undo/redo, the dashboard, and the workspace with a project tree, inspector and health bar. Every artifact kind has a visual form and a source tab that shows the project file itself, with a Markdown preview. Inspector actions, the command palette, the wizard and the ZIP import/export UI are still to come.
 - `@agent-blueprint/ai` has not been started (P6).
 
 See `docs/09-roadmap.md` for what comes next.

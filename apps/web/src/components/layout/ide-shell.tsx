@@ -104,11 +104,14 @@ export function PanelSection({
   actions,
   children,
   className,
+  scroll = true,
 }: {
   title: ReactNode
   actions?: ReactNode
   children: ReactNode
   className?: string
+  /** Set false when the content scrolls itself, such as the code editor. */
+  scroll?: boolean
 }) {
   return (
     <div className={cn('panel flex-1', className)}>
@@ -118,7 +121,7 @@ export function PanelSection({
         </span>
         {actions}
       </div>
-      <div className="min-h-0 flex-1 overflow-auto">{children}</div>
+      <div className={cn('min-h-0 flex-1', scroll && 'overflow-auto')}>{children}</div>
     </div>
   )
 }

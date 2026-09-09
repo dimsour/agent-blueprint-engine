@@ -12,7 +12,7 @@ import { AlertTriangleIcon, CircleAlertIcon, InfoIcon } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 
-import { EntityForm } from '@/components/editors/entity-form'
+import { ArtifactEditor } from '@/components/editor/artifact-editor'
 import { HealthBar } from '@/components/layout/health-bar'
 import { IdeShell, PanelSection } from '@/components/layout/ide-shell'
 import { TopBar } from '@/components/layout/top-bar'
@@ -111,8 +111,10 @@ function Canvas() {
           <span className="text-foreground normal-case">{entity.name}</span>
         </span>
       }
+      scroll={false}
     >
-      <EntityForm selection={selection} />
+      {/* Keyed so switching artifacts resets the tab and re-seeds the source editor. */}
+      <ArtifactEditor key={`${selection.kind}:${selection.id}`} selection={selection} />
     </PanelSection>
   )
 }

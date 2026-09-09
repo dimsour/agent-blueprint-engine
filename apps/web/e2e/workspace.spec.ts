@@ -126,3 +126,70 @@ test.describe('workspace layout', () => {
     await expect(page.getByRole('heading', { level: 1 })).toContainText('Design once')
   })
 })
+
+test.describe('source editor', () => {
+  test('shows the project file and applies an edit to the visual form', async ({ page }) => {
+    await openStarter(page)
+    await page.getByRole('button', { name: 'React testing' }).click()
+    await page.getByRole('tab', { name: /Markdown/ }).click()
+
+    // The tab shows the real file, at its real path.
+    await expect(page.getByText('blueprint/skills/react-testing/SKILL.md')).toBeVisible()
+    const editor = page.locator('.cm-content')
+    await expect(editor).toContainText('name: React testing')
+
+    await editor.click()
+    await page.keyboard.press('ControlOrMeta+a')
+    await page.keyboard.type(
+      '---\nname: Typed In Editor\ndescription: Written through the editor.\n---\n\n# Typed\n\n## Instructions\n\nDo the thing.\n\n## Verification\n\nCheck it.\n',
+    )
+
+    await page.getByRole('tab', { name: /Visual/ }).click()
+    await expect(page.getByLabel('Name')).toHaveValue('Typed In Editor')
+    await expect(page.getByLabel('Description')).toHaveValue('Written through the editor.')
+
+    // The tree follows the rename of the display name.
+    await expect(page.getByRole('button', { name: 'Typed In Editor' })).toBeVisible()
+  })
+
+  test('blocks the other tabs while the file does not parse, without losing the text', async ({
+    page,
+  }) => {
+    await openStarter(page)
+    await page.getByRole('button', { name: 'React testing' }).click()
+    await page.getByRole('tab', { name: /Markdown/ }).click()
+
+    const editor = page.locator('.cm-content')
+    await editor.click()
+    await page.keyboard.press('ControlOrMeta+a')
+    await page.keyboard.type('---\nname: [unclosed\n---\n\nBody')
+
+    // Next's route announcer also carries role="alert", so the editor's own alert is singled out.
+    await expect(page.getByRole('alert').filter({ hasText: 'Not applied' })).toBeVisible()
+    await expect(page.getByRole('tab', { name: /Visual/ })).toBeDisabled()
+    await expect(editor).toContainText('[unclosed')
+
+    // The Blueprint kept its last valid value, so the tree still shows the old name.
+    await expect(page.getByRole('button', { name: 'React testing' })).toBeVisible()
+  })
+
+  test('renders the body in the preview tab', async ({ page }) => {
+    await openStarter(page)
+    await page.getByRole('button', { name: 'React testing' }).click()
+    await page.getByRole('tab', { name: /Preview/ }).click()
+
+    await expect(page.getByRole('heading', { name: 'React testing', level: 1 })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Instructions' })).toBeVisible()
+  })
+
+  test('offers YAML rather than Markdown for a gate', async ({ page }) => {
+    await openStarter(page)
+    await page.getByRole('button', { name: 'Tests must pass' }).click()
+
+    await expect(page.getByRole('tab', { name: /YAML/ })).toBeVisible()
+    await expect(page.getByRole('tab', { name: /Preview/ })).toHaveCount(0)
+
+    await page.getByRole('tab', { name: /YAML/ }).click()
+    await expect(page.locator('.cm-content')).toContainText('criteria:')
+  })
+})

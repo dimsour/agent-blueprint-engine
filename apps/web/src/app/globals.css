@@ -162,3 +162,84 @@
     flex-direction: column;
   }
 }
+
+/*
+  Preview typography. Deliberately small: the preview shows what a harness will read, so it
+  should look like a document rather than a marketing page.
+*/
+.prose-blueprint {
+  font-size: 0.875rem;
+  line-height: 1.65;
+}
+.prose-blueprint > * + * {
+  margin-top: 0.75rem;
+}
+.prose-blueprint h1 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.prose-blueprint h2 {
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin-top: 1.5rem;
+}
+.prose-blueprint h3 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin-top: 1.25rem;
+}
+.prose-blueprint ul,
+.prose-blueprint ol {
+  padding-left: 1.25rem;
+}
+.prose-blueprint ul {
+  list-style: disc;
+}
+.prose-blueprint ol {
+  list-style: decimal;
+}
+.prose-blueprint li + li {
+  margin-top: 0.25rem;
+}
+.prose-blueprint code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  background-color: var(--muted);
+  border-radius: var(--radius-sm);
+  padding: 0.1em 0.3em;
+}
+.prose-blueprint pre {
+  background-color: var(--muted);
+  border-radius: var(--radius-md);
+  padding: 0.75rem;
+  overflow-x: auto;
+}
+.prose-blueprint pre code {
+  background: none;
+  padding: 0;
+}
+.prose-blueprint blockquote {
+  border-left: 2px solid var(--border);
+  padding-left: 0.75rem;
+  color: var(--muted-foreground);
+}
+.prose-blueprint a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.prose-blueprint table {
+  display: block;
+  overflow-x: auto;
+  border-collapse: collapse;
+}
+.prose-blueprint th,
+.prose-blueprint td {
+  border: 1px solid var(--border);
+  padding: 0.35rem 0.6rem;
+  text-align: left;
+}
+.prose-blueprint hr {
+  border-top: 1px solid var(--border);
+}
