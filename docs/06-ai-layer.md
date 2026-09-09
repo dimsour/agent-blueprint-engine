@@ -317,12 +317,21 @@ shortest path between what it reads and what it must produce.
 
 ## Proxy route (optional)
 
-`apps/web/src/app/api/ai/proxy/route.ts` forwards `POST` bodies to `x-blueprint-base-url` +
-`/chat/completions`, copying `Authorization` / `api-key` from the request headers, and streams
-the response back. Rules: only used when `viaProxy` is on; allowed only for base URLs the user
-configured (the client sends the URL, the route validates it is `http(s)` and not the app's own
-origin); no request or response bodies are logged; no keys are stored server-side; the route
-returns 404 when `AI_PROXY_ENABLED` is not set, so a default Vercel deployment stays inert.
+`apps/web/src/app/api/ai/proxy/route.ts` forwards `POST` bodies to the base URL in
+`x-ab-upstream-url` plus `/chat/completions`, and streams the answer back with the upstream
+status unchanged. The header names and the allow-list are settled by docs/08-security.md:
+
+- The credential arrives as `x-ab-upstream-authorization` and is put on the upstream request as
+  `Authorization`, or as `api-key` when `x-ab-upstream-auth-header` says so (Azure). It is never
+  sent as this app's own `Authorization` header, which a deployment may already use, and it is
+  never read into anything that outlives the request.
+- The upstream host must be on `AI_PROXY_ALLOWED_HOSTS`, which defaults to localhost and the
+  loopback addresses. Anything else is 403. Without this, a public deployment of this app is a
+  free anonymising relay for whoever finds it. That default is also why there is no separate
+  on/off switch: the route is already inert for everything but the case it exists for.
+- Nothing is logged: no bodies, no headers, no URLs.
+- The client only uses it when `viaProxy` is on, which the settings screen offers only for the
+  presets that would need it.
 
 ## Security rules
 

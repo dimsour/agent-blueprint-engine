@@ -414,13 +414,14 @@ Verification: `pnpm check` green; `pnpm --filter @agent-blueprint/core test` sho
 - Verify: `pnpm --filter @agent-blueprint/ai test`
 - Built: `assembleChangeSet` is the one gate between an answer and a Blueprint — schema, unique ids, reference resolution (a renamed id is followed only when nothing else took the original), deterministic grid layout for generated workflows, attachment computed rather than asked for, and a note for everything dropped. Lists of artifacts are tolerant per element so one bad field costs one artifact, not the answer. `createWorkflowFor` applies its own proposal to a throwaway Blueprint and hands new `BP-WF-*` findings back for exactly one second attempt. Recordings of real model output live in `packages/ai/tests/__recordings__`, each carrying at least one thing the model got wrong.
 
-### P6-05 AI settings UI and optional proxy
+### P6-05 AI settings UI and optional proxy (done)
 
 - Package: `apps/web/src/app/settings/*`, `app/api/ai/proxy/route.ts`
 - Depends on: P6-01
 - Description: Provider preset picker, base URL, key, model, probe button, storage choice (session vs local with warning banner per docs/08). Proxy route streams to the configured base URL for CORS-blocked local endpoints; key in a request header only; no logging.
 - Acceptance: settings persist per docs/08; proxy tested with a mocked upstream; key never appears in persisted blueprint state.
 - Verify: `pnpm --filter web test`
+- Built: `apps/web/src/lib/credentials.ts` is the only module in the app that touches a secret — session by default, browser storage on request with the warning shown before anything is written, and a write to one place removing the copy in the other. Save-and-test really probes the endpoint and stores what it found about schema support, so no later call has to rediscover it. The relay at `/api/ai/proxy` forwards the credential under its own header name and refuses any host the deployment did not allow (`AI_PROXY_ALLOWED_HOSTS`, localhost by default). `.env.example` documents both settings.
 
 ### P6-06 ChangeSet review UI
 

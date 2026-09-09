@@ -183,7 +183,12 @@ describe('createAIClient', () => {
       deps(fetch),
     ).chat([{ role: 'user', content: 'q' }])
     expect(calls[0]!.url).toBe('/api/ai/proxy')
-    expect(headerOf(calls[0]!, 'x-blueprint-base-url')).toBe('http://localhost:11434/v1')
+    expect(headerOf(calls[0]!, 'x-ab-upstream-url')).toBe('http://localhost:11434/v1')
+    // The key rides under its own name; the app's own Authorization header is left alone.
+    expect(headerOf(calls[0]!, 'x-ab-upstream-authorization')).toBe(
+      'Bearer sk-test-abcdefghijklmnop',
+    )
+    expect(headerOf(calls[0]!, 'authorization')).toBeUndefined()
   })
 
   it('names each failure by what the user has to do about it', async () => {

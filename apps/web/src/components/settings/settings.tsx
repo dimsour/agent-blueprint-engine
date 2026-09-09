@@ -5,20 +5,21 @@
  *
  * Everything Agent Blueprint stores is local, which is easy to say and hard to believe
  * without seeing it. So this page lists the projects and drafts that exist, says roughly how
- * much room they take, and gives a way to remove them. The AI endpoint and the GitHub token
- * arrive with those features; they are named here so the shape of the page does not change
- * when they do.
+ * much room they take, and gives a way to remove them. The AI endpoint sits here too, with
+ * its key kept where the user chose and nowhere else; the GitHub token arrives with pushing.
  */
-import { CloudUploadIcon, SparklesIcon, Trash2Icon } from 'lucide-react'
+import { CloudUploadIcon, Trash2Icon } from 'lucide-react'
 import Link from 'next/link'
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
+import { AISettings } from '@/components/settings/ai-settings'
 import { ThemeToggle } from '@/components/theme'
 import { Button } from '@/components/ui/button'
 import { Badge, Card } from '@/components/ui/primitives'
 import { useClientValue } from '@/lib/client-value'
 import { formatBytes } from '@/lib/utils'
+import { forgetAllCredentials } from '@/lib/credentials'
 import {
   clearDraft,
   fileSystemAccessSupported,
@@ -50,6 +51,9 @@ function Pending({
 export function Settings() {
   const [projects, setProjects] = useState<ProjectSummary[]>([])
   const [usage, setUsage] = useState<{ used: number; quota: number } | undefined>()
+  // Forgetting every credential has to be visible in the card that shows one; remounting it is
+  // cheaper than a store for two values read from web storage.
+  const [credentialsVersion, setCredentialsVersion] = useState(0)
   const canOpenFolder = useClientValue(fileSystemAccessSupported, false)
 
   const refresh = useCallback(() => {
@@ -157,22 +161,34 @@ export function Settings() {
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="text-sm font-semibold">Credentials</h2>
+        <h2 className="text-sm font-semibold">AI endpoint</h2>
         <p className="text-muted-foreground text-sm">
-          Nothing is stored under a credential key today, because neither feature that would need
-          one exists yet. When they do, keys live in this browser only and are never written into a
-          Blueprint or an export.
+          Any endpoint that speaks the OpenAI chat protocol. The key stays in this browser, is never
+          written into a Blueprint or an export, and is not part of anything this app saves about
+          your projects.
         </p>
-        <Pending
-          icon={<SparklesIcon />}
-          title="AI endpoint and key"
-          detail="Any OpenAI-compatible endpoint. Arrives with the AI assistant."
-        />
+        <AISettings key={credentialsVersion} />
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <h2 className="text-sm font-semibold">Other credentials</h2>
         <Pending
           icon={<CloudUploadIcon />}
           title="GitHub token"
           detail="A personal access token, or sign-in. Arrives with pushing to GitHub."
         />
+        <Button
+          variant="outline"
+          className="self-start"
+          onClick={() => {
+            forgetAllCredentials()
+            setCredentialsVersion((version) => version + 1)
+            toast.success('Removed every credential from this browser.')
+          }}
+        >
+          <Trash2Icon />
+          Forget credentials
+        </Button>
       </section>
     </div>
   )

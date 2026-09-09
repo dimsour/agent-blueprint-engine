@@ -10,7 +10,7 @@ This document sets the rules for handling credentials and secrets in Agent Bluep
 4. **Nothing is stored server-side.** The optional route handlers are stateless relays.
 5. **The user is told where a secret is kept and what that means** before it is kept.
 
-## Credential storage in the browser (roadmap P6, P7)
+## Credential storage in the browser (AI: built, P6-05; GitHub: P7)
 
 | Item                                         | Default location | Opt-in location               | Namespace                  |
 | -------------------------------------------- | ---------------- | ----------------------------- | -------------------------- |
@@ -23,7 +23,7 @@ This document sets the rules for handling credentials and secrets in Agent Bluep
 
 Rules:
 
-- The credential namespace `ab:credentials:*` is read by exactly one module (`apps/web/src/lib/credentials.ts`, planned). Nothing else touches `sessionStorage`/`localStorage` for secrets. Today the app writes only the two keys above, both through libraries; no application code reads or writes web storage directly.
+- The credential namespace `ab:credentials:*` is read by exactly one module, `apps/web/src/lib/credentials.ts`. Nothing else touches `sessionStorage`/`localStorage` for secrets. Writing to one place removes the copy in the other, so switching from "in this browser" back to "until this tab closes" does not leave the key behind.
 - The Zustand store is never persisted with credentials in it; persisted slices are allow-listed, not deny-listed.
 - Choosing `localStorage` shows this text (or equivalent) before saving: _"The key will stay in this browser profile until you remove it. Anyone with access to this profile, and any browser extension with storage access, can read it. Use a key with the smallest scope you can, and remove it from Settings when you are done."_
 - A **Forget credentials** action in Settings clears both namespaces.
@@ -33,11 +33,11 @@ Rules:
 
 Both routes exist only to work around browser limitations. The app is fully functional without them when the AI endpoint allows CORS and the user pastes a GitHub token.
 
-### `/api/ai/proxy` (P6)
+### `/api/ai/proxy` (built, P6-05)
 
 - Purpose: relay `POST /chat/completions` to a user-configured base URL that does not send CORS headers (typical for a local Ollama or vLLM without `OLLAMA_ORIGINS`).
-- The API key arrives in a request header (`x-ab-upstream-authorization`), is forwarded as `Authorization`, and is never read into a variable that outlives the request.
-- The upstream base URL arrives in a header (`x-ab-upstream-url`) and must match an allow-list configured by the deployment (`AI_PROXY_ALLOWED_HOSTS`, comma-separated; default: `localhost`, `127.0.0.1`). Anything else returns 403. This prevents the deployed proxy from being used as an open relay.
+- The API key arrives in a request header (`x-ab-upstream-authorization`), is forwarded as `Authorization` — or as `api-key` when `x-ab-upstream-auth-header` names it, which is what Azure needs — and is never read into a variable that outlives the request. Those are the only two names the route will set.
+- The upstream base URL arrives in a header (`x-ab-upstream-url`) and must match an allow-list configured by the deployment (`AI_PROXY_ALLOWED_HOSTS`, comma-separated; default: `localhost`, `127.0.0.1`, `[::1]`; `*` disables the check). Anything else returns 403, naming the host that was asked for and not the list that would have worked. This prevents the deployed proxy from being used as an open relay.
 - Streams the upstream response through; no buffering, no logging of body or headers, no analytics.
 - Returns upstream status codes unchanged; error bodies are passed through, not augmented.
 

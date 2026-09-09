@@ -62,9 +62,21 @@ export function createAIClient(config: AIClientConfig, deps: AIClientDeps = {}):
       'content-type': 'application/json',
       ...config.extraHeaders,
     }
+    // Through the proxy the credential travels under its own header name and is put back on
+    // the upstream request by the route. It is never sent as this app's own `Authorization`,
+    // which is a header a deployment may already use for something else
+    // (docs/08-security.md).
+    if (config.viaProxy) {
+      built['x-ab-upstream-url'] = config.baseUrl
+      built['x-ab-upstream-auth-header'] = style === 'api-key' ? 'api-key' : 'authorization'
+      if (config.apiKey) {
+        built['x-ab-upstream-authorization'] =
+          style === 'api-key' ? config.apiKey : `Bearer ${config.apiKey}`
+      }
+      return built
+    }
     if (config.apiKey && style === 'bearer') built.authorization = `Bearer ${config.apiKey}`
     if (config.apiKey && style === 'api-key') built['api-key'] = config.apiKey
-    if (config.viaProxy) built['x-blueprint-base-url'] = config.baseUrl
     return built
   }
 
