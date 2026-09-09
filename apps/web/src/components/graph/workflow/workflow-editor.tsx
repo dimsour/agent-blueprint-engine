@@ -12,6 +12,7 @@
  * rather than on every frame, because a hundred autosaves per gesture helps nobody.
  */
 import type { Workflow } from '@agent-blueprint/core'
+import { type ArtifactTemplate, workflowTemplates } from '@agent-blueprint/templates/artifacts'
 import {
   Background,
   type Connection,
@@ -27,11 +28,24 @@ import {
   useReactFlow,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { AlertTriangleIcon, CircleAlertIcon, FlagIcon, WandSparklesIcon } from 'lucide-react'
+import {
+  AlertTriangleIcon,
+  CircleAlertIcon,
+  FlagIcon,
+  PlusIcon,
+  WandSparklesIcon,
+} from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
 import { EdgePanel, NodePanel } from '@/components/graph/workflow/node-inspector'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from '@/components/ui/overlays'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/primitives'
 import {
@@ -39,6 +53,7 @@ import {
   connect,
   diagnosticsByNode,
   EDGE_KIND_INFO,
+  insertSubgraph,
   moveNode,
   nodeColor,
   type NodeType,
@@ -98,6 +113,20 @@ function StepNodeView({ data, selected }: NodeProps<StepNode>) {
 }
 
 const NODE_TYPES = { step: StepNodeView }
+
+/**
+ * The steps a workflow template is made of.
+ *
+ * A template builds a whole workflow as a change-set; inserting one means taking its graph
+ * and leaving its name, description and body alone, because those belong to the workflow
+ * being edited.
+ */
+function subgraphOf(template: ArtifactTemplate): Pick<Workflow, 'nodes' | 'edges'> | undefined {
+  const op = template.build({ id: 'inserted', name: template.label }).ops[0]
+  if (!op || op.type !== 'create') return undefined
+  const built = op.after as Workflow
+  return { nodes: built.nodes, edges: built.edges }
+}
 
 function Canvas({
   workflow,
@@ -276,10 +305,37 @@ export function WorkflowEditor({ workflowId }: { workflowId: string }) {
         <div className="flex h-9 shrink-0 items-center gap-2 border-b px-3">
           <Badge variant="outline">{workflow.nodes.length} steps</Badge>
           <Badge variant="outline">{workflow.edges.length} connections</Badge>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="ml-auto">
+                <PlusIcon className="size-3" />
+                Insert a shape
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="max-h-72 overflow-auto">
+              <DropdownMenuLabel>Add every step of a template</DropdownMenuLabel>
+              {workflowTemplates.map((template) => (
+                <DropdownMenuItem
+                  key={template.id}
+                  onSelect={() => {
+                    const built = subgraphOf(template)
+                    if (!built) return
+                    const { workflow: next, nodeIds } = insertSubgraph(workflow, built)
+                    onChange(next)
+                    toast.success(`Inserted ${template.label}`, {
+                      description: `${nodeIds.length} steps, waiting to be connected.`,
+                    })
+                  }}
+                >
+                  {template.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
           <Button
             variant="ghost"
             size="sm"
-            className="ml-auto"
             disabled={tidying || workflow.nodes.length === 0}
             onClick={() => {
               setTidying(true)
@@ -298,7 +354,7 @@ export function WorkflowEditor({ workflowId }: { workflowId: string }) {
           </Button>
         </div>
 
-        <div className="min-h-0 flex-1">
+        <div className="relative min-h-0 flex-1">
           <ReactFlowProvider>
             <Canvas
               workflow={workflow}
@@ -307,31 +363,40 @@ export function WorkflowEditor({ workflowId }: { workflowId: string }) {
               onSelect={setSelected}
             />
           </ReactFlowProvider>
-        </div>
-      </div>
 
-      <div className="panel w-72 shrink-0 overflow-auto border-l">
-        {selectedNode ? (
-          <NodePanel
-            node={selectedNode}
-            workflow={workflow}
-            blueprint={blueprint}
-            onChange={onChange}
-            onClearSelection={() => setSelected(undefined)}
-          />
-        ) : selectedEdge ? (
-          <EdgePanel
-            edge={selectedEdge}
-            workflow={workflow}
-            onChange={onChange}
-            onClearSelection={() => setSelected(undefined)}
-          />
-        ) : (
-          <p className="text-muted-foreground p-3 text-sm">
-            Choose a step or a connection to edit it. Drag a step from the left, or drag between two
-            steps to connect them.
-          </p>
-        )}
+          {/*
+            Over the canvas rather than beside it. A third column would squeeze the toolbar
+            out of a workspace that already has a tree and an inspector, and the panel is
+            only wanted while something is selected anyway.
+          */}
+          {selectedNode || selectedEdge ? (
+            <aside
+              aria-label="Step settings"
+              className="bg-surface absolute inset-y-0 right-0 z-10 w-72 overflow-auto border-l shadow-lg"
+            >
+              {selectedNode ? (
+                <NodePanel
+                  node={selectedNode}
+                  workflow={workflow}
+                  blueprint={blueprint}
+                  onChange={onChange}
+                  onClearSelection={() => setSelected(undefined)}
+                />
+              ) : selectedEdge ? (
+                <EdgePanel
+                  edge={selectedEdge}
+                  workflow={workflow}
+                  onChange={onChange}
+                  onClearSelection={() => setSelected(undefined)}
+                />
+              ) : null}
+            </aside>
+          ) : (
+            <p className="text-muted-foreground pointer-events-none absolute inset-x-0 bottom-2 text-center text-xs">
+              Drag a step from the left, or drag between two steps to connect them.
+            </p>
+          )}
+        </div>
       </div>
     </div>
   )

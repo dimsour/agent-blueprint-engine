@@ -207,6 +207,58 @@ export function updateEdge(
 }
 
 /**
+ * Drops a template's steps into an existing workflow.
+ *
+ * A template is a whole workflow, and inserting one is how a half-built graph gets the shape
+ * of a review loop or a bug hunt without drawing it again. Ids are made unique against what
+ * is already there and the connections are rewritten to match, so a template can be inserted
+ * twice without the two copies fusing into one.
+ *
+ * The steps arrive unconnected to what was already there. Which step they follow is a
+ * decision only the author can make, and guessing it would be worse than one drag.
+ */
+export function insertSubgraph(
+  workflow: Workflow,
+  subgraph: Pick<Workflow, 'nodes' | 'edges'>,
+): { workflow: Workflow; nodeIds: string[] } {
+  const taken = new Set(nodeIds(workflow))
+  const takenEdges = new Set(workflow.edges.map((edge) => edge.id))
+  const renamed = new Map<string, string>()
+
+  const nodes = subgraph.nodes.map((node) => {
+    const id = uniqueSlug(node.id, taken, 'step')
+    taken.add(id)
+    renamed.set(node.id, id)
+    return { ...node, id }
+  })
+
+  const edges = subgraph.edges
+    .filter((edge) => renamed.has(edge.from) && renamed.has(edge.to))
+    .map((edge) => {
+      const id = uniqueSlug(edge.id, takenEdges, 'edge')
+      takenEdges.add(id)
+      return { ...edge, id, from: renamed.get(edge.from)!, to: renamed.get(edge.to)! }
+    })
+
+  // Placed to one side of what is already drawn, so the insertion is visible rather than
+  // buried under the existing steps. Tidy is one click away for anyone who wants it neat.
+  const placed = nodes.map((node) => ({
+    ...node,
+    position: { x: node.position.x + 320, y: node.position.y },
+  }))
+
+  return {
+    workflow: {
+      ...workflow,
+      nodes: [...workflow.nodes, ...placed],
+      edges: [...workflow.edges, ...edges],
+      ...(workflow.entryNodeId === undefined && placed[0] ? { entryNodeId: placed[0].id } : {}),
+    },
+    nodeIds: placed.map((node) => node.id),
+  }
+}
+
+/**
  * Lays the workflow out and writes the positions.
  *
  * Downwards, because a workflow is read as a sequence of steps and every harness compiles it

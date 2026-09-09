@@ -153,6 +153,21 @@ describe('Inspector', () => {
     )
   })
 
+  it('reaches past the artifacts that point at it, to the ones that point at those', async () => {
+    await load()
+    // Deleting a skill affects the agent that uses it, and whatever uses that agent.
+    select(xunit)
+    const user = userEvent.setup()
+    render(<Inspector />)
+
+    await user.click(screen.getByRole('button', { name: 'Delete' }))
+    const dialog = screen.getByRole('dialog')
+
+    expect(within(dialog).getByRole('list', { name: 'Affected artifacts' })).toBeInTheDocument()
+    // And the compiled output it would change.
+    expect(within(dialog).getByText(/Compiled output changes for/)).toHaveTextContent('claude-code')
+  })
+
   it('deletes on confirmation and clears the selection', async () => {
     await load()
     select(xunit)

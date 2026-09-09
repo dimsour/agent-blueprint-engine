@@ -13,6 +13,7 @@ import {
   addNode,
   connect,
   diagnosticsByNode,
+  insertSubgraph,
   EDGE_KIND_INFO,
   NODE_TYPE_INFO,
   removeEdge,
@@ -151,6 +152,64 @@ describe('editing a step', () => {
   it('sets the entry step', () => {
     const other = workflow.nodes.at(-1)!
     expect(setEntry(workflow, other.id).entryNodeId).toBe(other.id)
+  })
+})
+
+describe('inserting a template as a subgraph', () => {
+  const template = () => ({
+    nodes: [
+      {
+        id: 'start',
+        type: 'start' as const,
+        label: 'Start',
+        position: { x: 0, y: 0 },
+        config: { contextInputs: [] },
+      },
+      {
+        id: 'check',
+        type: 'verification' as const,
+        label: 'Check',
+        position: { x: 0, y: 100 },
+        config: { contextInputs: [] },
+      },
+    ],
+    edges: [{ id: 'e1', from: 'start', to: 'check', kind: 'sequential' as const, required: true }],
+  })
+
+  it('brings the steps and the connections between them', () => {
+    const { workflow: next, nodeIds } = insertSubgraph(workflow, template())
+
+    expect(next.nodes).toHaveLength(workflow.nodes.length + 2)
+    expect(next.edges).toHaveLength(workflow.edges.length + 1)
+    expect(nodeIds).toHaveLength(2)
+    expect(valid(next)).toBe(true)
+  })
+
+  it('can be inserted twice without the two copies fusing', () => {
+    const once = insertSubgraph(workflow, template())
+    const twice = insertSubgraph(once.workflow, template())
+
+    const ids = twice.workflow.nodes.map((node) => node.id)
+    expect(new Set(ids).size).toBe(ids.length)
+    // The second copy's connection joins the second copy's steps, not the first's.
+    const added = twice.workflow.edges.at(-1)!
+    expect(twice.nodeIds).toContain(added.from)
+    expect(twice.nodeIds).toContain(added.to)
+    expect(valid(twice.workflow)).toBe(true)
+  })
+
+  it('does not connect the template to what was already there', () => {
+    const { workflow: next, nodeIds } = insertSubgraph(workflow, template())
+    const crossing = next.edges.filter(
+      (edge) => nodeIds.includes(edge.from) !== nodeIds.includes(edge.to),
+    )
+    expect(crossing).toEqual([])
+  })
+
+  it('makes the first inserted step the entry of an empty workflow', () => {
+    const empty: Workflow = { ...workflow, nodes: [], edges: [], entryNodeId: undefined }
+    const { workflow: next, nodeIds } = insertSubgraph(empty, template())
+    expect(next.entryNodeId).toBe(nodeIds[0])
   })
 })
 

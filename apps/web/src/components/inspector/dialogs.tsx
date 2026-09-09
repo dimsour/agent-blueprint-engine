@@ -10,9 +10,12 @@
  * Blueprint that the user has not seen.
  */
 import {
+  type Blueprint,
+  buildDependencyGraph,
   ENTITY_KIND_INFO,
   type EntityKind,
   type EntityRef,
+  impactOf,
   getCollection,
   slugify,
   uniqueSlug,
@@ -43,6 +46,11 @@ interface DialogProps {
 
 function kindLabel(kind: EntityKind): string {
   return ENTITY_KIND_INFO[kind].label.toLowerCase()
+}
+
+/** An artifact's display name, falling back to its id when it has already gone. */
+function nameOf(blueprint: Blueprint, ref: EntityRef): string {
+  return entityOf(blueprint, ref)?.name ?? ref.id
 }
 
 // ---------------------------------------------------------------------------
@@ -134,11 +142,21 @@ export function DeleteDialog({ selection, open, onOpenChange }: DialogProps) {
     () => (blueprint ? relationsOf(blueprint, selection) : undefined),
     [blueprint, selection],
   )
+  // The graph's own impact report, which reaches past the artifacts that point at this one
+  // to the artifacts that point at those. A delete propagates that far.
+  const impact = useMemo(
+    () => (blueprint ? impactOf(buildDependencyGraph(blueprint), selection) : undefined),
+    [blueprint, selection],
+  )
   const entity = blueprint ? entityOf(blueprint, selection) : undefined
 
-  if (!relations || !entity) return null
+  if (!relations || !impact || !entity || !blueprint) return null
 
   const dependents = relations.dependents
+  const indirect = impact.transitive.filter(
+    (ref) => !impact.direct.some((direct) => direct.kind === ref.kind && direct.id === ref.id),
+  )
+  const targets = blueprint.targets.filter((target) => target.enabled)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -164,7 +182,7 @@ export function DeleteDialog({ selection, open, onOpenChange }: DialogProps) {
         {dependents.length > 0 ? (
           <ul
             aria-label="Affected artifacts"
-            className="flex max-h-52 flex-col gap-1 overflow-auto"
+            className="flex max-h-40 flex-col gap-1 overflow-auto"
           >
             {dependents.map((related) => (
               <li
@@ -178,6 +196,27 @@ export function DeleteDialog({ selection, open, onOpenChange }: DialogProps) {
               </li>
             ))}
           </ul>
+        ) : null}
+
+        {indirect.length > 0 ? (
+          <div className="flex flex-col gap-1">
+            <span className="text-muted-foreground text-xs">
+              And {indirect.length} further along the chain:
+            </span>
+            <ul aria-label="Affected further along" className="flex flex-wrap gap-1">
+              {indirect.map((ref) => (
+                <li key={`${ref.kind}:${ref.id}`}>
+                  <Badge variant="outline">{nameOf(blueprint, ref)}</Badge>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+
+        {targets.length > 0 ? (
+          <p className="text-muted-foreground text-xs">
+            Compiled output changes for {targets.map((target) => target.harnessId).join(' and ')}.
+          </p>
         ) : null}
 
         <DialogFooter>

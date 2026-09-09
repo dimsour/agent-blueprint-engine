@@ -26,7 +26,8 @@ The backlog for building Agent Blueprint. Phases follow the plan; tasks inside a
 | P1 Core semantics | done  | P1-01 to P1-09 implemented and tested, including 29 artifact templates and 10 starter blueprints.                                                                                                                                         |
 | P2 Compiler       | done  | P2-01 to P2-09 implemented: adapter interface, registry, shared emitters, pipeline, build manifest, Claude Code and Codex in full, Copilot/OpenCode/Pi minimal, portability, golden tests.                                                |
 | P3 Web shell      | done  | P3-01 to P3-11 implemented and then reviewed end to end: the review found eight defects (undo across projects, non-deterministic export, a hydration failure and five more), and the gaps it found against docs/07 were built. See P3-12. |
-| P4 Graphs onward  | to do | P4 (graphs), P5 (trust surfaces), P6 (AI), P7 (GitHub), P8 (hardening) are specified below and not started.                                                                                                                               |
+| P4 Graphs         | done  | P4-01 to P4-04: the overview graph, the workflow editor with all sixteen step types and eight connection kinds, tidy and template insertion, and the delete-impact dialog.                                                                |
+| P5 onward         | to do | P5 (trust surfaces), P6 (AI), P7 (GitHub) and P8 (hardening) are specified below and not started.                                                                                                                                         |
 
 ## P0 — Foundation (done)
 

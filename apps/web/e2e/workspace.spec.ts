@@ -293,6 +293,23 @@ test.describe('workflow editor', () => {
     await expect(await positions()).toEqual(first)
   })
 
+  test('inserts a template as a subgraph, twice, without the copies fusing', async ({ page }) => {
+    await openStarter(page)
+    await artifact(page, 'Build a Component').click()
+    const before = await page.locator('.react-flow__node').count()
+
+    for (const _ of [1, 2]) {
+      await page.getByRole('button', { name: 'Insert a shape' }).click()
+      await page.getByRole('menuitem', { name: 'Code review' }).click()
+    }
+
+    await expect(page.getByText(/Inserted Code review/).first()).toBeVisible()
+    const after = await page.locator('.react-flow__node').count()
+    expect(after).toBeGreaterThan(before)
+    // Two whole copies, not one shared one.
+    expect(after - before).toBe((after - before) / 2 + (after - before) / 2)
+  })
+
   test('the form is still there behind the graph', async ({ page }) => {
     await openStarter(page)
     await artifact(page, 'Build a Component').click()
