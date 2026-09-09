@@ -19,10 +19,10 @@ async function load() {
   return blueprint
 }
 
-function open() {
+function open(onOpenAssistant = vi.fn()) {
   const onOpenChange = vi.fn()
-  render(<CommandPalette open onOpenChange={onOpenChange} />)
-  return onOpenChange
+  render(<CommandPalette open onOpenChange={onOpenChange} onOpenAssistant={onOpenAssistant} />)
+  return { onOpenChange, onOpenAssistant }
 }
 
 describe('CommandPalette', () => {
@@ -42,7 +42,7 @@ describe('CommandPalette', () => {
   it('creates the artifact, selects it and closes', async () => {
     await load()
     const user = userEvent.setup()
-    const onOpenChange = open()
+    const { onOpenChange } = open()
 
     await user.click(screen.getByRole('option', { name: /Create Skill/ }))
 
@@ -121,16 +121,12 @@ describe('CommandPalette', () => {
     const push = screen.getByRole('option', { name: /Push to GitHub/ })
     expect(push).toHaveAttribute('data-disabled', 'true')
     expect(within(push).getByText('not built yet')).toBeInTheDocument()
-
-    const ai = screen.getByRole('option', { name: /AI actions/ })
-    expect(ai).toHaveAttribute('data-disabled', 'true')
-    expect(within(ai).getByText('needs an AI endpoint')).toBeInTheDocument()
   })
 
   it('opens a report and closes, like every other action', async () => {
     await load()
     const user = userEvent.setup()
-    const onOpenChange = open()
+    const { onOpenChange } = open()
 
     await user.click(screen.getByRole('option', { name: /Show compatibility/ }))
 
@@ -140,13 +136,19 @@ describe('CommandPalette', () => {
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
-  it('still names what needs an AI endpoint rather than hiding it', async () => {
+  it('lists every AI action, and says which one needs a selection', async () => {
     await load()
-    open()
+    const user = userEvent.setup()
+    const { onOpenChange, onOpenAssistant } = open()
 
-    const ai = screen.getByRole('option', { name: /AI actions/ })
-    expect(ai).toHaveAttribute('data-disabled', 'true')
-    expect(within(ai).getByText('needs an AI endpoint')).toBeInTheDocument()
+    // Nothing is selected, so the actions that act on one artifact say so rather than vanish.
+    const improve = screen.getByRole('option', { name: /Add verification/ })
+    expect(improve).toHaveAttribute('data-disabled', 'true')
+    expect(within(improve).getByText('Select an artifact first')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('option', { name: /Draft the whole Blueprint/ }))
+    expect(onOpenAssistant).toHaveBeenCalled()
+    expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
   it('opens the export view, which is the one place an archive is built', async () => {

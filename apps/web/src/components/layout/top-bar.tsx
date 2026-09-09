@@ -50,10 +50,12 @@ export function TopBar({
   onOpenPalette,
   onExport,
   onValidate,
+  onOpenAssistant,
 }: {
   onOpenPalette: () => void
   onExport: () => void
   onValidate: () => void
+  onOpenAssistant: () => void
 }) {
   const blueprint = useWorkspace((state) => state.blueprint)
   const dirty = useWorkspace((state) => state.dirty)
@@ -121,11 +123,17 @@ export function TopBar({
           icon={<CloudUploadIcon />}
           reason="Pushing to GitHub arrives in roadmap P7"
         />
-        <PendingAction
-          label="AI"
-          icon={<SparklesIcon />}
-          reason="The AI assistant arrives in roadmap P6"
-        />
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onOpenAssistant}
+          disabled={!blueprint}
+          className="gap-2"
+        >
+          <SparklesIcon />
+          AI
+          <Kbd>{mod}/</Kbd>
+        </Button>
         <Button variant="ghost" size="icon-sm" asChild aria-label="Settings">
           <Link href="/settings">
             <SettingsIcon />

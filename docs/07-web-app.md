@@ -1,6 +1,6 @@
 # Web App
 
-This document specifies `apps/web`: routes, layout, state model, persistence, the creation wizard, the ChangeSet review experience, keyboard interaction and the design language. Phases P3, P4 and P5 are built: the dashboard, the workspace, the editors, the inspector, the command palette, the wizard, ZIP import and export, the overview graph and the workflow editor, and the trust surfaces (health bar, diagnostics, evaluation, compatibility, export). What is described here for P6 (AI) and P7 (GitHub) is still specification; each such section says which phase owns it.
+This document specifies `apps/web`: routes, layout, state model, persistence, the creation wizard, the ChangeSet review experience, keyboard interaction and the design language. Phases P3 to P6 are built: the dashboard, the workspace, the editors, the inspector, the command palette, the wizard, ZIP import and export, the overview graph and the workflow editor, the trust surfaces (health bar, diagnostics, evaluation, compatibility, export), and the AI side — settings, the relay, the ChangeSet review and the assistant. What is described here for P7 (GitHub) is still specification; each such section says which phase owns it.
 
 ## Status
 
@@ -17,10 +17,10 @@ This document specifies `apps/web`: routes, layout, state model, persistence, th
 | Route                                                   | Phase                              | Purpose                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | ------------------------------------------------------- | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `/`                                                     | P3                                 | Dashboard: Create Blueprint (primary CTA), Templates, Recent Projects, Import (ZIP, folder, JSON manifest), GitHub (open or clone)                                                                                                                                                                                                                                                                                           |
-| `/new`                                                  | P3 (steps), P6 (AI draft)          | Creation wizard, 10 steps, editing one draft Blueprint in memory                                                                                                                                                                                                                                                                                                                                                             |
+| `/new`                                                  | P3 (steps), P6-07 (AI draft)       | Creation wizard, 10 steps, editing one draft Blueprint in memory                                                                                                                                                                                                                                                                                                                                                             |
 | `/p/[projectId]`                                        | P3                                 | Workspace. `?view=` selects the centre panel: `overview`, or one entity kind spelled as its project directory (`agents`, `skills`, `laws`, …); `&id=` selects an artifact. `evaluation`, `compatibility` and `export` are the three reports about the whole Blueprint; the rest name one kind. The URL is replaced rather than pushed, so back leaves the workspace instead of walking every artifact clicked on the way in. |
 | `/settings`                                             | P3 (storage), P6 (AI), P7 (GitHub) | What this browser is holding: stored projects, space used, and a way to remove them. The AI endpoint sits here — provider preset, base URL, model, key, where the key is kept, and a Save-and-test that really calls the endpoint and reports what came back. The GitHub token is named and disabled until pushing exists.                                                                                                   |
-| `/api/ai/proxy`                                         | P6, optional                       | Streams to the configured OpenAI-compatible base URL for endpoints without CORS                                                                                                                                                                                                                                                                                                                                              |
+| `/api/ai/proxy`                                         | P6-05, optional                    | Relays to the configured OpenAI-compatible base URL for endpoints without CORS, and only to hosts the deployment allows                                                                                                                                                                                                                                                                                                      |
 | `/api/github/oauth/start`, `/api/github/oauth/callback` | P7, optional                       | OAuth code exchange when `GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET` are set                                                                                                                                                                                                                                                                                                                                                   |
 
 `projectId` is the browser-side project handle (IndexedDB key or a File System Access handle id), never the Blueprint slug, so two projects with the same slug can coexist locally.
@@ -134,7 +134,7 @@ Export is the export view (P5-04), not a dialog: `⌘E` and the palette open it,
 
 The round trip is the contract: for every starter, export then import produces a Blueprint whose `diffBlueprints` against the original has no ops.
 
-## Wizard (`/new`, P3 for steps, P6 for AI draft)
+## Wizard (`/new`, P3 for steps, P6-07 for the AI draft)
 
 | Step | Prompt                  | Creates or edits                                                                       |
 | ---- | ----------------------- | -------------------------------------------------------------------------------------- |
@@ -153,36 +153,60 @@ The draft is a real Blueprint from the first keystroke: every step is a pure fun
 
 Only steps 1 and 2 block: a Blueprint needs a name, and the system needs the agent it is built around. Everything after that is optional, so the wizard can be finished early and the rest added in the workspace. Step 8 records only the chosen harnesses as targets, which is how the starters read on disk; step 9 scores the draft with `evaluateBlueprint` and the exporters' portability provider; step 10 is a summary rather than the overview graph, which is a view of a stored project.
 
-Step 1 will offer _Generate first draft with AI_ when an endpoint is configured (P6). That draft is a ChangeSet reviewed before the project is created.
+Step 1 offers _Draft this with AI_ when an endpoint is configured, and a link to Settings when there is not. The draft comes back as a ChangeSet reviewed artifact by artifact; applying it fills step 1 in and leaves the wizard where it was, because drafting fills the page in rather than skipping the questions.
 
-## ChangeSet review (P6, component in P3 for templates)
+## ChangeSet review (P6-06)
 
-Every ChangeSet, whether from AI, a template or Compound, goes through the same panel.
+Every ChangeSet from the assistant, the wizard's AI draft or Compound goes through the same
+component, `components/ai/changeset-review`.
 
-- Header: source, summary, op counts (`+ create`, `~ update`, `- delete`, `⚙ blueprint`).
-- One row per op. Create shows the rendered artifact; update shows a per-field diff (`diff` package, word-level for prose fields, line-level for bodies); delete shows the impact from `impactOf`.
-- Actions: **Accept all**, per-op accept / reject toggles, **Edit** (opens the `after` state in the normal editor before applying), **Regenerate** (re-runs the operation with the user's note), **Apply** (calls `applyChangeSet` with the accepted op ids).
+- The summary, then what the operation could not honour: an artifact that would not parse, a
+  reference removed because it pointed at nothing, a duplicate law skipped, a context that did
+  not fit. A review the user believes covered everything must actually have covered everything.
+- One row per op, marked `+` `~` `−`, carrying the note the operation attached — for Compound,
+  the evidence it came from.
+- Per field rather than per artifact: only fields whose value differs are shown, word-level for
+  short prose and line-level for bodies and lists (`diff`). Two copies of a page and an Apply
+  button is a rubber stamp with extra steps.
+- Actions: **Accept all**, **Reject all**, a per-op accept toggle, **Edit** (the proposal as the
+  file it would become, through the same `renderEntitySource` / `parseEntitySource` the Source
+  tab uses, so an edit cannot produce something the project could not hold), **Regenerate**,
+  **Discard**, and **Apply**, which calls `applyChangeSet` with exactly the accepted ops.
 - Rejected ops are listed after Apply with the reason from `ApplyChangeSetResult.rejected`.
-- `⌘⏎` applies.
+- `⌘⏎` applies what is accepted.
+
+## Assistant (`⌘/`, P6-07)
+
+A dialog over the workspace, opened from the top bar, the palette or the shortcut.
+
+- It knows what you are looking at: with an artifact selected the quick actions target it and
+  the header says so; with nothing selected they are listed, disabled, and say "Select an
+  artifact first" rather than disappearing.
+- Actions are the operations in docs/06, grouped as **This artifact** (the eight quick actions,
+  Iron Laws, a workflow for an agent), **The Blueprint** (draft the whole thing, one new
+  artifact, turn notes into knowledge) and **Review** (contradictions, what is missing, quality).
+- A ChangeSet goes to the review above. Findings are listed with an `AI` badge and their code,
+  and every ref navigates. A quality review is per dimension, next to the artifacts it names.
+- With no endpoint configured the panel is a link to Settings, not a spinner that fails later.
 
 ## Command palette (`⌘K`, P3)
 
 Actions, grouped:
 
-| Group         | Actions                                                                                                   | State |
-| ------------- | --------------------------------------------------------------------------------------------------------- | ----- |
-| Create        | one per entity kind; `createEntity` seeds a valid artifact, which is then selected with its form open     | done  |
-| This artifact | Show the form, Show the project file, Show the preview (only for artifacts stored as Markdown)            | done  |
-| Verify        | Validate (flushes the debounce and reports the counts), Show health, Show compatibility                   | done  |
-| Blueprint     | Save, Undo, Redo                                                                                          | done  |
-| Targets       | enable or disable each compile target                                                                     | done  |
-| Deliver       | Export (opens the export view, where the files are browsed and the ZIP is built); Push to GitHub (P7)     | P7    |
-| AI            | one disabled entry until an endpoint is configured; P6 replaces it with the fifteen operations in docs/06 | P6    |
-| Go to         | every artifact, matched on name or id                                                                     | done  |
+| Group         | Actions                                                                                                                      | State |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------- | ----- |
+| Create        | one per entity kind; `createEntity` seeds a valid artifact, which is then selected with its form open                        | done  |
+| This artifact | Show the form, Show the project file, Show the preview (only for artifacts stored as Markdown)                               | done  |
+| Verify        | Validate (flushes the debounce and reports the counts), Show health, Show compatibility                                      | done  |
+| Blueprint     | Save, Undo, Redo                                                                                                             | done  |
+| Targets       | enable or disable each compile target                                                                                        | done  |
+| Deliver       | Export (opens the export view, where the files are browsed and the ZIP is built); Push to GitHub (P7)                        | P7    |
+| AI            | every assistant action, each disabled with its reason when the selection does not suit it; selecting one opens the assistant | done  |
+| Go to         | every artifact, matched on name or id                                                                                        | done  |
 
 An action that is not built yet is listed and disabled with the reason, the same rule the top bar follows: the palette is the map of the product, so hiding an action would hide the capability.
 
-AI actions will be context-aware: with an artifact selected they target it; with the overview open they target the whole Blueprint.
+AI actions are context-aware: with an artifact selected they target it; with nothing selected the ones that need an artifact are disabled with the reason, and the rest target the whole Blueprint.
 
 ## Keyboard shortcuts
 
@@ -199,7 +223,7 @@ AI actions will be context-aware: with an artifact selected they target it; with
 
 Either modifier fires the shortcut, so the same key works on any keyboard; menus print `⌘` on Apple hardware and `Ctrl+` elsewhere. While the focus is in a text field or the code editor only the palette and Save fire, because `⌘Z` there belongs to the field. `Esc` is handled by the dialogs themselves.
 
-`⌘/` and `⌘⏎` are reserved: they stay unbound until the AI assistant (P6) and the ChangeSet review (P6) exist, so the key does whatever the browser would rather than nothing.
+`⌘/` opens the assistant, and `⌘⏎` applies whatever a ChangeSet review currently has accepted. Both were reserved until P6; a shortcut with nothing behind it is left to the browser rather than swallowed.
 
 ## Views
 

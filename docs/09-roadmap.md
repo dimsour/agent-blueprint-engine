@@ -423,7 +423,7 @@ Verification: `pnpm check` green; `pnpm --filter @agent-blueprint/core test` sho
 - Verify: `pnpm --filter web test`
 - Built: `apps/web/src/lib/credentials.ts` is the only module in the app that touches a secret — session by default, browser storage on request with the warning shown before anything is written, and a write to one place removing the copy in the other. Save-and-test really probes the endpoint and stores what it found about schema support, so no later call has to rediscover it. The relay at `/api/ai/proxy` forwards the credential under its own header name and refuses any host the deployment did not allow (`AI_PROXY_ALLOWED_HOSTS`, localhost by default). `.env.example` documents both settings.
 
-### P6-06 ChangeSet review UI
+### P6-06 ChangeSet review UI (done)
 
 - Package: `apps/web/src/components/ai/changeset-review/*`
 - Depends on: P3-03
@@ -431,12 +431,13 @@ Verification: `pnpm check` green; `pnpm --filter @agent-blueprint/core test` sho
 - Acceptance: Playwright with a stubbed AI: accept two of three ops.
 - Verify: `pnpm --filter web test:e2e`
 
-### P6-07 Assistant panel, context awareness, quick actions
+### P6-07 Assistant panel, context awareness, quick actions (done)
 
 - Depends on: P6-04, P6-06
 - Description: ⌘/ panel; context = current view/selection; quick actions from docs/07; "Generate first draft with AI" in the wizard; "Turn this into reusable knowledge" (compound) entry that takes pasted notes.
 - Acceptance: Playwright with stubbed AI for improve-skill and generate-blueprint flows.
 - Verify: `pnpm --filter web test:e2e`
+- Built: the assistant is a dialog on ⌘/, the top bar and every palette AI entry, offering the nine operations grouped by what they act on. Every ChangeSet — assistant, wizard draft, Compound — goes through one review that diffs per field, states what the operation could not honour, and lets a proposal be edited as the file it would become before it is applied. Step 1 of the wizard gained _Draft this with AI_. Playwright covers the compound flow (accept two of three), improve-skill, generate-blueprint in the wizard, finding navigation, and the no-endpoint path.
 
 ### P6-08 AI-assisted evaluation and contradictions
 

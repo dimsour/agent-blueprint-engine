@@ -34,6 +34,7 @@ import { type ReactNode, useMemo } from 'react'
 
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/overlays'
 import { validateNow } from '@/lib/actions'
+import { ASSISTANT_ACTIONS } from '@/lib/ai/actions'
 import { withTarget } from '@/lib/targets'
 import { hasPreview } from '@/lib/artifact-source'
 import { useModifierLabel } from '@/lib/shortcuts'
@@ -96,9 +97,11 @@ function Item({
 export interface CommandPaletteProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  /** Absent in tests that only care about the rest of the palette. */
+  onOpenAssistant?: () => void
 }
 
-export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
+export function CommandPalette({ open, onOpenChange, onOpenAssistant }: CommandPaletteProps) {
   const blueprint = useWorkspace((state) => state.blueprint)
   const selection = useWorkspace((state) => state.selection)
   const dirty = useWorkspace((state) => state.dirty)
@@ -265,13 +268,19 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
             </Group>
 
             <Group heading="AI">
-              <Item
-                icon={<SparklesIcon />}
-                label="AI actions"
-                hint="needs an AI endpoint"
-                disabled
-                keywords={['generate', 'improve', 'evaluate', 'contradictions', 'compound']}
-              />
+              {ASSISTANT_ACTIONS.map((action) => (
+                <Item
+                  key={action.id}
+                  icon={<SparklesIcon />}
+                  label={action.label}
+                  hint={
+                    blueprint ? (action.unavailable(blueprint, selection) ?? `${mod}/`) : `${mod}/`
+                  }
+                  disabled={!blueprint || action.unavailable(blueprint, selection) !== undefined}
+                  keywords={['ai', 'assistant', action.group.toLowerCase()]}
+                  onSelect={run(() => onOpenAssistant?.())}
+                />
+              ))}
             </Group>
 
             <Group heading="Go to">

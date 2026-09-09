@@ -29,6 +29,7 @@ import { PlusIcon, Trash2Icon } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
 import { SelectField, StringListField, TextAreaField, TextField } from '@/components/editors/fields'
+import { DraftWithAI } from '@/components/wizard/ai-draft'
 import { PermissionsGrid } from '@/components/editors/permissions-grid'
 import { Button } from '@/components/ui/button'
 import { Badge, Card, Input, Label } from '@/components/ui/primitives'
@@ -76,6 +77,7 @@ export function AboutStep({ draft, onChange }: StepProps) {
         placeholder="Reviews Rust changes before they merge."
         onChange={(description) => onChange(setIdentity(draft, { description }))}
       />
+      <DraftWithAI draft={draft} onChange={onChange} />
     </div>
   )
 }
