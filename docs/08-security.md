@@ -17,12 +17,13 @@ This document sets the rules for handling credentials and secrets in Agent Bluep
 | AI endpoint config (base URL, model, preset) | `localStorage`   |                               | `ab:settings:ai`           |
 | AI API key                                   | `sessionStorage` | `localStorage` with a warning | `ab:credentials:ai`        |
 | GitHub token (PAT or OAuth)                  | `sessionStorage` | `localStorage` with a warning | `ab:credentials:github`    |
-| UI preferences (panel widths, theme)         | `localStorage`   |                               | `ab:ui`                    |
+| UI preferences (theme)                       | `localStorage`   |                               | `ab:ui:theme`              |
+| Panel widths                                 | `localStorage`   |                               | `react-resizable-panels:*` |
 | Project drafts                               | IndexedDB        |                               | database `agent-blueprint` |
 
 Rules:
 
-- The credential namespace `ab:credentials:*` is read by exactly one module (`apps/web/src/lib/credentials.ts`, planned). Nothing else touches `sessionStorage`/`localStorage` for secrets.
+- The credential namespace `ab:credentials:*` is read by exactly one module (`apps/web/src/lib/credentials.ts`, planned). Nothing else touches `sessionStorage`/`localStorage` for secrets. Today the app writes only the two keys above, both through libraries; no application code reads or writes web storage directly.
 - The Zustand store is never persisted with credentials in it; persisted slices are allow-listed, not deny-listed.
 - Choosing `localStorage` shows this text (or equivalent) before saving: _"The key will stay in this browser profile until you remove it. Anyone with access to this profile, and any browser extension with storage access, can read it. Use a key with the smallest scope you can, and remove it from Settings when you are done."_
 - A **Forget credentials** action in Settings clears both namespaces.

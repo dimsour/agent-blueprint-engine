@@ -20,13 +20,13 @@ The backlog for building Agent Blueprint. Phases follow the plan; tasks inside a
 
 ## Status
 
-| Phase             | State | Notes                                                                                                                                                                                      |
-| ----------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| P0 Foundation     | done  | Workspace, docs, `@agent-blueprint/core` v0, fixture.                                                                                                                                      |
-| P1 Core semantics | done  | P1-01 to P1-09 implemented and tested, including 29 artifact templates and 10 starter blueprints.                                                                                          |
-| P2 Compiler       | done  | P2-01 to P2-09 implemented: adapter interface, registry, shared emitters, pipeline, build manifest, Claude Code and Codex in full, Copilot/OpenCode/Pi minimal, portability, golden tests. |
-| P3 Web shell      | done  | P3-01 to P3-11 implemented: shell, storage, state store, dashboard, workspace tree, entity forms, source editor, inspector, command palette, creation wizard, ZIP import and export.       |
-| P4 Graphs onward  | to do | P4 (graphs), P5 (trust surfaces), P6 (AI), P7 (GitHub), P8 (hardening) are specified below and not started.                                                                                |
+| Phase             | State | Notes                                                                                                                                                                                                                                     |
+| ----------------- | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P0 Foundation     | done  | Workspace, docs, `@agent-blueprint/core` v0, fixture.                                                                                                                                                                                     |
+| P1 Core semantics | done  | P1-01 to P1-09 implemented and tested, including 29 artifact templates and 10 starter blueprints.                                                                                                                                         |
+| P2 Compiler       | done  | P2-01 to P2-09 implemented: adapter interface, registry, shared emitters, pipeline, build manifest, Claude Code and Codex in full, Copilot/OpenCode/Pi minimal, portability, golden tests.                                                |
+| P3 Web shell      | done  | P3-01 to P3-11 implemented and then reviewed end to end: the review found eight defects (undo across projects, non-deterministic export, a hydration failure and five more), and the gaps it found against docs/07 were built. See P3-12. |
+| P4 Graphs onward  | to do | P4 (graphs), P5 (trust surfaces), P6 (AI), P7 (GitHub), P8 (hardening) are specified below and not started.                                                                                                                               |
 
 ## P0 — Foundation (done)
 
@@ -236,7 +236,7 @@ Verification: `pnpm check` green; `pnpm --filter @agent-blueprint/core test` sho
 
 - Package: `apps/web/src/components/editors/*`
 - Depends on: P3-05
-- Description: One form per kind generated from the schema field tables in docs/02 (react-hook-form + zod resolver): agent (role, expertise, responsibilities, id pickers for skills/workflows/laws/rules/tools/references/memory, permissions grid, model, delegation), skill (activation editor, references, resources list), iron law, rule, hook, gate, tool, reference, memory, requirement (check builder), scenario. Id pickers offer "create new" inline.
+- Description: One form per kind generated from the schema field tables in docs/02 (controlled inputs writing through the store; see docs/07 for why not react-hook-form): agent (role, expertise, responsibilities, id pickers for skills/workflows/laws/rules/tools/references/memory, permissions grid, model, delegation), skill (activation editor, references, resources list), iron law, rule, hook, gate, tool, reference, memory, requirement (check builder), scenario. Id pickers offer "create new" inline.
 - Acceptance: each form edits the fixture entity and produces a valid entity (unit tests per form with Testing Library).
 - Verify: `pnpm --filter web test`
 
@@ -279,6 +279,22 @@ Verification: `pnpm check` green; `pnpm --filter @agent-blueprint/core test` sho
 - Description: Export ZIP of the source project (compiled output added in P5-04); Import ZIP / folder / manifest with diagnostics shown before opening.
 - Acceptance: Playwright: export then import yields zero `diffBlueprints` ops.
 - Verify: `pnpm --filter web test:e2e`
+
+### P3-12 Review of P3 (done)
+
+- Package: `apps/web`, `packages/core`
+- Description: A full review of P3 before starting P4. Fixed: undo history surviving a project switch, which let an autosave write one project's Blueprint over another's; undo bypassing the store, so a revert was never persisted and diagnostics went stale; a pending autosave dropped when leaving a project; a save clearing `dirty` for a Blueprint it did not write; ZIP export stamping the wall clock into directory entries, breaking the determinism rule; a hydration failure on the dashboard from branching on a browser capability; the wizard throwing when the agent name was cleared and silently reverting a typed id; list rows losing the caret on every keystroke; the source-tab guard being bypassable from the palette and the shortcuts.
+- Built what docs/07 specified and P3 had not: `?view=` and `&id=` routing with an overview and per-kind canvas, the tree's Overview row and per-artifact actions, `/settings`, the wizard's persisted draft, the requirement check builder, the skill resources editor, agent delegation, inline create in every id picker, and editor snippets.
+- Removed: three unused dependencies and their components, an endpoint with no caller, a store helper used only by its own test, an editor prop never passed, and six hand-rolled entity lookups.
+- Verify: `pnpm check` and `pnpm --filter web test:e2e`
+
+### P3-13 Write to a folder on disk
+
+- Package: `apps/web/src/lib/storage/file-system.ts`
+- Depends on: P3-02
+- Description: `FileSystemAccessStore` can pick a directory and read it, but nothing routes saves back to it: opening a folder copies it into IndexedDB. Wire `saveProject` to the store the project came from, and make `writeDirectory` prune, because writing the current files without removing what a deleted artifact left behind makes deleted artifacts reappear on the next open. Folder projects also need a stable id: today it is the directory's base name, so two folders with the same name collide.
+- Acceptance: edit a folder project, reopen the folder, and see the edit and not the deleted artifact; two folders of the same name coexist.
+- Verify: manual in Chromium, plus unit tests over a fake directory handle.
 
 ## P4 — Graphs
 

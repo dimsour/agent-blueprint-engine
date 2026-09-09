@@ -12,14 +12,14 @@ This document specifies `apps/web`: routes, layout, state model, persistence, th
 
 ## Routes
 
-| Route                                                   | Phase                              | Purpose                                                                                                                                                                                                                                                         |
-| ------------------------------------------------------- | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/`                                                     | P3                                 | Dashboard: Create Blueprint (primary CTA), Templates, Recent Projects, Import (ZIP, folder, JSON manifest), GitHub (open or clone)                                                                                                                              |
-| `/new`                                                  | P3 (steps), P6 (AI draft)          | Creation wizard, 10 steps, editing one draft Blueprint in memory                                                                                                                                                                                                |
-| `/p/[projectId]`                                        | P3                                 | Workspace. `?view=` selects the centre panel: `overview`, `agents`, `skills`, `workflows`, `laws`, `rules`, `hooks`, `gates`, `tools`, `references`, `memory`, `requirements`, `scenarios`, `compatibility`, `evaluation`, `export`; `&id=` selects an artifact |
-| `/settings`                                             | P3 (storage), P6 (AI), P7 (GitHub) | AI endpoint and key, GitHub token, storage preferences                                                                                                                                                                                                          |
-| `/api/ai/proxy`                                         | P6, optional                       | Streams to the configured OpenAI-compatible base URL for endpoints without CORS                                                                                                                                                                                 |
-| `/api/github/oauth/start`, `/api/github/oauth/callback` | P7, optional                       | OAuth code exchange when `GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET` are set                                                                                                                                                                                      |
+| Route                                                   | Phase                              | Purpose                                                                                                                                                                                                                                                                                                                                                                                   |
+| ------------------------------------------------------- | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/`                                                     | P3                                 | Dashboard: Create Blueprint (primary CTA), Templates, Recent Projects, Import (ZIP, folder, JSON manifest), GitHub (open or clone)                                                                                                                                                                                                                                                        |
+| `/new`                                                  | P3 (steps), P6 (AI draft)          | Creation wizard, 10 steps, editing one draft Blueprint in memory                                                                                                                                                                                                                                                                                                                          |
+| `/p/[projectId]`                                        | P3                                 | Workspace. `?view=` selects the centre panel: `overview`, or one entity kind spelled as its project directory (`agents`, `skills`, `laws`, …); `&id=` selects an artifact. `compatibility`, `evaluation` and `export` join the list with their views in P5. The URL is replaced rather than pushed, so back leaves the workspace instead of walking every artifact clicked on the way in. |
+| `/settings`                                             | P3 (storage), P6 (AI), P7 (GitHub) | What this browser is holding: stored projects, space used, and a way to remove them. The AI endpoint and the GitHub token are named there and disabled until those features exist.                                                                                                                                                                                                        |
+| `/api/ai/proxy`                                         | P6, optional                       | Streams to the configured OpenAI-compatible base URL for endpoints without CORS                                                                                                                                                                                                                                                                                                           |
+| `/api/github/oauth/start`, `/api/github/oauth/callback` | P7, optional                       | OAuth code exchange when `GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET` are set                                                                                                                                                                                                                                                                                                                |
 
 `projectId` is the browser-side project handle (IndexedDB key or a File System Access handle id), never the Blueprint slug, so two projects with the same slug can coexist locally.
 
@@ -65,24 +65,35 @@ One Zustand store per open project:
 
 ```ts
 interface WorkspaceState {
-  blueprint: Blueprint // from @agent-blueprint/core, always normalized
-  selection: EntityRef | null
-  diagnostics: Diagnostic[] // recomputed by validateBlueprint after every change
+  projectId?: string
+  blueprint?: Blueprint // from @agent-blueprint/core, always normalized
+  selection?: EntityRef
+  view: 'overview' | EntityKind // the canvas section, mirrored to ?view=
+  artifactTab: 'visual' | 'source' | 'preview'
+  sourceError?: string // set while the project file does not parse
+  diagnostics: Diagnostic[] // recomputed by validateBlueprint, debounced
+  validating: boolean
   dirty: boolean // differs from the last written project
+  saving: boolean
+  saveError?: string
   // actions
   upsert(kind, input) // → core.upsertEntity
+  add(kind, name) // → core.createEntity, leaving the selection alone
+  create(kind, name) // add, then open it
   rename(kind, oldId, newId) // → core.renameEntity
   remove(ref) // → core.deleteEntity, after the impact dialog
-  applyChangeSet(cs, accept) // → core.applyChangeSet
-  setHeader(partial) // → update-blueprint op through applyChangeSet
+  apply(changeSet, accept) // → core.applyChangeSet; returns the refused ops
+  updateBlueprint(patch) // name, description, version, settings, targets
+  afterHistory() // undo and redo replace the Blueprint behind the store's back
 }
 ```
 
 Rules:
 
 - The store holds no domain logic. Every action calls a `core` function and replaces `blueprint` with the returned value.
-- `zundo` wraps the store for undo/redo (`⌘Z` / `⇧⌘Z`); history is keyed on `blueprint` only.
+- `zundo` wraps the store for undo/redo (`⌘Z` / `⇧⌘Z`); history is keyed on `blueprint` only, is cleared when a project is loaded or closed, and is followed by `afterHistory()`, because zundo writes the Blueprint without going through any action and everything derived from it would otherwise be stale.
 - `diagnostics` are derived (`validateBlueprint(blueprint)`) and cached per Blueprint identity.
+- Forms are controlled inputs writing straight through the store, not `react-hook-form`: the schema is already the validator, and a field the schema briefly rejects keeps what was typed while the Blueprint keeps its last valid value.
 - The `Markdown` tab content is `renderProjectFiles(blueprint)[entityMainPath(sourceDir, kind, id)]`. On edit, the text is parsed with `decodeFrontmatter`, merged with `{ id, body }`, validated with `entitySchemaFor(kind)`, and committed through `upsert`. Parse errors are shown inline and never commit. This guarantees the two views cannot diverge.
 - Workflow graphs edit `nodes`, `edges`, `entryNodeId` directly through `upsert('workflow', …)`; node positions are part of the workflow and are saved. The overview graph stores no positions; it is auto-laid-out with `elkjs` every render.
 
@@ -90,21 +101,28 @@ Rules:
 
 ```ts
 interface ProjectStore {
-  id: string
-  kind: 'indexeddb' | 'filesystem' | 'zip'
-  fs(): VirtualFs // backend for readProject / writeProject
-  label: string
+  kind: 'indexeddb' | 'file-system'
+  available: boolean // false when the browser cannot support it; the UI hides it
+  list(): Promise<ProjectSummary[]>
+  open(id): Promise<ProjectFiles | undefined>
+  save(id, files, meta): Promise<ProjectSummary>
+  delete(id): Promise<void>
+  importFiles(files, meta): Promise<ProjectSummary>
 }
 ```
 
+A store moves `Record<path, content>` and never has to understand the model, which is what lets one code path serve IndexedDB and a real folder. ZIP is not a store: it has no list and no identity, so it is a pair of functions. `VirtualFs` stays inside `core`; the app hands file maps to `readProject` and takes them from `renderProjectFiles`.
+
 | Tier    | Backend                           | Behaviour                                                                                                                                   |
 | ------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| Draft   | IndexedDB (`idb`)                 | Autosave the normalized Blueprint JSON every few seconds while dirty; restored on reopen; survives reloads                                  |
-| Project | IndexedDB `VirtualFs`             | Explicit Save runs `writeProject`; Recent Projects lists these                                                                              |
-| Folder  | File System Access API (Chromium) | Open a real directory; Save writes straight to disk; the folder can be a Git checkout                                                       |
+| Draft   | IndexedDB (`idb`)                 | Work with no project behind it yet, such as the creation wizard. Written on a timer and offered again on the next visit                     |
+| Project | IndexedDB                         | Autosaved through `renderProjectFiles` about a second after the last edit, and on Save. Leaving a project writes its pending edit first     |
+| Folder  | File System Access API (Chromium) | Open a real directory. Its contents are read into a project; writing back to the directory is not built yet, see the note below             |
 | Archive | ZIP (`jszip`)                     | Export writes the source project (compiled output is added with the export view, P5-04); import accepts a ZIP, a folder, or a lone manifest |
 
-The draft is a convenience; the project written through `writeProject` is the source of truth. Import never trusts the draft over the files.
+Autosave writes the project itself rather than a separate draft, so nothing is lost when a tab closes, and Save is a way to hurry that rather than the thing that makes an edit durable. Import never trusts anything but the files.
+
+Opening a folder currently copies it into the browser and edits the copy: the store can pick a directory and read it, but nothing routes saves back to disk. Doing that needs `writeProject`'s pruning, because writing the current files without removing what a deleted artifact left behind would make deleted artifacts reappear on the next open. That is the remaining work, and it is not done.
 
 ### Import and export (P3-11)
 
