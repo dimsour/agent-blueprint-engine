@@ -169,6 +169,65 @@ test.describe('workspace layout', () => {
   })
 })
 
+test.describe('export and import', () => {
+  test('an exported archive imports back as the same Blueprint', async ({ page }) => {
+    await openStarter(page)
+
+    // Edit first, so the archive proves it holds the live Blueprint and not the starter.
+    await page.getByRole('button', { name: 'React testing' }).click()
+    await page.getByLabel('Description').fill('Round tripped through a ZIP.')
+
+    await page.getByRole('button', { name: 'Export', exact: true }).click()
+    const dialog = page.getByRole('dialog')
+    await expect(dialog.getByRole('list', { name: 'Files in the archive' })).toContainText(
+      'blueprint/blueprint.yaml',
+    )
+
+    const downloading = page.waitForEvent('download')
+    await dialog.getByRole('button', { name: /Download ZIP/ }).click()
+    const download = await downloading
+    expect(download.suggestedFilename()).toBe('react-expert.zip')
+    const archive = await download.path()
+
+    // Import it back. The dialog reports what it found before anything is stored.
+    await page.goto('/')
+    await page.getByLabel('Import a Blueprint archive or manifest').setInputFiles(archive)
+
+    const importDialog = page.getByRole('dialog')
+    await expect(importDialog.getByRole('heading', { name: /React Expert/ })).toBeVisible()
+    await expect(importDialog.getByText(/read cleanly/i)).toBeVisible()
+    await importDialog.getByRole('button', { name: /Open project/ }).click()
+    await page.waitForURL(/\/p\//)
+
+    // Same artifacts, and the unsaved edit came along.
+    await expect(page.getByRole('button', { name: 'Skills 4' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Agents 1' })).toBeVisible()
+    await page.getByRole('button', { name: 'React testing' }).click()
+    await expect(page.getByLabel('Description')).toHaveValue('Round tripped through a ZIP.')
+  })
+
+  test('the export shortcut opens the same dialog', async ({ page }) => {
+    await openStarter(page)
+    await page.keyboard.press('ControlOrMeta+e')
+
+    await expect(
+      page.getByRole('dialog').getByRole('button', { name: /Download ZIP/ }),
+    ).toBeVisible()
+  })
+
+  test('a file that is not a project says so instead of opening', async ({ page }) => {
+    await page.goto('/')
+    await page.getByLabel('Import a Blueprint archive or manifest').setInputFiles({
+      name: 'notes.zip',
+      mimeType: 'application/zip',
+      buffer: Buffer.from('nope'),
+    })
+
+    await expect(page.getByText(/Could not read that file/)).toBeVisible()
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+  })
+})
+
 test.describe('creation wizard', () => {
   test('walks the ten steps and creates the project it showed', async ({ page }) => {
     await page.goto('/')

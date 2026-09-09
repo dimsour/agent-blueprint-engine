@@ -1,6 +1,6 @@
 # Web App
 
-This document specifies `apps/web`: routes, layout, state model, persistence, the creation wizard, the ChangeSet review experience, keyboard interaction and the design language. Today the app contains a single placeholder page (`apps/web/src/app/page.tsx`) that imports `@agent-blueprint/core`; everything else here is the specification for roadmap phases P3 (shell), P4 (graphs), P5 (trust surfaces), P6 (AI) and P7 (GitHub).
+This document specifies `apps/web`: routes, layout, state model, persistence, the creation wizard, the ChangeSet review experience, keyboard interaction and the design language. Phase P3 is built: the dashboard, the workspace, the editors, the inspector, the command palette, the wizard, and ZIP import and export. What is described here for P4 (graphs), P5 (trust surfaces), P6 (AI) and P7 (GitHub) is still specification; each such section says which phase owns it.
 
 ## Status
 
@@ -97,14 +97,22 @@ interface ProjectStore {
 }
 ```
 
-| Tier    | Backend                           | Behaviour                                                                                                  |
-| ------- | --------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| Draft   | IndexedDB (`idb`)                 | Autosave the normalized Blueprint JSON every few seconds while dirty; restored on reopen; survives reloads |
-| Project | IndexedDB `VirtualFs`             | Explicit Save runs `writeProject`; Recent Projects lists these                                             |
-| Folder  | File System Access API (Chromium) | Open a real directory; Save writes straight to disk; the folder can be a Git checkout                      |
-| Archive | ZIP (`jszip`)                     | Import reads only `<sourceDir>/`; Export writes source plus compiled output for enabled targets            |
+| Tier    | Backend                           | Behaviour                                                                                                                                   |
+| ------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Draft   | IndexedDB (`idb`)                 | Autosave the normalized Blueprint JSON every few seconds while dirty; restored on reopen; survives reloads                                  |
+| Project | IndexedDB `VirtualFs`             | Explicit Save runs `writeProject`; Recent Projects lists these                                                                              |
+| Folder  | File System Access API (Chromium) | Open a real directory; Save writes straight to disk; the folder can be a Git checkout                                                       |
+| Archive | ZIP (`jszip`)                     | Export writes the source project (compiled output is added with the export view, P5-04); import accepts a ZIP, a folder, or a lone manifest |
 
 The draft is a convenience; the project written through `writeProject` is the source of truth. Import never trusts the draft over the files.
+
+### Import and export (P3-11)
+
+Import is a two-step flow, because a Blueprint can arrive from a colleague, an archive or a git clone. `readUpload` turns the file into a file map (a ZIP, or a `.yaml`/`.yml`/`.json` manifest placed at `<sourceDir>/blueprint.yaml`), `previewImport` parses it with the same reader the workspace uses, and a dialog reports what was found and every diagnostic **before** anything is stored. Errors do not block opening: a project with problems is the project a person needs to open in order to fix it. A starter chosen on the dashboard skips the dialog, since it is the app's own file.
+
+Export downloads `<blueprint id>.zip` holding `<sourceDir>/` only, rendered from the Blueprint in the store, so an unsaved edit is included. The dialog lists every file and its size first: the archive is the one thing that leaves the browser. `⌘E` opens it, and so does the palette.
+
+The round trip is the contract: for every starter, export then import produces a Blueprint whose `diffBlueprints` against the original has no ops.
 
 ## Wizard (`/new`, P3 for steps, P6 for AI draft)
 

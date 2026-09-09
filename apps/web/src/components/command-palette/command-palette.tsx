@@ -89,9 +89,10 @@ function Item({
 export interface CommandPaletteProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  onExport: () => void
 }
 
-export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
+export function CommandPalette({ open, onOpenChange, onExport }: CommandPaletteProps) {
   const blueprint = useWorkspace((state) => state.blueprint)
   const selection = useWorkspace((state) => state.selection)
   const dirty = useWorkspace((state) => state.dirty)
@@ -235,9 +236,9 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
               <Item
                 icon={<DownloadIcon />}
                 label="Export ZIP"
-                hint="not built yet"
-                disabled
-                keywords={['download', 'compile']}
+                hint={`${mod}E`}
+                keywords={['download', 'archive', 'save as']}
+                onSelect={run(onExport)}
               />
               <Item
                 icon={<FileCodeIcon />}

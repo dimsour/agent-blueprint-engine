@@ -1,4 +1,4 @@
-import { renderProjectFiles } from '@agent-blueprint/core'
+import { diffBlueprints, renderProjectFiles } from '@agent-blueprint/core'
 import { readStarterFiles, starterIds } from '@agent-blueprint/templates'
 import { beforeEach, describe, expect, it } from 'vitest'
 
@@ -6,6 +6,7 @@ import { fileSystemStore } from './file-system'
 import { IndexedDbStore, resetDbForTests } from './indexeddb'
 import { importProject, openProject, parseProject, saveProject, summaryOf } from './project'
 import { StorageError } from './types'
+import { previewImport, readUpload } from './import'
 import { filesToZip, zipToFiles } from './zip'
 
 const files = () => readStarterFiles('react-expert')
@@ -51,6 +52,65 @@ describe('ZIP round trip', () => {
 
   it('rejects something that is not an archive', async () => {
     await expect(zipToFiles(new TextEncoder().encode('not a zip'))).rejects.toThrow(StorageError)
+  })
+
+  // The acceptance criterion for the export and import pair: nothing is lost either way.
+  it('changes nothing about any starter, measured as a change-set', async () => {
+    for (const id of starterIds) {
+      const original = (await parseProject(readStarterFiles(id))).blueprint
+      const restored = (
+        await parseProject(await zipToFiles(await filesToZip(readStarterFiles(id))))
+      ).blueprint
+
+      expect(diffBlueprints(original, restored).ops).toEqual([])
+    }
+  })
+})
+
+describe('reading an uploaded file', () => {
+  const upload = (name: string, content: BlobPart) =>
+    new File([content], name, { type: 'application/octet-stream' })
+
+  it('reads a ZIP archive', async () => {
+    const zip = await filesToZip(files())
+    const read = await readUpload(upload('project.zip', zip))
+    expect(read['blueprint/blueprint.yaml']).toBe(files()['blueprint/blueprint.yaml'])
+  })
+
+  it('treats a lone YAML file as the manifest', async () => {
+    const manifest = files()['blueprint/blueprint.yaml'] ?? ''
+    const read = await readUpload(upload('blueprint.yaml', manifest))
+    expect(Object.keys(read)).toEqual(['blueprint/blueprint.yaml'])
+  })
+
+  it('refuses an empty manifest rather than reporting it as a broken project', async () => {
+    await expect(readUpload(upload('blueprint.yaml', '   '))).rejects.toThrow(StorageError)
+  })
+})
+
+describe('previewImport', () => {
+  it('reports what it found without storing anything', async () => {
+    const preview = await previewImport(files(), 'react-expert.zip')
+
+    expect(preview.label).toBe('react-expert.zip')
+    expect(preview.blueprint.skills.length).toBeGreaterThan(0)
+    expect(preview.errors).toEqual([])
+    expect(await new IndexedDbStore().list()).toEqual([])
+  })
+
+  it('separates errors from warnings so the dialog can weigh them', async () => {
+    // A manifest that names artifacts whose files are missing: the common broken import.
+    const manifest = files()['blueprint/blueprint.yaml'] ?? ''
+    const preview = await previewImport({ 'blueprint/blueprint.yaml': manifest }, 'blueprint.yaml')
+
+    expect(preview.diagnostics.length).toBeGreaterThan(0)
+    expect(preview.errors.length + preview.warnings.length).toBeLessThanOrEqual(
+      preview.diagnostics.length,
+    )
+  })
+
+  it('refuses files that are not a project at all', async () => {
+    await expect(previewImport({ 'readme.md': '# hello' }, 'folder')).rejects.toThrow(StorageError)
   })
 })
 

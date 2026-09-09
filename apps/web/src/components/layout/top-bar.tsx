@@ -44,7 +44,13 @@ function PendingAction({
   )
 }
 
-export function TopBar({ onOpenPalette }: { onOpenPalette: () => void }) {
+export function TopBar({
+  onOpenPalette,
+  onExport,
+}: {
+  onOpenPalette: () => void
+  onExport: () => void
+}) {
   const blueprint = useWorkspace((state) => state.blueprint)
   const dirty = useWorkspace((state) => state.dirty)
   const saving = useWorkspace((state) => state.saving)
@@ -86,11 +92,10 @@ export function TopBar({ onOpenPalette }: { onOpenPalette: () => void }) {
           {saving ? <LoaderIcon className="animate-spin" /> : <SaveIcon />}
           Save
         </Button>
-        <PendingAction
-          label="Export"
-          icon={<DownloadIcon />}
-          reason="Export arrives with the compiler view (roadmap P5)"
-        />
+        <Button variant="ghost" size="sm" onClick={onExport} disabled={!blueprint}>
+          <DownloadIcon />
+          Export
+        </Button>
         <PendingAction
           label="GitHub"
           icon={<CloudUploadIcon />}

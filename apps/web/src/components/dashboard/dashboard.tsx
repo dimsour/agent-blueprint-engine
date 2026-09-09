@@ -15,15 +15,18 @@ import { FileUpIcon, FolderOpenIcon, PlusIcon, Trash2Icon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge, Card } from '@/components/ui/primitives'
 import { ThemeToggle } from '@/components/theme'
+import { ImportDialog } from '@/components/dashboard/import-dialog'
 import {
   fileSystemStore,
   importProject,
   indexedDbStore,
+  type ImportPreview,
+  previewImport,
   type ProjectFiles,
   type ProjectSummary,
-  parseProject,
+  readUpload,
+  IMPORT_ACCEPT,
   StorageError,
-  zipToFiles,
 } from '@/lib/storage'
 
 export interface StarterInfo {
@@ -41,6 +44,7 @@ export function Dashboard({ starters }: { starters: StarterInfo[] }) {
   const router = useRouter()
   const [recent, setRecent] = useState<ProjectSummary[]>([])
   const [busy, setBusy] = useState<string | undefined>(undefined)
+  const [preview, setPreview] = useState<ImportPreview | undefined>()
   const fileInput = useRef<HTMLInputElement>(null)
 
   const refresh = useCallback(async () => {
@@ -64,19 +68,26 @@ export function Dashboard({ starters }: { starters: StarterInfo[] }) {
     }
   }, [])
 
+  /** Opens without asking: a starter is the app's own file, not something handed in. */
   const openFiles = useCallback(
-    async (files: ProjectFiles, label: string) => {
-      const { summary, loaded } = await importProject(files)
-      const errors = loaded.diagnostics.filter((diagnostic) => diagnostic.severity === 'error')
-      if (errors.length > 0) {
-        toast.warning(`${label} opened with ${errors.length} problem(s)`, {
-          description: errors[0]?.message,
-        })
-      }
+    async (files: ProjectFiles) => {
+      const { summary } = await importProject(files)
       router.push(`/p/${summary.id}`)
     },
     [router],
   )
+
+  /** Anything from outside is read and reported first; nothing is stored until Open. */
+  const inspect = useCallback(async (files: ProjectFiles, label: string) => {
+    setPreview(await previewImport(files, label))
+    setBusy(undefined)
+  }, [])
+
+  const confirmImport = useCallback(async () => {
+    if (!preview) return
+    const { summary } = await importProject(preview.files)
+    router.push(`/p/${summary.id}`)
+  }, [preview, router])
 
   const startFrom = useCallback(
     async (starter: StarterInfo) => {
@@ -85,7 +96,7 @@ export function Dashboard({ starters }: { starters: StarterInfo[] }) {
         const response = await fetch(`/api/starters/${starter.id}`)
         if (!response.ok) throw new Error(`Could not load the ${starter.label} template.`)
         const { files } = (await response.json()) as { files: ProjectFiles }
-        await openFiles(files, starter.label)
+        await openFiles(files)
       } catch (error) {
         toast.error('Could not start from that template', { description: describeError(error) })
         setBusy(undefined)
@@ -94,25 +105,24 @@ export function Dashboard({ starters }: { starters: StarterInfo[] }) {
     [openFiles],
   )
 
-  const importZip = useCallback(
+  const importFile = useCallback(
     async (file: File) => {
       setBusy('import')
       try {
-        await openFiles(await zipToFiles(file), file.name)
+        await inspect(await readUpload(file), file.name)
       } catch (error) {
-        toast.error('Could not import that archive', { description: describeError(error) })
+        toast.error('Could not read that file', { description: describeError(error) })
         setBusy(undefined)
       }
     },
-    [openFiles],
+    [inspect],
   )
 
   const importFolder = useCallback(async () => {
     setBusy('folder')
     try {
       const { files, name } = await fileSystemStore.pickDirectory()
-      await parseProject(files)
-      await openFiles(files, name)
+      await inspect(files, name)
     } catch (error) {
       // Cancelling the picker is not an error worth a toast.
       if (!(error instanceof DOMException && error.name === 'AbortError')) {
@@ -120,7 +130,7 @@ export function Dashboard({ starters }: { starters: StarterInfo[] }) {
       }
       setBusy(undefined)
     }
-  }, [openFiles])
+  }, [inspect])
 
   const remove = useCallback(
     async (summary: ProjectSummary) => {
@@ -178,16 +188,24 @@ export function Dashboard({ starters }: { starters: StarterInfo[] }) {
         <input
           ref={fileInput}
           type="file"
-          accept=".zip,application/zip"
+          accept={IMPORT_ACCEPT}
           className="hidden"
-          aria-label="Import a Blueprint ZIP archive"
+          aria-label="Import a Blueprint archive or manifest"
           onChange={(event) => {
             const file = event.target.files?.[0]
             event.target.value = ''
-            if (file) void importZip(file)
+            if (file) void importFile(file)
           }}
         />
       </section>
+
+      {preview ? (
+        <ImportDialog
+          preview={preview}
+          onCancel={() => setPreview(undefined)}
+          onOpen={confirmImport}
+        />
+      ) : null}
 
       {recent.length > 0 ? (
         <section className="flex flex-col gap-3">

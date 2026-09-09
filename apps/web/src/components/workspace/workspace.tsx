@@ -12,6 +12,7 @@ import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 
 import { CommandPalette } from '@/components/command-palette/command-palette'
+import { ExportDialog } from '@/components/export/export-dialog'
 import { ArtifactEditor } from '@/components/editor/artifact-editor'
 import { Inspector } from '@/components/inspector/inspector'
 import { HealthBar } from '@/components/layout/health-bar'
@@ -30,9 +31,11 @@ export function Workspace({ projectId }: { projectId: string }) {
   const loadedId = useWorkspace((state) => state.projectId)
   const [error, setError] = useState<string | undefined>()
   const [paletteOpen, setPaletteOpen] = useState(false)
+  const [exportOpen, setExportOpen] = useState(false)
 
   useShortcuts({
     palette: () => setPaletteOpen((current) => !current),
+    export: () => setExportOpen(true),
     save: () => void useWorkspace.getState().save(),
     undo: workspaceHistory.undo,
     redo: workspaceHistory.redo,
@@ -80,14 +83,21 @@ export function Workspace({ projectId }: { projectId: string }) {
   return (
     <>
       <IdeShell
-        topBar={<TopBar onOpenPalette={() => setPaletteOpen(true)} />}
+        topBar={
+          <TopBar onOpenPalette={() => setPaletteOpen(true)} onExport={() => setExportOpen(true)} />
+        }
         sidebar={<ProjectTree />}
         inspector={<Inspector />}
         healthBar={<HealthBar />}
       >
         <Canvas />
       </IdeShell>
-      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
+      <CommandPalette
+        open={paletteOpen}
+        onOpenChange={setPaletteOpen}
+        onExport={() => setExportOpen(true)}
+      />
+      <ExportDialog open={exportOpen} onOpenChange={setExportOpen} />
     </>
   )
 }

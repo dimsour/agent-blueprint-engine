@@ -19,14 +19,17 @@ async function load() {
   return blueprint
 }
 
+const onExport = vi.fn()
+
 function open() {
   const onOpenChange = vi.fn()
-  render(<CommandPalette open onOpenChange={onOpenChange} />)
+  render(<CommandPalette open onOpenChange={onOpenChange} onExport={onExport} />)
   return onOpenChange
 }
 
 describe('CommandPalette', () => {
   beforeEach(() => {
+    onExport.mockReset()
     useWorkspace.getState().close()
   })
 
@@ -121,13 +124,22 @@ describe('CommandPalette', () => {
     await load()
     open()
 
-    const exportItem = screen.getByRole('option', { name: /Export ZIP/ })
-    expect(exportItem).toHaveAttribute('data-disabled', 'true')
-    expect(within(exportItem).getByText('not built yet')).toBeInTheDocument()
+    const push = screen.getByRole('option', { name: /Push to GitHub/ })
+    expect(push).toHaveAttribute('data-disabled', 'true')
+    expect(within(push).getByText('not built yet')).toBeInTheDocument()
 
     const ai = screen.getByRole('option', { name: /AI actions/ })
     expect(ai).toHaveAttribute('data-disabled', 'true')
     expect(within(ai).getByText('needs an AI endpoint')).toBeInTheDocument()
+  })
+
+  it('hands the export over to the workspace, which owns the dialog', async () => {
+    await load()
+    const user = userEvent.setup()
+    open()
+
+    await user.click(screen.getByRole('option', { name: /Export ZIP/ }))
+    expect(onExport).toHaveBeenCalledTimes(1)
   })
 
   it('says so when nothing matches', async () => {

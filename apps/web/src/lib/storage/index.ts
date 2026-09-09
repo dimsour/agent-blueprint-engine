@@ -1,5 +1,6 @@
 export * from './types'
 export * from './zip'
+export * from './import'
 export * from './project'
 export { IndexedDbStore, indexedDbStore, resetDbForTests } from './indexeddb'
 export { FileSystemAccessStore, fileSystemStore, fileSystemAccessSupported } from './file-system'
