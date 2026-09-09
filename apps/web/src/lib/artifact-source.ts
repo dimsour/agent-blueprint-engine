@@ -18,8 +18,8 @@ import {
   entityMainPath,
   entitySchemaFor,
   type EntityRef,
+  findEntity,
   fromYaml,
-  getCollection,
   renderProjectFiles,
 } from '@agent-blueprint/core'
 
@@ -38,8 +38,9 @@ export function hasPreview(ref: EntityRef): boolean {
   return sourceLanguage(ref) === 'markdown'
 }
 
-export function findEntity(blueprint: Blueprint, ref: EntityRef): AnyEntity | undefined {
-  return getCollection(blueprint, ref.kind).find((entity) => entity.id === ref.id)
+/** The artifact a ref points at, or undefined when it points at nothing. */
+export function entityOf(blueprint: Blueprint, ref: EntityRef): AnyEntity | undefined {
+  return findEntity(blueprint, ref.kind, ref.id)
 }
 
 /** The file the writer would produce for this artifact, byte for byte. */
@@ -49,7 +50,7 @@ export function renderEntitySource(blueprint: Blueprint, ref: EntityRef): string
 
 /** The Markdown body alone, for the preview. */
 export function bodyOf(blueprint: Blueprint, ref: EntityRef): string {
-  const entity = findEntity(blueprint, ref)
+  const entity = entityOf(blueprint, ref)
   const body = (entity as { body?: unknown } | undefined)?.body
   return typeof body === 'string' ? body : ''
 }
@@ -62,7 +63,7 @@ export type ParseSourceResult = { ok: true; entity: AnyEntity } | { ok: false; m
  * workflow's graph.
  */
 function carriedOverFields(blueprint: Blueprint, ref: EntityRef): Record<string, unknown> {
-  const existing = findEntity(blueprint, ref) as Record<string, unknown> | undefined
+  const existing = entityOf(blueprint, ref) as Record<string, unknown> | undefined
   if (!existing) return {}
   switch (ENTITY_KIND_INFO[ref.kind].format) {
     case 'skill':

@@ -10,6 +10,8 @@ export function ThemeProvider({ children, ...props }: ComponentProps<typeof Next
   return (
     <NextThemeProvider
       attribute="class"
+      // The UI namespace from docs/08, kept clear of anything that could hold a secret.
+      storageKey="ab:ui:theme"
       defaultTheme="system"
       enableSystem
       disableTransitionOnChange

@@ -11,7 +11,7 @@ import {
   type Blueprint,
   type DependencyEdge,
   type EntityRef,
-  getCollection,
+  findEntity,
   type RefRelation,
 } from '@agent-blueprint/core'
 
@@ -62,7 +62,7 @@ export interface ArtifactRelations {
 }
 
 function nameOf(blueprint: Blueprint, ref: EntityRef): string | undefined {
-  return getCollection(blueprint, ref.kind).find((entity) => entity.id === ref.id)?.name
+  return findEntity(blueprint, ref.kind, ref.id)?.name
 }
 
 /**

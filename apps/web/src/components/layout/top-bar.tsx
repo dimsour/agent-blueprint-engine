@@ -4,6 +4,7 @@ import Link from 'next/link'
 import {
   CheckIcon,
   SearchIcon,
+  SettingsIcon,
   TriangleAlertIcon,
   CloudUploadIcon,
   DownloadIcon,
@@ -125,6 +126,11 @@ export function TopBar({
           icon={<SparklesIcon />}
           reason="The AI assistant arrives in roadmap P6"
         />
+        <Button variant="ghost" size="icon-sm" asChild aria-label="Settings">
+          <Link href="/settings">
+            <SettingsIcon />
+          </Link>
+        </Button>
         <ThemeToggle />
       </div>
     </>

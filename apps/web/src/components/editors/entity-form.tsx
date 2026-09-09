@@ -46,6 +46,8 @@ import {
   TextField,
 } from '@/components/editors/fields'
 import { PermissionsGrid } from '@/components/editors/permissions-grid'
+import { ChecksField } from '@/components/editors/requirement-checks'
+import { ResourcesField } from '@/components/editors/skill-resources'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/primitives'
 import { useWorkspace } from '@/lib/state/workspace-store'
@@ -53,6 +55,59 @@ import { useWorkspace } from '@/lib/state/workspace-store'
 /** Options for a reference picker: every artifact of a kind, by id and display name. */
 function optionsFor(blueprint: Blueprint, kind: EntityKind): { id: string; name: string }[] {
   return getCollection(blueprint, kind).map((entity) => ({ id: entity.id, name: entity.name }))
+}
+
+/**
+ * "New X" inside a picker: makes the artifact, links it, and stays put.
+ *
+ * Adding is deliberately separate from opening. Sending someone to the new artifact in the
+ * middle of filling in another one loses their place, and the thing they were doing was
+ * linking, not authoring.
+ */
+function useInlineCreate(
+  kind: EntityKind,
+  selected: readonly string[],
+  link: (ids: string[]) => void,
+) {
+  const add = useWorkspace((state) => state.add)
+  return () => {
+    const ref = add(kind, `New ${ENTITY_KIND_INFO[kind].label.toLowerCase()}`)
+    if (!ref) return
+    link([...selected, ref.id])
+    toast.success(`Added ${ENTITY_KIND_INFO[kind].label.toLowerCase()} ${ref.id}`, {
+      description: 'It is linked here and waiting in the tree.',
+    })
+  }
+}
+
+/** A picker that can also create what it picks. */
+function LinkField({
+  label,
+  kind,
+  blueprint,
+  selected,
+  onChange,
+  help,
+}: {
+  label: string
+  kind: EntityKind
+  blueprint: Blueprint
+  selected: readonly string[]
+  onChange: (ids: string[]) => void
+  help?: string
+}) {
+  const create = useInlineCreate(kind, selected, onChange)
+  return (
+    <RefListField
+      label={label}
+      {...(help ? { help } : {})}
+      selected={selected}
+      options={optionsFor(blueprint, kind)}
+      onChange={onChange}
+      onCreate={create}
+      createLabel={`New ${ENTITY_KIND_INFO[kind].label.toLowerCase()}`}
+    />
+  )
 }
 
 export function EntityForm({ selection }: { selection: EntityRef }) {
@@ -217,46 +272,53 @@ function KindFields({ kind, entity, blueprint, update }: KindFieldProps) {
             onChange={(outputRequirements) => update({ outputRequirements })}
             help="What must be true before this agent reports work as done."
           />
-          <RefListField
+          <LinkField
             label="Skills"
+            kind="skill"
+            blueprint={blueprint}
             selected={list('skillIds')}
-            options={optionsFor(blueprint, 'skill')}
             onChange={(skillIds) => update({ skillIds })}
           />
-          <RefListField
+          <LinkField
             label="Workflows"
+            kind="workflow"
+            blueprint={blueprint}
             selected={list('workflowIds')}
-            options={optionsFor(blueprint, 'workflow')}
             onChange={(workflowIds) => update({ workflowIds })}
           />
-          <RefListField
+          <LinkField
             label="Iron Laws"
+            kind="iron-law"
+            blueprint={blueprint}
             selected={list('ironLawIds')}
-            options={optionsFor(blueprint, 'iron-law')}
             onChange={(ironLawIds) => update({ ironLawIds })}
           />
-          <RefListField
+          <LinkField
             label="Rules"
+            kind="rule"
+            blueprint={blueprint}
             selected={list('ruleIds')}
-            options={optionsFor(blueprint, 'rule')}
             onChange={(ruleIds) => update({ ruleIds })}
           />
-          <RefListField
+          <LinkField
             label="Tools"
+            kind="tool"
+            blueprint={blueprint}
             selected={list('toolIds')}
-            options={optionsFor(blueprint, 'tool')}
             onChange={(toolIds) => update({ toolIds })}
           />
-          <RefListField
+          <LinkField
             label="References"
+            kind="reference"
+            blueprint={blueprint}
             selected={list('referenceIds')}
-            options={optionsFor(blueprint, 'reference')}
             onChange={(referenceIds) => update({ referenceIds })}
           />
-          <RefListField
+          <LinkField
             label="Memory"
+            kind="memory"
+            blueprint={blueprint}
             selected={list('memoryIds')}
-            options={optionsFor(blueprint, 'memory')}
             onChange={(memoryIds) => update({ memoryIds })}
           />
           <SelectField
@@ -273,6 +335,21 @@ function KindFields({ kind, entity, blueprint, update }: KindFieldProps) {
               })
             }
             help="Compiled to a concrete model per harness: fast, balanced or strong."
+          />
+          <RefListField
+            label="Can delegate to"
+            help="Other agents this one may hand work to. Compiles to the harness's subagent wiring."
+            selected={
+              ((entity['delegation'] as { canDelegateTo?: string[] } | undefined)?.canDelegateTo ??
+                []) as string[]
+            }
+            options={optionsFor(blueprint, 'agent').filter(
+              (option) => option.id !== (entity['id'] as string),
+            )}
+            onChange={(canDelegateTo) =>
+              // Absent rather than empty: an agent that delegates to nobody has no delegation.
+              update({ delegation: canDelegateTo.length > 0 ? { canDelegateTo } : undefined })
+            }
           />
           <PermissionsGrid
             permissions={entity['permissions'] as never}
@@ -293,19 +370,22 @@ function KindFields({ kind, entity, blueprint, update }: KindFieldProps) {
             rows={2}
           />
           <ActivationFields entity={entity} update={update} />
-          <RefListField
+          <LinkField
             label="References"
+            kind="reference"
+            blueprint={blueprint}
             selected={list('referenceIds')}
-            options={optionsFor(blueprint, 'reference')}
             onChange={(referenceIds) => update({ referenceIds })}
             help="Copied next to the skill so it stays self-contained."
           />
-          <RefListField
+          <LinkField
             label="Allowed tools"
+            kind="tool"
+            blueprint={blueprint}
             selected={list('allowedToolIds')}
-            options={optionsFor(blueprint, 'tool')}
             onChange={(allowedToolIds) => update({ allowedToolIds })}
           />
+          <ResourcesField entity={entity} update={update} />
           <BodyField label="Instructions" entity={entity} update={update} />
         </>
       )
@@ -536,14 +616,7 @@ function KindFields({ kind, entity, blueprint, update }: KindFieldProps) {
             onChange={(level) => update({ level })}
             help="An unmet `must` is an error; an unmet `should` is a warning."
           />
-          <Field
-            label="Checks"
-            help="Checks are edited in the project file for now; the builder arrives with the requirements view."
-          >
-            <p className="text-muted-foreground text-sm">
-              {(entity['checks'] as unknown[] | undefined)?.length ?? 0} automated checks.
-            </p>
-          </Field>
+          <ChecksField entity={entity} blueprint={blueprint} update={update} />
           <BodyField label="Notes" entity={entity} update={update} />
         </>
       )
@@ -553,9 +626,11 @@ function KindFields({ kind, entity, blueprint, update }: KindFieldProps) {
         <>
           <RefListField
             label="Agent"
+            help="Which agent this scenario exercises. Click the selected one to clear it."
             selected={string('agentId') ? [string('agentId')] : []}
             options={optionsFor(blueprint, 'agent')}
-            onChange={(ids) => update({ agentId: ids[ids.length - 1] })}
+            // One agent, not a set: the last click wins, and deselecting means no agent.
+            onChange={(ids) => update({ agentId: ids.at(-1) ?? undefined })}
           />
           <TextAreaField
             label="Input"

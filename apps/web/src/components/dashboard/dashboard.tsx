@@ -10,7 +10,14 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { CloudUploadIcon, FileUpIcon, FolderOpenIcon, PlusIcon, Trash2Icon } from 'lucide-react'
+import {
+  CloudUploadIcon,
+  FileUpIcon,
+  FolderOpenIcon,
+  PlusIcon,
+  SettingsIcon,
+  Trash2Icon,
+} from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Badge, Card } from '@/components/ui/primitives'
@@ -173,7 +180,15 @@ export function Dashboard({ starters }: { starters: StarterInfo[] }) {
             and Pi.
           </p>
         </div>
-        <ThemeToggle />
+        <span className="flex items-center gap-1">
+          <Button variant="ghost" size="sm" asChild>
+            <Link href="/settings">
+              <SettingsIcon />
+              Settings
+            </Link>
+          </Button>
+          <ThemeToggle />
+        </span>
       </header>
 
       <section className="flex flex-wrap items-center gap-2">

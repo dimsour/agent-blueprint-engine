@@ -9,11 +9,24 @@ async function openStarter(page: Page, label = 'React Expert') {
 }
 
 /**
- * An artifact in the project tree. The name must match exactly: each row also has an actions
- * menu labelled "Actions for <name>", and a kind group has a "New <kind>" button.
+ * An artifact in the project tree. Scoped and anchored: each row also has an actions menu
+ * labelled "Actions for <name>", and a row with findings is named "<name>, N findings".
  */
 function artifact(page: Page, name: string) {
-  return page.getByRole('button', { name, exact: true })
+  return page
+    .getByRole('navigation', { name: 'Blueprint artifacts' })
+    .getByRole('button', { name: new RegExp(`^${name}(,|$)`) })
+}
+
+/**
+ * A kind group in the tree. The Overview canvas lists the same counts, so this has to say
+ * which of the two it means.
+ */
+function kindGroup(page: Page, label: string) {
+  return page.getByRole('navigation', { name: 'Blueprint artifacts' }).getByRole('button', {
+    name: label,
+    exact: true,
+  })
 }
 
 /** The page itself must never scroll sideways; panels scroll inside their own bounds. */
@@ -44,8 +57,8 @@ test.describe('dashboard', () => {
 
     // The top bar names the project and the tree lists its artifacts.
     await expect(page.getByText('React Expert').first()).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Skills 4' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Agents 1' })).toBeVisible()
+    await expect(kindGroup(page, 'Skills 4')).toBeVisible()
+    await expect(kindGroup(page, 'Agents 1')).toBeVisible()
 
     // A clean starter reports no problems.
     await expect(page.getByText('No findings. This Blueprint is clean.')).toBeVisible()
@@ -113,7 +126,7 @@ test.describe('workspace layout', () => {
   test('deleting an artifact names what it affects first', async ({ page }) => {
     await openStarter(page)
     await artifact(page, 'React testing').click()
-    await page.getByRole('button', { name: 'Delete' }).click()
+    await page.getByRole('button', { name: 'Delete', exact: true }).click()
 
     const dialog = page.getByRole('dialog')
     await expect(dialog.getByRole('list', { name: 'Affected artifacts' })).toContainText(
@@ -187,6 +200,46 @@ test.describe('workspace layout', () => {
   })
 })
 
+test.describe('addressable workspace', () => {
+  test('selecting an artifact puts it in the address bar', async ({ page }) => {
+    await openStarter(page)
+    await artifact(page, 'React testing').click()
+
+    await expect(page).toHaveURL(/view=skills&id=react-testing/)
+  })
+
+  test('a link to an artifact opens on that artifact', async ({ page }) => {
+    await openStarter(page)
+    const url = new URL(page.url())
+
+    await page.goto(`${url.pathname}?view=skills&id=accessibility`)
+    await expect(page.getByRole('heading', { name: 'Accessibility' })).toBeVisible()
+    await expect(artifact(page, 'Accessibility')).toHaveAttribute('aria-current', 'true')
+  })
+
+  test('a reload comes back to the same artifact', async ({ page }) => {
+    await openStarter(page)
+    await artifact(page, 'React testing').click()
+    await page.getByRole('tab', { name: /Preview/ }).click()
+
+    await page.reload()
+
+    // The artifact returns; the tab does not, because a reload is a fresh look at it.
+    await expect(page.getByRole('heading', { name: 'React testing' })).toBeVisible()
+    await expect(artifact(page, 'React testing')).toHaveAttribute('aria-current', 'true')
+    await expect(page.getByRole('tab', { name: /Visual/ })).toHaveAttribute('data-state', 'active')
+  })
+
+  test('Overview leaves the selection and lists the kinds', async ({ page }) => {
+    await openStarter(page)
+    await artifact(page, 'React testing').click()
+    await page.getByRole('button', { name: 'Overview' }).click()
+
+    await expect(page.getByRole('list', { name: 'Artifacts by kind' })).toBeVisible()
+    await expect(page.getByText('No findings. This Blueprint is clean.')).toBeVisible()
+  })
+})
+
 test.describe('export and import', () => {
   test('an exported archive imports back as the same Blueprint', async ({ page }) => {
     await openStarter(page)
@@ -218,8 +271,8 @@ test.describe('export and import', () => {
     await page.waitForURL(/\/p\//)
 
     // Same artifacts, and the unsaved edit came along.
-    await expect(page.getByRole('button', { name: 'Skills 4' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Agents 1' })).toBeVisible()
+    await expect(kindGroup(page, 'Skills 4')).toBeVisible()
+    await expect(kindGroup(page, 'Agents 1')).toBeVisible()
     await artifact(page, 'React testing').click()
     await expect(page.getByLabel('Description')).toHaveValue('Round tripped through a ZIP.')
   })
@@ -243,6 +296,21 @@ test.describe('export and import', () => {
 
     await expect(page.getByText(/Could not read that file/)).toBeVisible()
     await expect(page.getByRole('dialog')).toHaveCount(0)
+  })
+})
+
+test.describe('settings', () => {
+  test('lists what this browser is holding, and can let it go', async ({ page }) => {
+    await openStarter(page)
+    await page.goto('/settings')
+
+    await expect(page.getByRole('list', { name: 'Stored projects' })).toContainText('React Expert')
+
+    await page.getByRole('button', { name: /Remove every local project/ }).click()
+    await expect(page.getByText('Nothing stored yet.')).toBeVisible()
+
+    await page.goto('/')
+    await expect(page.getByText('Recent projects')).toHaveCount(0)
   })
 })
 
@@ -290,10 +358,10 @@ test.describe('creation wizard', () => {
     await page.waitForURL(/\/p\//)
 
     // The workspace opens on the Blueprint the wizard built.
-    await expect(page.getByRole('button', { name: 'Agents 1' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Skills 1' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Workflows 1' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Iron Laws 1' })).toBeVisible()
+    await expect(kindGroup(page, 'Agents 1')).toBeVisible()
+    await expect(kindGroup(page, 'Skills 1')).toBeVisible()
+    await expect(kindGroup(page, 'Workflows 1')).toBeVisible()
+    await expect(kindGroup(page, 'Iron Laws 1')).toBeVisible()
 
     // Only the chosen harness is a target.
     await expect(page.getByText('claude-code')).toBeVisible()
@@ -302,6 +370,20 @@ test.describe('creation wizard', () => {
     // The agent owns what the wizard added.
     await artifact(page, 'Rust Reviewer').click()
     await expect(page.getByRole('list', { name: 'Depends on' })).toContainText('Domain expertise')
+  })
+
+  test('a half-finished draft is offered again on the next visit', async ({ page }) => {
+    await page.goto('/new')
+    await page.getByLabel('Name').fill('Half Finished')
+    // The draft is written on a timer; give it room, then leave and come back.
+    await page.waitForTimeout(1200)
+
+    await page.goto('/')
+    await page.goto('/new')
+
+    await expect(page.getByText(/part way through/i)).toBeVisible()
+    await page.getByRole('button', { name: /Pick it up/ }).click()
+    await expect(page.getByLabel('Name')).toHaveValue('Half Finished')
   })
 
   test('a project made by the wizard survives a reload', async ({ page }) => {
@@ -318,7 +400,7 @@ test.describe('creation wizard', () => {
     await page.waitForURL(/\/p\//)
 
     await page.reload()
-    await expect(page.getByRole('button', { name: 'Agents 1' })).toBeVisible()
+    await expect(kindGroup(page, 'Agents 1')).toBeVisible()
     await expect(artifact(page, 'Only Agent')).toBeVisible()
   })
 })

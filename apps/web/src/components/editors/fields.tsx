@@ -271,12 +271,17 @@ export function RefListField({
   selected,
   options,
   onChange,
+  onCreate,
+  createLabel,
 }: {
   label: string
   help?: string
   selected: readonly string[]
   options: readonly { id: string; name: string }[]
   onChange: (ids: string[]) => void
+  /** Makes a new artifact of this kind and links it, without leaving this form. */
+  onCreate?: () => void
+  createLabel?: string
 }) {
   const toggle = (id: string) => {
     onChange(
@@ -286,7 +291,7 @@ export function RefListField({
 
   return (
     <Field label={label} {...(help ? { help } : {})}>
-      {options.length === 0 ? (
+      {options.length === 0 && !onCreate ? (
         <p className="text-muted-foreground text-xs">
           None exist yet. Create one and it will appear here.
         </p>
@@ -311,6 +316,15 @@ export function RefListField({
               </button>
             )
           })}
+          {onCreate ? (
+            <button
+              type="button"
+              onClick={onCreate}
+              className="text-accent hover:border-accent rounded border border-dashed px-1.5 py-0.5 text-xs transition-colors"
+            >
+              + {createLabel ?? `New ${label.toLowerCase()}`}
+            </button>
+          ) : null}
         </div>
       )}
     </Field>

@@ -4,7 +4,6 @@
  * They are deliberately plain. An IDE shows many of them at once, so anything decorative
  * here multiplies into noise; the only visual weight is the hairline border.
  */
-import * as SeparatorPrimitive from '@radix-ui/react-separator'
 import { cva, type VariantProps } from 'class-variance-authority'
 import type { ComponentProps } from 'react'
 
@@ -83,26 +82,6 @@ export function Badge({
   ...props
 }: ComponentProps<'span'> & VariantProps<typeof badgeVariants>) {
   return <span data-slot="badge" className={cn(badgeVariants({ variant }), className)} {...props} />
-}
-
-export function Separator({
-  className,
-  orientation = 'horizontal',
-  ...props
-}: ComponentProps<typeof SeparatorPrimitive.Root>) {
-  return (
-    <SeparatorPrimitive.Root
-      data-slot="separator"
-      decorative
-      orientation={orientation}
-      className={cn(
-        'bg-border shrink-0',
-        orientation === 'horizontal' ? 'h-px w-full' : 'h-full w-px',
-        className,
-      )}
-      {...props}
-    />
-  )
 }
 
 export function Card({ className, ...props }: ComponentProps<'div'>) {

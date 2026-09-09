@@ -7,7 +7,7 @@
  * explains. The graph editors (roadmap P4) replace the canvas in place without touching
  * either of the others.
  */
-import { ENTITY_KIND_INFO, getCollection } from '@agent-blueprint/core'
+import { ENTITY_KIND_INFO, ENTITY_KINDS, getCollection } from '@agent-blueprint/core'
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 
@@ -21,7 +21,8 @@ import { TopBar } from '@/components/layout/top-bar'
 import { ProjectTree } from '@/components/tree/project-tree'
 import { Button } from '@/components/ui/button'
 import { validateNow } from '@/lib/actions'
-import { hasPreview } from '@/lib/artifact-source'
+import { useUrlState } from '@/lib/use-url-state'
+import { entityOf, hasPreview } from '@/lib/artifact-source'
 import { useShortcuts } from '@/lib/shortcuts'
 import { openProject } from '@/lib/storage'
 import { useWorkspace, workspaceHistory } from '@/lib/state/workspace-store'
@@ -33,6 +34,9 @@ export function Workspace({ projectId }: { projectId: string }) {
   const [error, setError] = useState<string | undefined>()
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
+
+  // `?view=` and `&id=` make an artifact linkable; the sync runs once the project is in.
+  useUrlState(projectId, blueprint !== undefined && loadedId === projectId)
 
   useShortcuts({
     palette: () => setPaletteOpen((current) => !current),
@@ -110,34 +114,108 @@ export function Workspace({ projectId }: { projectId: string }) {
   )
 }
 
-function Canvas() {
+/**
+ * What the canvas shows with nothing selected: the Blueprint, or one kind of artifact.
+ *
+ * The derived graph of the whole Blueprint belongs here eventually (roadmap P4); until then
+ * this is an index, which is at least a place the `?view=` sections lead to.
+ */
+function Overview() {
   const blueprint = useWorkspace((state) => state.blueprint)
-  const selection = useWorkspace((state) => state.selection)
+  const view = useWorkspace((state) => state.view)
+  const select = useWorkspace((state) => state.select)
+  const setView = useWorkspace((state) => state.setView)
 
-  const entity = useMemo(() => {
-    if (!blueprint || !selection) return undefined
-    return getCollection(blueprint, selection.kind).find((item) => item.id === selection.id)
-  }, [blueprint, selection])
+  const counts = useMemo(
+    () =>
+      blueprint
+        ? ENTITY_KINDS.map((kind) => ({ kind, count: getCollection(blueprint, kind).length }))
+        : [],
+    [blueprint],
+  )
 
   if (!blueprint) return null
 
-  if (!entity || !selection) {
+  if (view !== 'overview') {
+    const entities = getCollection(blueprint, view)
     return (
-      <PanelSection title="Overview">
-        <div className="flex flex-col gap-4 p-4">
-          <div>
-            <h1 className="text-lg font-semibold tracking-tight">{blueprint.name}</h1>
-            {blueprint.description ? (
-              <p className="text-muted-foreground mt-1 text-sm">{blueprint.description}</p>
-            ) : null}
-          </div>
-          <p className="text-muted-foreground text-sm">
-            Choose an artifact on the left to inspect it.
-          </p>
+      <PanelSection title={ENTITY_KIND_INFO[view].pluralLabel}>
+        <div className="flex flex-col gap-3 p-4">
+          <Button
+            variant="outline"
+            size="sm"
+            className="self-start"
+            onClick={() => setView('overview')}
+          >
+            All artifacts
+          </Button>
+          {entities.length === 0 ? (
+            <p className="text-muted-foreground text-sm">
+              No {ENTITY_KIND_INFO[view].pluralLabel.toLowerCase()} yet.
+            </p>
+          ) : (
+            <ul className="flex max-w-2xl flex-col gap-2">
+              {entities.map((item) => (
+                <li key={item.id}>
+                  <button
+                    type="button"
+                    onClick={() => select({ kind: view, id: item.id })}
+                    className="hover:border-accent w-full rounded-lg border p-3 text-left transition-colors"
+                  >
+                    <span className="block text-sm font-medium">{item.name}</span>
+                    <span className="text-muted-foreground block text-xs">
+                      {item.description ?? item.id}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </PanelSection>
     )
   }
+
+  return (
+    <PanelSection title="Overview">
+      <div className="flex flex-col gap-4 p-4">
+        <div>
+          <h1 className="text-lg font-semibold tracking-tight">{blueprint.name}</h1>
+          {blueprint.description ? (
+            <p className="text-muted-foreground mt-1 text-sm">{blueprint.description}</p>
+          ) : null}
+        </div>
+        <ul aria-label="Artifacts by kind" className="grid max-w-2xl gap-2 sm:grid-cols-3">
+          {counts.map(({ kind, count }) => (
+            <li key={kind}>
+              <button
+                type="button"
+                onClick={() => setView(kind)}
+                className="hover:border-accent flex w-full items-baseline justify-between gap-2 rounded-lg border p-3 text-left transition-colors"
+              >
+                <span className="text-sm">{ENTITY_KIND_INFO[kind].pluralLabel}</span>
+                <span className="text-muted-foreground tabular-nums">{count}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </PanelSection>
+  )
+}
+
+function Canvas() {
+  const blueprint = useWorkspace((state) => state.blueprint)
+  const selection = useWorkspace((state) => state.selection)
+
+  const entity = useMemo(
+    () => (blueprint && selection ? entityOf(blueprint, selection) : undefined),
+    [blueprint, selection],
+  )
+
+  if (!blueprint) return null
+
+  if (!entity || !selection) return <Overview />
 
   return (
     <PanelSection

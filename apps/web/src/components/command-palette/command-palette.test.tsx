@@ -133,6 +133,15 @@ describe('CommandPalette', () => {
     expect(within(ai).getByText('needs an AI endpoint')).toBeInTheDocument()
   })
 
+  it('lists the verify and AI actions that P5 and P6 will fill in', async () => {
+    await load()
+    open()
+
+    for (const label of [/Show health/, /Show compatibility/, /AI actions/]) {
+      expect(screen.getByRole('option', { name: label })).toHaveAttribute('data-disabled', 'true')
+    }
+  })
+
   it('hands the export over to the workspace, which owns the dialog', async () => {
     await load()
     const user = userEvent.setup()

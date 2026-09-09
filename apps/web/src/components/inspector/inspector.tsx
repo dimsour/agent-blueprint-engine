@@ -9,7 +9,12 @@
  * next to the actions that would change it, and every entry navigates to the artifact it
  * names.
  */
-import { ENTITY_KIND_INFO, type EntityRef, getCollection } from '@agent-blueprint/core'
+import {
+  type Diagnostic,
+  ENTITY_KIND_INFO,
+  type EntityRef,
+  getCollection,
+} from '@agent-blueprint/core'
 import {
   AlertTriangleIcon,
   CircleAlertIcon,
@@ -31,6 +36,7 @@ import {
 import { PanelSection } from '@/components/layout/ide-shell'
 import { Button } from '@/components/ui/button'
 import { Badge, Card } from '@/components/ui/primitives'
+import { entityOf } from '@/lib/artifact-source'
 import { type RelatedArtifact, relationsOf } from '@/lib/relations'
 import { diagnosticsFor, useWorkspace } from '@/lib/state/workspace-store'
 
@@ -60,9 +66,7 @@ function ArtifactInspector({ selection }: { selection: EntityRef }) {
   )
   const own = useMemo(() => diagnosticsFor(diagnostics, selection), [diagnostics, selection])
 
-  const entity = blueprint
-    ? getCollection(blueprint, selection.kind).find((item) => item.id === selection.id)
-    : undefined
+  const entity = blueprint ? entityOf(blueprint, selection) : undefined
 
   if (!blueprint || !entity || !relations) {
     return (
@@ -81,7 +85,9 @@ function ArtifactInspector({ selection }: { selection: EntityRef }) {
       name: `${entity.name} (copy)`,
     } as never)
     select({ kind: selection.kind, id })
-    toast.success(`Duplicated as ${id}`, { description: 'References were not copied over.' })
+    toast.success(`Duplicated as ${id}`, {
+      description: 'It points at what the original pointed at; nothing points at it yet.',
+    })
   }
 
   return (
@@ -241,7 +247,7 @@ function DiagnosticCard({
   diagnostic,
   onNavigate,
 }: {
-  diagnostic: { code: string; severity: string; message: string }
+  diagnostic: Diagnostic
   onNavigate?: (() => void) | undefined
 }) {
   const body = (

@@ -47,6 +47,28 @@ export const requirementCheckSchema = z.discriminatedUnion('type', [
   }),
 ])
 
+/** The check types, for a UI that has to offer them. */
+export const REQUIREMENT_CHECK_TYPES = [
+  'workflow-has-node-type',
+  'iron-law-matches',
+  'hook-exists',
+  'gate-exists',
+  'agent-has-skill-tag',
+  'text-mentions',
+  'ai-judged',
+] as const
+
+// Compile-time guard: the list above and the union above it must name the same types.
+type SchemaCheckType = z.infer<typeof requirementCheckSchema>['type']
+type _AssertCheckTypesMatch = [
+  Exclude<SchemaCheckType, (typeof REQUIREMENT_CHECK_TYPES)[number]>,
+  Exclude<(typeof REQUIREMENT_CHECK_TYPES)[number], SchemaCheckType>,
+] extends [never, never]
+  ? true
+  : never
+const _checkTypesMatch: _AssertCheckTypesMatch = true
+void _checkTypesMatch
+
 export const REQUIREMENT_LEVELS = ['must', 'should'] as const
 
 export const requirementSchema = entityBaseSchema.extend({

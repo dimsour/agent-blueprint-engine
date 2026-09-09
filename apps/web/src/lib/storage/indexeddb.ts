@@ -3,7 +3,8 @@
  *
  * Two object stores keep the list cheap. `summaries` holds one small record per project so
  * the dashboard never loads a project to render a card; `files` holds the file map, read
- * only when a project is opened.
+ * only when a project is opened. `drafts` holds work that has no project yet, so closing
+ * the tab halfway through the wizard does not throw the answers away.
  */
 import { type DBSchema, type IDBPDatabase, openDB } from 'idb'
 
@@ -17,13 +18,15 @@ import {
 } from './types'
 
 const DB_NAME = 'agent-blueprint'
-const DB_VERSION = 1
+const DB_VERSION = 2
 
 interface BlueprintDb extends DBSchema {
   summaries: { key: string; value: ProjectSummary }
   files: { key: string; value: ProjectFiles }
   /** Directory handles granted by the user, for the File System Access store. */
   handles: { key: string; value: { id: string; name: string; handle: unknown } }
+  /** Work in progress that is not a project yet, such as the creation wizard's draft. */
+  drafts: { key: string; value: { id: string; savedAt: number; value: unknown } }
 }
 
 let database: Promise<IDBPDatabase<BlueprintDb>> | undefined
@@ -34,6 +37,7 @@ export function db(): Promise<IDBPDatabase<BlueprintDb>> {
       if (!instance.objectStoreNames.contains('summaries')) instance.createObjectStore('summaries')
       if (!instance.objectStoreNames.contains('files')) instance.createObjectStore('files')
       if (!instance.objectStoreNames.contains('handles')) instance.createObjectStore('handles')
+      if (!instance.objectStoreNames.contains('drafts')) instance.createObjectStore('drafts')
     },
   })
   return database
@@ -100,3 +104,37 @@ export class IndexedDbStore implements ProjectStore {
 }
 
 export const indexedDbStore = new IndexedDbStore()
+
+/**
+ * Drafts: a value with no project behind it yet.
+ *
+ * Kept apart from projects on purpose. A draft is not a project until someone says so, it
+ * has no id a URL could name, and losing one should never be able to disturb a real project.
+ */
+export async function readDraft<T>(id: string): Promise<T | undefined> {
+  if (typeof indexedDB === 'undefined') return undefined
+  try {
+    return (await (await db()).get('drafts', id))?.value as T | undefined
+  } catch {
+    // A browser with storage blocked simply has no drafts.
+    return undefined
+  }
+}
+
+export async function writeDraft(id: string, value: unknown): Promise<void> {
+  if (typeof indexedDB === 'undefined') return
+  try {
+    await (await db()).put('drafts', { id, savedAt: Date.now(), value }, id)
+  } catch {
+    // Losing a draft is a disappointment, not a failure worth interrupting the user for.
+  }
+}
+
+export async function clearDraft(id: string): Promise<void> {
+  if (typeof indexedDB === 'undefined') return
+  try {
+    await (await db()).delete('drafts', id)
+  } catch {
+    // As above.
+  }
+}

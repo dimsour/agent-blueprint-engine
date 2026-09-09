@@ -7,6 +7,7 @@
  * re-seeded from props, because rewriting the document under someone's cursor is how editors
  * lose work. Switching artifacts or tabs unmounts it, which is where re-seeding belongs.
  */
+import { autocompletion, completionKeymap } from '@codemirror/autocomplete'
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
 import { markdown } from '@codemirror/lang-markdown'
 import { yaml } from '@codemirror/lang-yaml'
@@ -20,9 +21,10 @@ import {
   highlightActiveLineGutter,
   keymap,
   lineNumbers,
-  placeholder as placeholderExtension,
 } from '@codemirror/view'
 import { useEffect, useRef } from 'react'
+
+import { sectionSnippets } from '@/components/editor/snippets'
 
 /** Colours come from the design tokens, so the editor follows the app's theme. */
 const theme = EditorView.theme({
@@ -57,6 +59,16 @@ const theme = EditorView.theme({
   },
   '.cm-searchMatch': { backgroundColor: 'var(--warning-muted)' },
   '.cm-searchMatch-selected': { backgroundColor: 'var(--accent-muted)' },
+  '.cm-tooltip': {
+    backgroundColor: 'var(--popover)',
+    color: 'var(--popover-foreground)',
+    border: '1px solid var(--border)',
+    borderRadius: 'var(--radius-md)',
+  },
+  '.cm-tooltip-autocomplete ul li[aria-selected]': {
+    backgroundColor: 'var(--accent-muted)',
+    color: 'var(--accent)',
+  },
 })
 
 export interface CodeEditorProps {
@@ -64,17 +76,10 @@ export interface CodeEditorProps {
   initialValue: string
   language: 'markdown' | 'yaml'
   onChange: (value: string) => void
-  placeholder?: string
   ariaLabel: string
 }
 
-export function CodeEditor({
-  initialValue,
-  language,
-  onChange,
-  placeholder,
-  ariaLabel,
-}: CodeEditorProps) {
+export function CodeEditor({ initialValue, language, onChange, ariaLabel }: CodeEditorProps) {
   const host = useRef<HTMLDivElement>(null)
   // The callback can change between renders; the extension reads the latest through a ref.
   // The ref is refreshed after each render rather than during it, because a render can be
@@ -103,11 +108,20 @@ export function CodeEditor({
           history(),
           search({ top: true }),
           highlightSelectionMatches(),
-          keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap, indentWithTab]),
+          keymap.of([
+            ...defaultKeymap,
+            ...historyKeymap,
+            ...searchKeymap,
+            ...completionKeymap,
+            indentWithTab,
+          ]),
           language === 'yaml' ? yaml() : markdown(),
+          // Markdown only: the sections are the ones the compiler and the rules look for.
+          ...(language === 'markdown'
+            ? [autocompletion({ override: [sectionSnippets] })]
+            : [autocompletion()]),
           EditorView.lineWrapping,
           EditorView.contentAttributes.of({ 'aria-label': ariaLabel }),
-          ...(placeholder ? [placeholderExtension(placeholder)] : []),
           theme,
           EditorView.updateListener.of((update) => {
             if (update.docChanged) latestOnChange.current(update.state.doc.toString())

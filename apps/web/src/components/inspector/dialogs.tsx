@@ -31,6 +31,7 @@ import {
   DialogTitle,
 } from '@/components/ui/overlays'
 import { Badge, Input, Label } from '@/components/ui/primitives'
+import { entityOf } from '@/lib/artifact-source'
 import { relationsOf } from '@/lib/relations'
 import { useWorkspace } from '@/lib/state/workspace-store'
 
@@ -133,9 +134,7 @@ export function DeleteDialog({ selection, open, onOpenChange }: DialogProps) {
     () => (blueprint ? relationsOf(blueprint, selection) : undefined),
     [blueprint, selection],
   )
-  const entity = blueprint
-    ? getCollection(blueprint, selection.kind).find((item) => item.id === selection.id)
-    : undefined
+  const entity = blueprint ? entityOf(blueprint, selection) : undefined
 
   if (!relations || !entity) return null
 

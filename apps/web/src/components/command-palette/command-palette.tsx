@@ -16,8 +16,10 @@ import {
 } from '@agent-blueprint/core'
 import { Command } from 'cmdk'
 import {
+  ActivityIcon,
   CheckIcon,
   CloudUploadIcon,
+  LayersIcon,
   DownloadIcon,
   EyeIcon,
   FileCodeIcon,
@@ -34,10 +36,10 @@ import { Dialog, DialogContent, DialogTitle } from '@/components/ui/overlays'
 import { validateNow } from '@/lib/actions'
 import { hasPreview } from '@/lib/artifact-source'
 import { useModifierLabel } from '@/lib/shortcuts'
-import { useWorkspace, workspaceHistory } from '@/lib/state/workspace-store'
+import { useHistoryState, useWorkspace, workspaceHistory } from '@/lib/state/workspace-store'
 
 /** The name a freshly created artifact gets, before the author renames it. */
-export function newArtifactName(kind: EntityKind): string {
+function newArtifactName(kind: EntityKind): string {
   return `New ${ENTITY_KIND_INFO[kind].label.toLowerCase()}`
 }
 
@@ -101,6 +103,10 @@ export function CommandPalette({ open, onOpenChange, onExport }: CommandPaletteP
   const updateBlueprint = useWorkspace((state) => state.updateBlueprint)
   const save = useWorkspace((state) => state.save)
   const mod = useModifierLabel()
+  // Read through the temporal store's own hook, so the items react to history rather than
+  // happening to re-render when the Blueprint changes.
+  const canUndo = useHistoryState((state) => state.pastStates.length > 0)
+  const canRedo = useHistoryState((state) => state.futureStates.length > 0)
 
   const artifacts = useMemo(() => {
     if (!blueprint) return []
@@ -176,6 +182,14 @@ export function CommandPalette({ open, onOpenChange, onExport }: CommandPaletteP
                 label="Validate"
                 onSelect={run(() => void validateNow())}
               />
+              <Item icon={<ActivityIcon />} label="Show health" hint="not built yet" disabled />
+              <Item
+                icon={<LayersIcon />}
+                label="Show compatibility"
+                hint="not built yet"
+                disabled
+                keywords={['harness', 'portability']}
+              />
             </Group>
 
             <Group heading="Blueprint">
@@ -190,13 +204,14 @@ export function CommandPalette({ open, onOpenChange, onExport }: CommandPaletteP
                 icon={<UndoIcon />}
                 label="Undo"
                 hint={`${mod}Z`}
-                disabled={!workspaceHistory.canUndo}
+                disabled={!canUndo}
                 onSelect={run(workspaceHistory.undo)}
               />
               <Item
                 icon={<RedoIcon />}
                 label="Redo"
-                disabled={!workspaceHistory.canRedo}
+                hint={`⇧${mod}Z`}
+                disabled={!canRedo}
                 onSelect={run(workspaceHistory.redo)}
               />
             </Group>
@@ -241,12 +256,15 @@ export function CommandPalette({ open, onOpenChange, onExport }: CommandPaletteP
                 hint="not built yet"
                 disabled
               />
+            </Group>
+
+            <Group heading="AI">
               <Item
                 icon={<SparklesIcon />}
                 label="AI actions"
                 hint="needs an AI endpoint"
                 disabled
-                keywords={['generate', 'improve', 'evaluate', 'contradictions']}
+                keywords={['generate', 'improve', 'evaluate', 'contradictions', 'compound']}
               />
             </Group>
 

@@ -128,6 +128,11 @@ export function ProjectTree() {
                           type="button"
                           onClick={() => select({ kind, id: entity.id })}
                           aria-current={isSelected ? 'true' : undefined}
+                          // Named explicitly so the badge's count, which arrives after the
+                          // debounced validation, does not silently rename the row.
+                          aria-label={
+                            own.length > 0 ? `${entity.name}, ${own.length} findings` : entity.name
+                          }
                           className={cn(
                             'flex min-w-0 flex-1 items-center gap-2 py-1 pr-1 pl-7 text-left text-sm',
                             isSelected ? 'bg-accent-muted text-accent' : 'hover:bg-muted',
@@ -135,7 +140,7 @@ export function ProjectTree() {
                         >
                           <span className="min-w-0 flex-1 truncate">{entity.name}</span>
                           {worst ? (
-                            <Badge variant={worst} className="px-1 py-0 tabular-nums">
+                            <Badge aria-hidden variant={worst} className="px-1 py-0 tabular-nums">
                               {own.length}
                             </Badge>
                           ) : null}

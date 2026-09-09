@@ -1,13 +1,12 @@
 /**
- * Radix wrappers for the overlay primitives: dialog, dropdown menu, tooltip, tabs, select
- * and scroll area. Accessibility (focus trapping, roving focus, escape handling, aria
- * wiring) comes from Radix; everything here is styling and defaults.
+ * Radix wrappers for the overlay primitives: dialog, dropdown menu, tooltip, tabs and
+ * select. Accessibility (focus trapping, roving focus, escape handling, aria wiring) comes
+ * from Radix; everything here is styling and defaults.
  */
 'use client'
 
 import * as DialogPrimitive from '@radix-ui/react-dialog'
 import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu'
-import * as ScrollAreaPrimitive from '@radix-ui/react-scroll-area'
 import * as SelectPrimitive from '@radix-ui/react-select'
 import * as TabsPrimitive from '@radix-ui/react-tabs'
 import * as TooltipPrimitive from '@radix-ui/react-tooltip'
@@ -21,8 +20,6 @@ import { cn } from '@/lib/utils'
 // ---------------------------------------------------------------------------
 
 export const Dialog = DialogPrimitive.Root
-export const DialogTrigger = DialogPrimitive.Trigger
-export const DialogClose = DialogPrimitive.Close
 
 export function DialogContent({
   className,
@@ -278,34 +275,5 @@ export function SelectItem({
         </SelectPrimitive.ItemIndicator>
       </span>
     </SelectPrimitive.Item>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Scroll area
-// ---------------------------------------------------------------------------
-
-export function ScrollArea({
-  className,
-  children,
-  ...props
-}: ComponentProps<typeof ScrollAreaPrimitive.Root>) {
-  return (
-    <ScrollAreaPrimitive.Root
-      className={cn('relative overflow-hidden', className)}
-      scrollHideDelay={400}
-      {...props}
-    >
-      <ScrollAreaPrimitive.Viewport className="size-full rounded-[inherit] outline-none">
-        {children}
-      </ScrollAreaPrimitive.Viewport>
-      <ScrollAreaPrimitive.Scrollbar
-        orientation="vertical"
-        className="flex w-2 touch-none p-0.5 transition-colors select-none"
-      >
-        <ScrollAreaPrimitive.Thumb className="bg-border relative flex-1 rounded-full" />
-      </ScrollAreaPrimitive.Scrollbar>
-      <ScrollAreaPrimitive.Corner />
-    </ScrollAreaPrimitive.Root>
   )
 }

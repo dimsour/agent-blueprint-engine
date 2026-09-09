@@ -7,6 +7,8 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as StorageModule from '@/lib/storage'
+import { clearDraft, readDraft, resetDbForTests, writeDraft } from '@/lib/storage'
+import { emptyDraft, setIdentity } from '@/lib/wizard/draft'
 
 const push = vi.fn()
 const createProject = vi.fn()
@@ -34,10 +36,37 @@ async function goTo(user: ReturnType<typeof userEvent.setup>, label: string) {
 }
 
 describe('Wizard', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     push.mockReset()
     createProject.mockReset()
     createProject.mockResolvedValue({ id: 'project-1', name: 'Rust Review Crew' })
+    await resetDbForTests()
+    await clearDraft('wizard')
+  })
+
+  it('offers to pick up a draft left behind', async () => {
+    // Ten questions is long enough that a closed tab should not mean starting again.
+    await writeDraft('wizard', setIdentity(emptyDraft(), { name: 'Half Finished' }))
+    const user = userEvent.setup()
+    render(<Wizard />)
+
+    await screen.findByText(/part way through/i)
+    await user.click(screen.getByRole('button', { name: /Pick it up/ }))
+
+    expect(screen.getByLabelText('Name')).toHaveValue('Half Finished')
+  })
+
+  it('can be told to start fresh instead', async () => {
+    await writeDraft('wizard', setIdentity(emptyDraft(), { name: 'Half Finished' }))
+    const user = userEvent.setup()
+    render(<Wizard />)
+
+    await screen.findByText(/part way through/i)
+    await user.click(screen.getByRole('button', { name: /Start fresh/ }))
+
+    expect(screen.queryByText(/part way through/i)).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Name')).toHaveValue('')
+    expect(await readDraft('wizard')).toBeUndefined()
   })
 
   it('opens on the first question with the steps listed', () => {

@@ -6,12 +6,15 @@
  * Ten questions, one draft Blueprint. The draft is valid at every step, so a person can stop
  * anywhere from step two onwards and still get a project that opens; only the first two steps
  * hold them back, and only because a Blueprint without a name or an agent is not a Blueprint.
+ *
+ * The draft is kept in the browser between visits. Ten questions is long enough that a
+ * closed tab or a stray reload should not mean starting again.
  */
 import type { Blueprint } from '@agent-blueprint/core'
 import { ArrowLeftIcon, ArrowRightIcon, CheckIcon, LoaderIcon } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
 import { ThemeToggle } from '@/components/theme'
@@ -27,7 +30,7 @@ import {
   TargetsStep,
   ToolsStep,
 } from '@/components/wizard/steps'
-import { createProject, StorageError } from '@/lib/storage'
+import { clearDraft, createProject, readDraft, StorageError, writeDraft } from '@/lib/storage'
 import { blockingReason, emptyDraft, WIZARD_STEPS, type WizardStepId } from '@/lib/wizard/draft'
 import { cn } from '@/lib/utils'
 
@@ -44,9 +47,13 @@ const BODIES: Record<WizardStepId, (props: StepProps) => React.ReactNode> = {
   finish: FinishStep,
 }
 
+/** One wizard at a time, so the draft needs no identity beyond the flow it belongs to. */
+const DRAFT_ID = 'wizard'
+
 export function Wizard() {
   const router = useRouter()
   const [draft, setDraft] = useState<Blueprint>(emptyDraft)
+  const [restored, setRestored] = useState<Blueprint | undefined>()
   const [index, setIndex] = useState(0)
   // How far the wizard has been taken, so stepping back to check something does not make
   // every step after it unreachable again.
@@ -57,6 +64,24 @@ export function Wizard() {
     setIndex(position)
     setFurthest((current) => Math.max(current, position))
   }
+
+  // Reading storage is an external system: set state from the callback, never in the body.
+  useEffect(() => {
+    let cancelled = false
+    void readDraft<Blueprint>(DRAFT_ID).then((saved) => {
+      if (!cancelled && saved) setRestored(saved)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  // Written on a timer rather than on every keystroke: a draft is a convenience, and the
+  // wizard should not be doing storage work between characters.
+  useEffect(() => {
+    const timer = setTimeout(() => void writeDraft(DRAFT_ID, draft), 800)
+    return () => clearTimeout(timer)
+  }, [draft])
 
   const step = WIZARD_STEPS[index]
   if (!step) return null
@@ -69,6 +94,7 @@ export function Wizard() {
     setCreating(true)
     try {
       const summary = await createProject(draft)
+      await clearDraft(DRAFT_ID)
       router.push(`/p/${summary.id}`)
     } catch (error) {
       setCreating(false)
@@ -123,6 +149,37 @@ export function Wizard() {
           )
         })}
       </nav>
+
+      {restored && restored.name !== draft.name ? (
+        <p
+          role="status"
+          className="bg-muted flex flex-wrap items-center gap-3 rounded-md px-3 py-2 text-sm"
+        >
+          <span className="flex-1">
+            You were part way through <span className="font-medium">{restored.name}</span>.
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setDraft(restored)
+              setRestored(undefined)
+            }}
+          >
+            Pick it up
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setRestored(undefined)
+              void clearDraft(DRAFT_ID)
+            }}
+          >
+            Start fresh
+          </Button>
+        </p>
+      ) : null}
 
       <section className="flex min-h-80 flex-col gap-5">
         <div className="flex flex-col gap-1">

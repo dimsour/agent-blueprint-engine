@@ -124,6 +124,76 @@ describe('EntityForm', () => {
     expect(law?.severity).toBe('critical')
   })
 
+  it('creates a linked artifact from inside a picker, without leaving the form', async () => {
+    await load()
+    const user = userEvent.setup()
+    render(<EntityForm selection={{ kind: 'agent', id: 'react-expert' }} />)
+
+    await user.click(screen.getByRole('button', { name: '+ New tool' }))
+
+    const agent = useWorkspace.getState().blueprint?.agents[0]
+    expect(agent?.toolIds).toContain('new-tool')
+    // Still on the agent: adding is not the same as opening.
+    expect(useWorkspace.getState().selection).toBeUndefined()
+    expect(screen.getByLabelText('Name')).toHaveValue('React Expert')
+  })
+
+  it('says which other agents an agent may delegate to', async () => {
+    await load('software-engineering-team')
+    const user = userEvent.setup()
+    render(<EntityForm selection={{ kind: 'agent', id: 'architect' }} />)
+
+    // An agent is never offered itself as a delegate.
+    expect(screen.queryByRole('button', { name: 'Architect' })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Developer', pressed: false }))
+    const architect = useWorkspace.getState().blueprint?.agents.find((a) => a.id === 'architect')
+    expect(architect?.delegation?.canDelegateTo).toEqual(['developer'])
+
+    // Delegating to nobody means no delegation at all, not an empty list.
+    await user.click(screen.getByRole('button', { name: 'Developer', pressed: true }))
+    expect(
+      useWorkspace.getState().blueprint?.agents.find((a) => a.id === 'architect')?.delegation,
+    ).toBeUndefined()
+  })
+
+  it('edits a skill resource, which used to be reachable only in the file', async () => {
+    await load()
+    const user = userEvent.setup()
+    render(<EntityForm selection={{ kind: 'skill', id: 'react-testing' }} />)
+
+    await user.click(screen.getByRole('button', { name: /Add resource/ }))
+    await user.clear(screen.getByLabelText('Resource 1 path'))
+    await user.paste('references/queries.md')
+
+    const skill = useWorkspace.getState().blueprint?.skills.find((s) => s.id === 'react-testing')
+    expect(skill?.resources.at(-1)?.path).toBe('references/queries.md')
+  })
+
+  it('builds a requirement check, which used to need the project file', async () => {
+    await load('software-engineering-team')
+    const user = userEvent.setup()
+    render(<EntityForm selection={{ kind: 'requirement', id: 'both-reviews-happen' }} />)
+
+    const before =
+      useWorkspace.getState().blueprint?.requirements.find((r) => r.id === 'both-reviews-happen')
+        ?.checks.length ?? 0
+
+    await user.click(screen.getByRole('button', { name: /Add check/ }))
+    const requirement = useWorkspace
+      .getState()
+      .blueprint?.requirements.find((r) => r.id === 'both-reviews-happen')
+    // A new check is valid the moment it exists, so the Blueprint never dips into invalid.
+    expect(requirement?.checks).toHaveLength(before + 1)
+    expect(requirement?.checks.at(-1)).toEqual({ type: 'iron-law-matches', pattern: 'never' })
+
+    await user.click(screen.getByRole('button', { name: `Remove check ${before + 1}` }))
+    expect(
+      useWorkspace.getState().blueprint?.requirements.find((r) => r.id === 'both-reviews-happen')
+        ?.checks,
+    ).toHaveLength(before)
+  })
+
   it('renders a form for every kind in the team starter without throwing', async () => {
     await load('software-engineering-team')
     const blueprint = useWorkspace.getState().blueprint

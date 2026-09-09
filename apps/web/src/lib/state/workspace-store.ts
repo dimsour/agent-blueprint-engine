@@ -24,6 +24,8 @@ import {
   applyChangeSet,
   createEntity,
   type Diagnostic,
+  ENTITY_KIND_INFO,
+  ENTITY_KINDS,
   type EntityInputTypeMap,
   type EntityKind,
   type EntityRef,
@@ -33,36 +35,29 @@ import {
   impactOf,
   validateBlueprint,
 } from '@agent-blueprint/core'
-import { create } from 'zustand'
-import { temporal } from 'zundo'
+import { create, useStore } from 'zustand'
+import { temporal, type TemporalState as ZundoTemporalState } from 'zundo'
 
 import { saveProject } from '@/lib/storage'
 import type { ProjectStore } from '@/lib/storage'
 
-/** Sections of the workspace, used by the route's `?view=` parameter. */
-export const WORKSPACE_VIEWS = [
-  'overview',
-  'agents',
-  'skills',
-  'workflows',
-  'laws',
-  'rules',
-  'hooks',
-  'gates',
-  'tools',
-  'references',
-  'memory',
-  'requirements',
-  'scenarios',
-  'compatibility',
-  'evaluation',
-  'export',
-] as const
+/**
+ * Which section of the workspace the canvas is showing: the whole Blueprint, or one kind.
+ *
+ * The kind is stored rather than its URL spelling, so there is no second list of section
+ * names to keep in step with the model. Compatibility, evaluation and export join this union
+ * when those views exist (roadmap P5).
+ */
+export type WorkspaceView = 'overview' | EntityKind
 
-export type WorkspaceView = (typeof WORKSPACE_VIEWS)[number]
+/** How a view is written in `?view=`; the directory the kind occupies in the project. */
+export function viewParam(view: WorkspaceView): string {
+  return view === 'overview' ? 'overview' : ENTITY_KIND_INFO[view].dir
+}
 
-export function isWorkspaceView(value: string | null | undefined): value is WorkspaceView {
-  return typeof value === 'string' && (WORKSPACE_VIEWS as readonly string[]).includes(value)
+export function viewFromParam(value: string | null | undefined): WorkspaceView | undefined {
+  if (value === 'overview') return 'overview'
+  return ENTITY_KINDS.find((kind) => ENTITY_KIND_INFO[kind].dir === value)
 }
 
 /** The canvas tab for the selected artifact. Store state so a shortcut can reach it. */
@@ -96,7 +91,9 @@ export interface WorkspaceState {
   close(): void
 
   upsert<K extends EntityKind>(kind: K, input: EntityInputTypeMap[K]): void
-  /** Adds a new artifact of `kind`, selects it, and returns where it went. */
+  /** Adds a new artifact of `kind` and returns where it went, leaving the selection alone. */
+  add(kind: EntityKind, name: string): EntityRef | undefined
+  /** Adds a new artifact and opens it. */
   create(kind: EntityKind, name: string): EntityRef | undefined
   rename(kind: EntityKind, oldId: string, newId: string): void
   remove(ref: EntityRef): void
@@ -121,6 +118,8 @@ export interface WorkspaceState {
   flushPending(store?: ProjectStore): Promise<void>
   clearSaveError(): void
 }
+
+type TemporalState = ZundoTemporalState<{ blueprint: Blueprint | undefined }>
 
 let validationTimer: ReturnType<typeof setTimeout> | undefined
 let autosaveTimer: ReturnType<typeof setTimeout> | undefined
@@ -231,15 +230,21 @@ export const useWorkspace = create<WorkspaceState>()(
           commit(coreUpsertEntity(blueprint, kind, input))
         },
 
-        create(kind, name) {
+        add(kind, name) {
           const blueprint = get().blueprint
           if (!blueprint) return undefined
-          // `createEntity` owns what a minimum valid artifact of each kind is; the store
-          // only decides that a new one becomes the selection.
+          // `createEntity` owns what a minimum valid artifact of each kind is.
           const entity = createEntity(blueprint, kind, { name })
           commit(coreUpsertEntity(blueprint, kind, entity as never))
-          const ref = { kind, id: entity.id }
-          set({ selection: ref, artifactTab: 'visual', sourceError: undefined })
+          return { kind, id: entity.id }
+        },
+
+        create(kind, name) {
+          // Adding from a picker must not navigate away from the form being filled in, so
+          // opening the new artifact is a separate decision from making it.
+          const ref = get().add(kind, name)
+          if (ref)
+            set({ selection: ref, view: kind, artifactTab: 'visual', sourceError: undefined })
           return ref
         },
 
@@ -289,7 +294,13 @@ export const useWorkspace = create<WorkspaceState>()(
 
         select(ref) {
           // A different artifact opens on its form, never on the tab the last one was on.
-          set({ selection: ref, artifactTab: 'visual', sourceError: undefined })
+          // The view follows the selection so that the URL, the tree and the canvas agree.
+          set({
+            selection: ref,
+            view: ref ? ref.kind : 'overview',
+            artifactTab: 'visual',
+            sourceError: undefined,
+          })
         },
 
         setView(view) {
@@ -410,6 +421,13 @@ export const workspaceHistory = {
     return useWorkspace.temporal.getState().futureStates.length > 0
   },
 }
+
+/**
+ * Subscribe to the undo history itself, for controls whose enabled state depends on it.
+ * Reading `workspaceHistory.canUndo` during render does not subscribe to anything.
+ */
+export const useHistoryState = <T>(select: (state: TemporalState) => T): T =>
+  useStore(useWorkspace.temporal, select)
 
 /** Diagnostics for one artifact, for the tree badges and the inspector. */
 export function diagnosticsFor(diagnostics: readonly Diagnostic[], ref: EntityRef): Diagnostic[] {
