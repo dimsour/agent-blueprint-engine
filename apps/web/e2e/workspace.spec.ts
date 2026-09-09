@@ -18,6 +18,13 @@ function artifact(page: Page, name: string) {
     .getByRole('button', { name: new RegExp(`^${name}(,|$)`) })
 }
 
+/** A report section in the tree. "Export" also names a button in the top bar. */
+function report(page: Page, label: string) {
+  return page
+    .getByRole('navigation', { name: 'Blueprint artifacts' })
+    .getByRole('button', { name: label, exact: true })
+}
+
 /**
  * A kind group in the tree. The Overview canvas lists the same counts, so this has to say
  * which of the two it means.
@@ -352,10 +359,94 @@ test.describe('addressable workspace', () => {
   test('Overview leaves the selection and shows the whole Blueprint', async ({ page }) => {
     await openStarter(page)
     await artifact(page, 'React testing').click()
-    await page.getByRole('button', { name: 'Overview' }).click()
+    await report(page, 'Overview').click()
 
     await expect(page.getByLabel('Blueprint overview graph')).toBeVisible()
     await expect(page.getByText('No findings. This Blueprint is clean.')).toBeVisible()
+  })
+})
+
+test.describe('trust surfaces', () => {
+  test('a finding in the health bar opens the artifact it is about', async ({ page }) => {
+    await openStarter(page)
+    // Make one, rather than hoping the starter has one.
+    await artifact(page, 'React testing').click()
+    await page.getByLabel('Description').fill('')
+    await report(page, 'Overview').click()
+
+    const warnings = page.getByRole('button', { name: /warnings?$/ })
+    await expect(warnings).toBeEnabled({ timeout: 10_000 })
+    await warnings.click()
+
+    const findings = page.getByRole('list', { name: 'warning findings' })
+    await expect(findings).toBeVisible()
+    await findings.getByRole('button').first().click()
+
+    // The panel closed and the artifact is open.
+    await expect(findings).toHaveCount(0)
+    await expect(page).toHaveURL(/id=/)
+  })
+
+  test('a workflow finding opens the step it names', async ({ page }) => {
+    await openStarter(page)
+    await artifact(page, 'Build a Component').click()
+    await page
+      .getByRole('group', { name: 'Step palette' })
+      .getByRole('button', { name: 'Review' })
+      .click()
+    await report(page, 'Overview').click()
+
+    const warnings = page.getByRole('button', { name: /warnings?$/ })
+    await expect(warnings).toBeEnabled({ timeout: 10_000 })
+    await warnings.click()
+    await page
+      .getByRole('list', { name: 'warning findings' })
+      .getByRole('button', { name: /BP-WF-010/ })
+      .first()
+      .click()
+
+    // The graph opens with the step's own settings panel already showing.
+    await expect(page.getByRole('complementary', { name: 'Step settings' })).toBeVisible()
+    await expect(page.getByLabel('Label')).toHaveValue('Review')
+  })
+
+  test('the evaluation view explains the score', async ({ page }) => {
+    await openStarter(page)
+    await report(page, 'Evaluation').click()
+
+    await expect(page).toHaveURL(/view=evaluation/)
+    await expect(page.getByRole('list', { name: 'Dimension scores' })).toBeVisible()
+    await expect(page.getByRole('list', { name: 'Requirement results' })).toBeVisible()
+  })
+
+  test('the compatibility view says what each harness cannot do', async ({ page }) => {
+    await openStarter(page)
+    await report(page, 'Compatibility').click()
+
+    await expect(page).toHaveURL(/view=compatibility/)
+    await page.getByRole('button', { name: 'Pi', exact: true }).click()
+
+    // Pi cannot do memory natively, and the table says so.
+    await expect(page.getByRole('table')).toContainText('Memory')
+    await expect(page.getByRole('list', { name: 'Compatibility notes' })).toContainText('Pi')
+  })
+
+  test('the export view shows compiled files and downloads them with the source', async ({
+    page,
+  }) => {
+    await openStarter(page)
+    await report(page, 'Export').click()
+
+    await expect(page).toHaveURL(/view=export/)
+    await expect(page.getByRole('list', { name: 'Claude Code files' })).toContainText('CLAUDE.md')
+
+    await page.getByRole('button', { name: 'CLAUDE.md' }).first().click()
+    await expect(page.getByText('Nothing is blocking this export')).toHaveCount(0)
+
+    const downloading = page.waitForEvent('download')
+    await page.getByRole('button', { name: 'Download', exact: true }).click()
+    const download = await downloading
+    expect(download.suggestedFilename()).toBe('react-expert.zip')
   })
 })
 
@@ -367,7 +458,8 @@ test.describe('export and import', () => {
     await artifact(page, 'React testing').click()
     await page.getByLabel('Description').fill('Round tripped through a ZIP.')
 
-    await page.getByRole('button', { name: 'Export', exact: true }).click()
+    // The top bar's Export, not the tree's Export view.
+    await page.locator('header').getByRole('button', { name: 'Export', exact: true }).click()
     const dialog = page.getByRole('dialog')
     await expect(dialog.getByRole('list', { name: 'Files in the archive' })).toContainText(
       'blueprint/blueprint.yaml',

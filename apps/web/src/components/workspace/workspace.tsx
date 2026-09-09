@@ -14,6 +14,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { CommandPalette } from '@/components/command-palette/command-palette'
 import { ExportDialog } from '@/components/export/export-dialog'
 import { OverviewGraph } from '@/components/graph/overview/overview-graph'
+import { CompatibilityView } from '@/components/views/compatibility-view'
+import { EvaluationView } from '@/components/views/evaluation-view'
+import { ExportView } from '@/components/views/export-view'
 import { ArtifactEditor } from '@/components/editor/artifact-editor'
 import { Inspector } from '@/components/inspector/inspector'
 import { HealthBar } from '@/components/layout/health-bar'
@@ -136,6 +139,30 @@ function Overview() {
   )
 
   if (!blueprint) return null
+
+  if (view === 'evaluation') {
+    return (
+      <PanelSection title="Evaluation">
+        <EvaluationView />
+      </PanelSection>
+    )
+  }
+
+  if (view === 'compatibility') {
+    return (
+      <PanelSection title="Compatibility">
+        <CompatibilityView />
+      </PanelSection>
+    )
+  }
+
+  if (view === 'export') {
+    return (
+      <PanelSection title="Export" scroll={false}>
+        <ExportView />
+      </PanelSection>
+    )
+  }
 
   if (view !== 'overview') {
     const entities = getCollection(blueprint, view)

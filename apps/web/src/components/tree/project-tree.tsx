@@ -16,7 +16,14 @@ import {
   type EntityKind,
   getCollection,
 } from '@agent-blueprint/core'
-import { ChevronRightIcon, LayoutGridIcon, PlusIcon } from 'lucide-react'
+import {
+  ChevronRightIcon,
+  DownloadIcon,
+  GaugeIcon,
+  LayersIcon,
+  LayoutGridIcon,
+  PlusIcon,
+} from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
@@ -27,12 +34,22 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { diagnosticsFor, useWorkspace } from '@/lib/state/workspace-store'
 
+/** The sections that are about the Blueprint rather than about one artifact. */
+const REPORTS = [
+  { id: 'overview' as const, label: 'Overview', icon: LayoutGridIcon },
+  { id: 'evaluation' as const, label: 'Evaluation', icon: GaugeIcon },
+  { id: 'compatibility' as const, label: 'Compatibility', icon: LayersIcon },
+  { id: 'export' as const, label: 'Export', icon: DownloadIcon },
+]
+
 export function ProjectTree() {
   const blueprint = useWorkspace((state) => state.blueprint)
   const diagnostics = useWorkspace((state) => state.diagnostics)
   const selection = useWorkspace((state) => state.selection)
   const select = useWorkspace((state) => state.select)
   const create = useWorkspace((state) => state.create)
+  const view = useWorkspace((state) => state.view)
+  const setView = useWorkspace((state) => state.setView)
   const [collapsed, setCollapsed] = useState<ReadonlySet<EntityKind>>(new Set())
 
   const groups = useMemo(() => {
@@ -64,18 +81,29 @@ export function ProjectTree() {
   return (
     <PanelSection title="Project">
       <nav aria-label="Blueprint artifacts" className="py-1">
-        <button
-          type="button"
-          onClick={() => select(undefined)}
-          aria-current={selection ? undefined : 'true'}
-          className={cn(
-            'flex w-full items-center gap-2 px-2 py-1 text-left text-sm',
-            selection ? 'hover:bg-muted' : 'bg-accent-muted text-accent',
-          )}
-        >
-          <LayoutGridIcon className="size-3.5 shrink-0" />
-          Overview
-        </button>
+        {REPORTS.map(({ id, label, icon: Icon }) => {
+          const active = !selection && view === id
+          return (
+            <button
+              key={id}
+              type="button"
+              onClick={() => {
+                select(undefined)
+                setView(id)
+              }}
+              aria-current={active ? 'true' : undefined}
+              className={cn(
+                'flex w-full items-center gap-2 px-2 py-1 text-left text-sm',
+                active ? 'bg-accent-muted text-accent' : 'hover:bg-muted',
+              )}
+            >
+              <Icon className="size-3.5 shrink-0" />
+              {label}
+            </button>
+          )
+        })}
+
+        <div className="my-1 border-t" />
 
         {groups.map(({ kind, info, entities }) => {
           const isCollapsed = collapsed.has(kind)

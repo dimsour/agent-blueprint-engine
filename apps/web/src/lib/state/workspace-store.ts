@@ -41,22 +41,32 @@ import { temporal, type TemporalState as ZundoTemporalState } from 'zundo'
 import { saveProject } from '@/lib/storage'
 import type { ProjectStore } from '@/lib/storage'
 
-/**
- * Which section of the workspace the canvas is showing: the whole Blueprint, or one kind.
- *
- * The kind is stored rather than its URL spelling, so there is no second list of section
- * names to keep in step with the model. Compatibility, evaluation and export join this union
- * when those views exist (roadmap P5).
- */
-export type WorkspaceView = 'overview' | EntityKind
+/** The sections that are not one entity kind. */
+export const REPORT_VIEWS = ['overview', 'evaluation', 'compatibility', 'export'] as const
 
-/** How a view is written in `?view=`; the directory the kind occupies in the project. */
+export type ReportView = (typeof REPORT_VIEWS)[number]
+
+/**
+ * Which section of the workspace the canvas is showing: a report about the whole Blueprint,
+ * or one kind of artifact.
+ *
+ * A kind is stored rather than its URL spelling, so there is no second list of section names
+ * to keep in step with the model.
+ */
+export type WorkspaceView = ReportView | EntityKind
+
+export function isReportView(view: WorkspaceView): view is ReportView {
+  return (REPORT_VIEWS as readonly string[]).includes(view)
+}
+
+/** How a view is written in `?view=`; for a kind, the directory it occupies. */
 export function viewParam(view: WorkspaceView): string {
-  return view === 'overview' ? 'overview' : ENTITY_KIND_INFO[view].dir
+  return isReportView(view) ? view : ENTITY_KIND_INFO[view].dir
 }
 
 export function viewFromParam(value: string | null | undefined): WorkspaceView | undefined {
-  if (value === 'overview') return 'overview'
+  if (typeof value !== 'string') return undefined
+  if ((REPORT_VIEWS as readonly string[]).includes(value)) return value as ReportView
   return ENTITY_KINDS.find((kind) => ENTITY_KIND_INFO[kind].dir === value)
 }
 
@@ -83,6 +93,11 @@ export interface WorkspaceState {
    * have to refuse to walk away from an edit that was never applied.
    */
   sourceError?: string | undefined
+  /**
+   * A step inside the selected workflow to open on. Set when a finding names one, so that
+   * clicking a workflow diagnostic lands on the step it is about rather than the graph.
+   */
+  focusNodeId?: string | undefined
   diagnostics: Diagnostic[]
   /** True while diagnostics are older than the Blueprint. */
   validating: boolean
@@ -100,7 +115,8 @@ export interface WorkspaceState {
   add(kind: EntityKind, name: string): EntityRef | undefined
   /** Adds a new artifact and opens it. */
   create(kind: EntityKind, name: string): EntityRef | undefined
-  rename(kind: EntityKind, oldId: string, newId: string): void
+  /** Renames and returns how many references were rewritten, for the caller to report. */
+  rename(kind: EntityKind, oldId: string, newId: string): number
   remove(ref: EntityRef): void
   /** Applies a change-set and hands back the ops the domain refused, for the caller to report. */
   apply(changeSet: ChangeSet, accept?: string[]): { rejected: { opId: string; reason: string }[] }
@@ -108,7 +124,7 @@ export interface WorkspaceState {
     patch: Partial<Pick<Blueprint, 'name' | 'description' | 'version' | 'settings' | 'targets'>>,
   ): void
 
-  select(ref?: EntityRef): void
+  select(ref?: EntityRef, options?: { nodeId?: string }): void
   setView(view: WorkspaceView): void
   setArtifactTab(tab: ArtifactTab): void
   setSourceError(message: string | undefined): void
@@ -199,6 +215,7 @@ export const useWorkspace = create<WorkspaceState>()(
             view: 'overview',
             artifactTab: 'visual',
             sourceError: undefined,
+            focusNodeId: undefined,
             validating: false,
             dirty: false,
             saving: false,
@@ -260,14 +277,15 @@ export const useWorkspace = create<WorkspaceState>()(
 
         rename(kind, oldId, newId) {
           const blueprint = get().blueprint
-          if (!blueprint) return
+          if (!blueprint) return 0
           // Throws RenameError for an invalid or taken id; the caller shows the message.
-          const { blueprint: next } = coreRenameEntity(blueprint, kind, oldId, newId)
+          const { blueprint: next, updatedRefs } = coreRenameEntity(blueprint, kind, oldId, newId)
           commit(next)
           const selection = get().selection
           if (selection?.kind === kind && selection.id === oldId) {
             set({ selection: { kind, id: newId } })
           }
+          return updatedRefs
         },
 
         remove(ref) {
@@ -302,7 +320,7 @@ export const useWorkspace = create<WorkspaceState>()(
           commit({ ...blueprint, ...patch })
         },
 
-        select(ref) {
+        select(ref, options) {
           // A different artifact opens on its form, never on the tab the last one was on.
           // The view follows the selection so that the URL, the tree and the canvas agree.
           set({
@@ -310,6 +328,7 @@ export const useWorkspace = create<WorkspaceState>()(
             view: ref ? ref.kind : 'overview',
             artifactTab: defaultTabFor(ref),
             sourceError: undefined,
+            focusNodeId: options?.nodeId,
           })
         },
 

@@ -119,7 +119,7 @@ describe('Inspector', () => {
     expect(state.blueprint?.agents[0]?.skillIds).toContain('xunit-v3')
   })
 
-  it('refuses an invalid id and says why, without touching the Blueprint', async () => {
+  it('shows what a typed id will actually become', async () => {
     await load()
     select(xunit)
     const user = userEvent.setup()
@@ -129,12 +129,46 @@ describe('Inspector', () => {
     const field = screen.getByLabelText('New id')
     await user.clear(field)
     await user.type(field, 'Not A Slug')
+
+    // An id is kebab-case, so the dialog says so before the button is pressed.
+    expect(screen.getByText(/Saved as/)).toHaveTextContent('not-a-slug')
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Rename' }))
 
-    expect(screen.getByRole('alert')).toBeInTheDocument()
+    expect(
+      useWorkspace.getState().blueprint?.skills.some((skill) => skill.id === 'not-a-slug'),
+    ).toBe(true)
+  })
+
+  it('refuses an id another artifact already has, and says which', async () => {
+    await load()
+    select(xunit)
+    const user = userEvent.setup()
+    render(<Inspector />)
+
+    await user.click(screen.getByRole('button', { name: 'Rename…' }))
+    const field = screen.getByLabelText('New id')
+    await user.clear(field)
+    await user.type(field, 'test-design')
+
+    expect(screen.getByRole('alert')).toHaveTextContent(/already has the id/)
+    expect(
+      within(screen.getByRole('dialog')).getByRole('button', { name: 'Rename' }),
+    ).toBeDisabled()
     expect(useWorkspace.getState().blueprint?.skills.some((skill) => skill.id === 'xunit')).toBe(
       true,
     )
+  })
+
+  it('refuses an empty id rather than guessing', async () => {
+    await load()
+    select(xunit)
+    const user = userEvent.setup()
+    render(<Inspector />)
+
+    await user.click(screen.getByRole('button', { name: 'Rename…' }))
+    await user.clear(screen.getByLabelText('New id'))
+
+    expect(screen.getByRole('alert')).toHaveTextContent(/cannot be empty/)
   })
 
   it('names what a delete would affect before it happens', async () => {

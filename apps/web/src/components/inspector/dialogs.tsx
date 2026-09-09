@@ -69,14 +69,40 @@ export function RenameDialog({ selection, open, onOpenChange }: DialogProps) {
     [blueprint, selection],
   )
 
+  const trimmed = draft.trim()
+  const suggestion = slugify(trimmed)
+  const taken = blueprint
+    ? getCollection(blueprint, selection.kind).some(
+        (entity) => entity.id === suggestion && entity.id !== selection.id,
+      )
+    : false
+  // What is actually wrong, worked out while typing rather than after pressing the button.
+  const problem =
+    trimmed === ''
+      ? 'An id cannot be empty.'
+      : suggestion === ''
+        ? 'That has no letters or digits in it.'
+        : taken
+          ? `Another ${kindLabel(selection.kind)} already has the id "${suggestion}".`
+          : undefined
+
   const submit = () => {
-    if (draft === selection.id) {
+    if (problem) {
+      setError(problem)
+      return
+    }
+    if (suggestion === selection.id) {
       onOpenChange(false)
       return
     }
     try {
-      rename(selection.kind, selection.id, draft)
-      toast.success(`Renamed to ${draft}`, { description: 'Every reference to it was updated.' })
+      const updated = rename(selection.kind, selection.id, suggestion)
+      toast.success(`Renamed to ${suggestion}`, {
+        description:
+          updated === 0
+            ? 'Nothing referred to it.'
+            : `${updated} reference${updated === 1 ? '' : 's'} updated.`,
+      })
       onOpenChange(false)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause))
@@ -111,7 +137,15 @@ export function RenameDialog({ selection, open, onOpenChange }: DialogProps) {
               if (event.key === 'Enter') submit()
             }}
           />
-          {error ? (
+          {problem ? (
+            <p role="alert" className="text-danger text-xs">
+              {problem}
+            </p>
+          ) : suggestion !== trimmed ? (
+            <p className="text-muted-foreground text-xs">
+              Saved as <span className="font-mono">{suggestion}</span>: an id is kebab-case.
+            </p>
+          ) : error ? (
             <p role="alert" className="text-danger text-xs">
               {error}
             </p>
@@ -122,7 +156,9 @@ export function RenameDialog({ selection, open, onOpenChange }: DialogProps) {
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={submit}>Rename</Button>
+          <Button onClick={submit} disabled={problem !== undefined}>
+            Rename
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

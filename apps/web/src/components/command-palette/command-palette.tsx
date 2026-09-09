@@ -36,7 +36,12 @@ import { Dialog, DialogContent, DialogTitle } from '@/components/ui/overlays'
 import { validateNow } from '@/lib/actions'
 import { hasPreview } from '@/lib/artifact-source'
 import { useModifierLabel } from '@/lib/shortcuts'
-import { useHistoryState, useWorkspace, workspaceHistory } from '@/lib/state/workspace-store'
+import {
+  type ReportView,
+  useHistoryState,
+  useWorkspace,
+  workspaceHistory,
+} from '@/lib/state/workspace-store'
 
 /** The name a freshly created artifact gets, before the author renames it. */
 function newArtifactName(kind: EntityKind): string {
@@ -100,6 +105,7 @@ export function CommandPalette({ open, onOpenChange, onExport }: CommandPaletteP
   const create = useWorkspace((state) => state.create)
   const select = useWorkspace((state) => state.select)
   const setArtifactTab = useWorkspace((state) => state.setArtifactTab)
+  const setView = useWorkspace((state) => state.setView)
   const updateBlueprint = useWorkspace((state) => state.updateBlueprint)
   const save = useWorkspace((state) => state.save)
   const mod = useModifierLabel()
@@ -116,6 +122,12 @@ export function CommandPalette({ open, onOpenChange, onExport }: CommandPaletteP
   }, [blueprint])
 
   if (!blueprint) return null
+
+  /** A report is about the whole Blueprint, so it clears the selection on the way. */
+  const goToReport = (view: ReportView) => {
+    select(undefined)
+    setView(view)
+  }
 
   /** Every action closes the palette; none of them leave it open behind a change. */
   const run = (action: () => void) => () => {
@@ -182,13 +194,17 @@ export function CommandPalette({ open, onOpenChange, onExport }: CommandPaletteP
                 label="Validate"
                 onSelect={run(() => void validateNow())}
               />
-              <Item icon={<ActivityIcon />} label="Show health" hint="not built yet" disabled />
+              <Item
+                icon={<ActivityIcon />}
+                label="Show health"
+                keywords={['evaluation', 'score', 'dimensions']}
+                onSelect={run(() => goToReport('evaluation'))}
+              />
               <Item
                 icon={<LayersIcon />}
                 label="Show compatibility"
-                hint="not built yet"
-                disabled
-                keywords={['harness', 'portability']}
+                keywords={['harness', 'portability', 'matrix']}
+                onSelect={run(() => goToReport('compatibility'))}
               />
             </Group>
 
@@ -247,8 +263,8 @@ export function CommandPalette({ open, onOpenChange, onExport }: CommandPaletteP
               <Item
                 icon={<FileCodeIcon />}
                 label="Browse generated files"
-                hint="not built yet"
-                disabled
+                keywords={['compiled', 'output', 'preview']}
+                onSelect={run(() => goToReport('export'))}
               />
               <Item
                 icon={<CloudUploadIcon />}

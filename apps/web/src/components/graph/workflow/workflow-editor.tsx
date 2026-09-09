@@ -249,7 +249,11 @@ function Canvas({
 export function WorkflowEditor({ workflowId }: { workflowId: string }) {
   const blueprint = useWorkspace((state) => state.blueprint)
   const upsert = useWorkspace((state) => state.upsert)
-  const [selected, setSelected] = useState<{ kind: 'node' | 'edge'; id: string }>()
+  // Navigating from a finding names the step it is about, so the editor opens on it.
+  const focusNodeId = useWorkspace((state) => state.focusNodeId)
+  const [selected, setSelected] = useState<{ kind: 'node' | 'edge'; id: string } | undefined>(
+    focusNodeId ? { kind: 'node', id: focusNodeId } : undefined,
+  )
   const [tidying, setTidying] = useState(false)
 
   const workflow = blueprint?.workflows.find((candidate) => candidate.id === workflowId)

@@ -11,7 +11,7 @@
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect } from 'react'
 
-import { useWorkspace, viewFromParam, viewParam } from '@/lib/state/workspace-store'
+import { isReportView, useWorkspace, viewFromParam, viewParam } from '@/lib/state/workspace-store'
 
 /** The address the current selection and view describe. */
 export function workspaceHref(
@@ -41,7 +41,8 @@ export function useUrlState(projectId: string, ready: boolean): void {
     if (!blueprint) return
 
     const wanted = viewFromParam(urlView) ?? 'overview'
-    if (wanted !== 'overview' && urlId) {
+    // Only a kind section can name an artifact; the reports are about the whole Blueprint.
+    if (!isReportView(wanted) && urlId) {
       const current = useWorkspace.getState().selection
       if (current?.kind !== wanted || current.id !== urlId) select({ kind: wanted, id: urlId })
       return

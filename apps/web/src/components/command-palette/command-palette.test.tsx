@@ -133,13 +133,26 @@ describe('CommandPalette', () => {
     expect(within(ai).getByText('needs an AI endpoint')).toBeInTheDocument()
   })
 
-  it('lists the verify and AI actions that P5 and P6 will fill in', async () => {
+  it('opens a report and closes, like every other action', async () => {
+    await load()
+    const user = userEvent.setup()
+    const onOpenChange = open()
+
+    await user.click(screen.getByRole('option', { name: /Show compatibility/ }))
+
+    expect(useWorkspace.getState().view).toBe('compatibility')
+    // A report is about the whole Blueprint, so it leaves no artifact selected.
+    expect(useWorkspace.getState().selection).toBeUndefined()
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
+  it('still names what needs an AI endpoint rather than hiding it', async () => {
     await load()
     open()
 
-    for (const label of [/Show health/, /Show compatibility/, /AI actions/]) {
-      expect(screen.getByRole('option', { name: label })).toHaveAttribute('data-disabled', 'true')
-    }
+    const ai = screen.getByRole('option', { name: /AI actions/ })
+    expect(ai).toHaveAttribute('data-disabled', 'true')
+    expect(within(ai).getByText('needs an AI endpoint')).toBeInTheDocument()
   })
 
   it('hands the export over to the workspace, which owns the dialog', async () => {

@@ -92,7 +92,8 @@ export function IdeShell({
       </Group>
 
       {healthBar ? (
-        <footer className="bg-surface text-muted-foreground flex h-7 shrink-0 items-center gap-3 border-t px-3 text-xs">
+        // Relative, so the health bar can open its findings in a panel above itself.
+        <footer className="bg-surface text-muted-foreground relative flex h-7 shrink-0 items-center gap-3 border-t px-3 text-xs">
           {healthBar}
         </footer>
       ) : null}
