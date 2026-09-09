@@ -357,5 +357,21 @@ filter can remove them.
 
 - Unit tests with a fake `fetch`: request shape for each preset, SSE parsing, path A / path B selection, repair loop, error mapping.
 - Recorded fixtures: `packages/ai/tests/__recordings__/<operation>/<case>.json` holding request and response pairs captured once against OpenAI and once against a local Ollama model; operations are tested by replaying them, and the resulting `ChangeSet` is snapshot-tested and applied to the fixture Blueprint with `applyChangeSet`, then `validateBlueprint` must report no errors.
-- Contract tests (`pnpm --filter @agent-blueprint/ai test:live`) run only when `AI_TEST_BASE_URL` is set; they execute `probe()` and one `structured()` call against a local Ollama and are excluded from CI.
+- Contract tests live in `packages/ai/tests/live.test.ts` and are excluded from `pnpm test`. They run only when `AI_TEST_BASE_URL` is set, and they check the three things a fake `fetch` cannot: that `probe()` reports what the endpoint really does, that `generateBlueprint` produces a draft which applies with zero rejected ops and no dangling references, and that `improveArtifact` edits the selected artifact rather than creating a second one.
+
+  ```bash
+  AI_TEST_BASE_URL=http://localhost:11434/v1 AI_TEST_MODEL=llama3.1     pnpm --filter @agent-blueprint/ai test:live
+  AI_TEST_BASE_URL=https://api.openai.com/v1 AI_TEST_MODEL=gpt-5-mini AI_TEST_API_KEY=sk-…     pnpm --filter @agent-blueprint/ai test:live
+  ```
+
+## Live model check (roadmap P6-09)
+
+Not yet run. This table is filled in from the contract tests above — one row per endpoint,
+with the date and what happened — and until it has entries, "works with any OpenAI-compatible
+endpoint" is a design claim rather than an observed one.
+
+| Endpoint | Model | Date | JSON schema | Outcome |
+| -------- | ----- | ---- | ----------- | ------- |
+|          |       |      |             |         |
+
 - No live network calls in CI; the fake `fetch` is installed globally in the Vitest setup file.

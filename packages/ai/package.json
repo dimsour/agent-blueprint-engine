@@ -14,8 +14,9 @@
   "scripts": {
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.json",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "test": "vitest run --exclude tests/live.test.ts",
+    "test:watch": "vitest",
+    "test:live": "vitest run tests/live.test.ts"
   },
   "dependencies": {
     "@agent-blueprint/core": "workspace:*",

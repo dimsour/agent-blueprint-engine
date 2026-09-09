@@ -452,7 +452,8 @@ Verification: `pnpm check` green; `pnpm --filter @agent-blueprint/core test` sho
 - Depends on: P6-01..07
 - Description: Manual verification against OpenAI and a local Ollama model, recorded in `docs/06-ai-layer.md` (model, date, outcome).
 - Acceptance: both generate a blueprint from the brief in docs/00 §end-to-end with zero rejected ops.
-- Verify: manual
+- Verify: `AI_TEST_BASE_URL=… AI_TEST_MODEL=… pnpm --filter @agent-blueprint/ai test:live`
+- Ready but not run: `packages/ai/tests/live.test.ts` is the check, excluded from `pnpm test` so CI never makes a network call. It needs a real key and a running Ollama, so it is the one part of P6 that cannot be done from here. The results table in docs/06 is empty until someone runs it.
 
 ## P7 — GitHub
 
