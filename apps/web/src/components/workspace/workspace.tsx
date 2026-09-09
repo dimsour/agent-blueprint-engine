@@ -13,6 +13,7 @@ import { useEffect, useMemo, useState } from 'react'
 
 import { CommandPalette } from '@/components/command-palette/command-palette'
 import { ExportDialog } from '@/components/export/export-dialog'
+import { OverviewGraph } from '@/components/graph/overview/overview-graph'
 import { ArtifactEditor } from '@/components/editor/artifact-editor'
 import { Inspector } from '@/components/inspector/inspector'
 import { HealthBar } from '@/components/layout/health-bar'
@@ -115,16 +116,16 @@ export function Workspace({ projectId }: { projectId: string }) {
 }
 
 /**
- * What the canvas shows with nothing selected: the Blueprint, or one kind of artifact.
- *
- * The derived graph of the whole Blueprint belongs here eventually (roadmap P4); until then
- * this is an index, which is at least a place the `?view=` sections lead to.
+ * What the canvas shows with nothing selected: the whole Blueprint as a graph, or one kind
+ * of artifact as a list.
  */
 function Overview() {
   const blueprint = useWorkspace((state) => state.blueprint)
   const view = useWorkspace((state) => state.view)
   const select = useWorkspace((state) => state.select)
   const setView = useWorkspace((state) => state.setView)
+  // The graph is the better first look at a Blueprint; the list is better for counting.
+  const [showGraph, setShowGraph] = useState(true)
 
   const counts = useMemo(
     () =>
@@ -177,29 +178,47 @@ function Overview() {
   }
 
   return (
-    <PanelSection title="Overview">
-      <div className="flex flex-col gap-4 p-4">
-        <div>
-          <h1 className="text-lg font-semibold tracking-tight">{blueprint.name}</h1>
+    <PanelSection
+      title={
+        <span className="flex items-center gap-2">
+          Overview
+          <span className="text-foreground normal-case">{blueprint.name}</span>
+        </span>
+      }
+      scroll={false}
+      actions={
+        <button
+          type="button"
+          onClick={() => setShowGraph((current) => !current)}
+          className="text-muted-foreground hover:text-foreground text-xs"
+        >
+          {showGraph ? 'Show the list' : 'Show the graph'}
+        </button>
+      }
+    >
+      {showGraph ? (
+        <OverviewGraph />
+      ) : (
+        <div className="flex flex-col gap-4 overflow-auto p-4">
           {blueprint.description ? (
-            <p className="text-muted-foreground mt-1 text-sm">{blueprint.description}</p>
+            <p className="text-muted-foreground text-sm">{blueprint.description}</p>
           ) : null}
+          <ul aria-label="Artifacts by kind" className="grid max-w-2xl gap-2 sm:grid-cols-3">
+            {counts.map(({ kind, count }) => (
+              <li key={kind}>
+                <button
+                  type="button"
+                  onClick={() => setView(kind)}
+                  className="hover:border-accent flex w-full items-baseline justify-between gap-2 rounded-lg border p-3 text-left transition-colors"
+                >
+                  <span className="text-sm">{ENTITY_KIND_INFO[kind].pluralLabel}</span>
+                  <span className="text-muted-foreground tabular-nums">{count}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
         </div>
-        <ul aria-label="Artifacts by kind" className="grid max-w-2xl gap-2 sm:grid-cols-3">
-          {counts.map(({ kind, count }) => (
-            <li key={kind}>
-              <button
-                type="button"
-                onClick={() => setView(kind)}
-                className="hover:border-accent flex w-full items-baseline justify-between gap-2 rounded-lg border p-3 text-left transition-colors"
-              >
-                <span className="text-sm">{ENTITY_KIND_INFO[kind].pluralLabel}</span>
-                <span className="text-muted-foreground tabular-nums">{count}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      </div>
+      )}
     </PanelSection>
   )
 }

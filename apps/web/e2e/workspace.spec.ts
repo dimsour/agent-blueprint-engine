@@ -200,6 +200,42 @@ test.describe('workspace layout', () => {
   })
 })
 
+test.describe('overview graph', () => {
+  test('draws the Blueprint and selects from it', async ({ page }) => {
+    await openStarter(page)
+
+    const graph = page.getByLabel('Blueprint overview graph')
+    await expect(graph).toBeVisible()
+    // One node per artifact, laid out and painted.
+    await expect(page.locator('.react-flow__node')).toHaveCount(19)
+
+    await page.locator('.react-flow__node', { hasText: 'React testing' }).click()
+    await expect(page).toHaveURL(/id=react-testing/)
+    await expect(page.getByRole('heading', { name: 'React testing' })).toBeVisible()
+  })
+
+  test('filtering by kind leaves a smaller graph', async ({ page }) => {
+    await openStarter(page)
+    await expect(page.locator('.react-flow__node')).toHaveCount(19)
+
+    const filters = page.getByRole('group', { name: 'Filter by kind' })
+    await filters.getByRole('button', { name: 'Skills' }).click()
+
+    await expect(page.locator('.react-flow__node')).toHaveCount(15)
+    await expect(filters.getByRole('button', { name: 'Skills' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    )
+  })
+
+  test('the list is still there for counting', async ({ page }) => {
+    await openStarter(page)
+    await page.getByRole('button', { name: 'Show the list' }).click()
+
+    await expect(page.getByRole('list', { name: 'Artifacts by kind' })).toBeVisible()
+  })
+})
+
 test.describe('addressable workspace', () => {
   test('selecting an artifact puts it in the address bar', async ({ page }) => {
     await openStarter(page)
@@ -230,12 +266,12 @@ test.describe('addressable workspace', () => {
     await expect(page.getByRole('tab', { name: /Visual/ })).toHaveAttribute('data-state', 'active')
   })
 
-  test('Overview leaves the selection and lists the kinds', async ({ page }) => {
+  test('Overview leaves the selection and shows the whole Blueprint', async ({ page }) => {
     await openStarter(page)
     await artifact(page, 'React testing').click()
     await page.getByRole('button', { name: 'Overview' }).click()
 
-    await expect(page.getByRole('list', { name: 'Artifacts by kind' })).toBeVisible()
+    await expect(page.getByLabel('Blueprint overview graph')).toBeVisible()
     await expect(page.getByText('No findings. This Blueprint is clean.')).toBeVisible()
   })
 })
