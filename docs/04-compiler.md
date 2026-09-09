@@ -384,3 +384,58 @@ An expert .NET agent that writes and reviews high-quality xUnit unit tests.
    - the capability matrix has all concepts;
    - when the harness has a CLI that can validate its own config (for example `claude --help`-level parsing or a JSON schema for `opencode.json`), a schema check against the emitted config.
 8. Add the lowering tables to `docs/harness/<id>.md` and a row to the support matrix in `docs/00-vision.md`.
+
+## Implementation notes (P2)
+
+The compiler is implemented. Where it differs from the specification above, the reason is
+recorded here rather than by quietly changing the spec.
+
+### `AGENTS.md` and `.agents/skills` are harness-neutral
+
+Codex, OpenCode and Pi read the same paths, and Copilot reads `AGENTS.md`. One path can hold
+only one content, so nothing written there names a harness or uses harness-specific
+invocation syntax ("Delegate to the `x` agent", not "Spawn the `x` agent"). Per-harness
+wording lives in `CLAUDE.md` (which only Claude Code reads), in each harness's own directory,
+and in the generated `README.md`, which is the one file allowed to describe every target.
+`shared/portable.ts` owns this artifact set and every adapter that reads it calls the same
+function, so the pipeline always sees identical bytes and merges them into one `shared` file.
+
+### The generated-file header sits after frontmatter
+
+YAML frontmatter has to start at byte 0 or the harness will not parse it, so files with
+frontmatter carry the header as the first line of the body instead. Scripts and assets copied
+from a skill's resources carry no header at all: a comment would corrupt them.
+
+### Adapter options are parsed, not typed at the schema
+
+`HarnessAdapter` exposes `optionsSchema` for documentation and for the settings UI, plus
+`parseOptions(raw)` which returns the typed options or throws. A `ZodType<Options>` cannot
+express a schema whose input and output differ (which is what defaults do), and every adapter
+has defaults.
+
+### `compileBlueprint` is synchronous
+
+Compilation is pure and synchronous so the UI can preview output on each keystroke. Only
+hashing (`buildManifestFor`) and file access (`compileProject`, `writeCompiled`) are
+asynchronous, because Web Crypto and `VirtualFs` are.
+
+### Gates compile to `Stop` hooks only
+
+The spec suggested `Stop` and `SubagentStop`. Running a test suite again on every subagent
+return is expensive and rarely what the author meant, so gates compile to `Stop` alone; the
+gate text is also in the workflow skill, so a subagent still knows the checkpoint exists.
+
+### Determinism tests
+
+Collection order is authored order and is meaningful (it drives the order of the skills index
+and the agent roster), so `normalizeBlueprint` does not sort collections and reversing them
+is expected to change the output. The determinism tests therefore compile the same Blueprint
+twice, compile a deep clone, and reverse the node and edge arrays inside each workflow, which
+normalization does sort.
+
+### Codex hooks file shape
+
+`docs/harness/codex.md` documents the events and handler fields but not the wrapper object.
+The adapter writes `{ "hooks": { "<Event>": [ { "hooks": [ … ] } ] } }`, mirroring Claude
+Code, which matches every published example. Verify against the Codex hooks documentation
+before relying on it in production.

@@ -66,39 +66,71 @@ Manifest problems are thrown as `ProjectReadError` (`MANIFEST_MISSING`, `MANIFES
 | `BP-TARGET-002` | error    | The same harness configured twice in `targets`.                                                                                                                                                                                                                 | Remove the duplicate                                                                 |
 | `BP-LAW-001`    | warning  | An iron law or rule has `scope.all: false` with empty `agentIds` and `workflowIds`.                                                                                                                                                                             | Add ids or set `all: true`                                                           |
 
-### 2.3 Planned (roadmap P1): semantic rules (`validation/rules/semantic.ts`)
+### 2.3 Semantic rules (implemented: `validation/rules/semantic.ts`, `rules/orphans.ts`, `contradictions.ts`, `requirements.ts`)
 
-| Code                     | Severity                            | Spec                                                                                                                                                                                                                                                           |
-| ------------------------ | ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `BP-WF-010`              | warning                             | Unreachable node: not reachable from `entryNodeId` by following edges (any kind). `data.nodeId`. Ignore when `BP-WF-001` already fired for the workflow.                                                                                                       |
-| `BP-WF-011`              | warning                             | Workflow has no `verification`, `gate`, `review` or `human-approval` node on any path from start to an end node. Message names the workflow and suggests a verification step before the end.                                                                   |
-| `BP-WF-012`              | warning                             | A `parallel` node with fewer than two outgoing edges, or a `merge`/`synthesis` node with fewer than two incoming edges.                                                                                                                                        |
-| `BP-WF-013`              | warning                             | Dead end: a non-`end` node with no outgoing edge.                                                                                                                                                                                                              |
-| `BP-WF-014`              | info                                | Cycle without a `retry` edge or `maxAttempts` (possible infinite loop in orchestration instructions).                                                                                                                                                          |
-| `BP-AGENT-010`           | warning                             | Agent is not referenced by any workflow node (`node-agent`), has no `workflowIds`, is not the primary agent and is not a delegation target.                                                                                                                    |
-| `BP-AGENT-011`           | warning                             | Agent responsibilities without matching skills: no skill in `skillIds` whose name, description, tags or `whenToUse` shares a keyword (stemmed, stop-words removed) with the responsibility sentence. One diagnostic per responsibility; `data.responsibility`. |
-| `BP-AGENT-012`           | info                                | Agent has tools but every permission operation is unset (harness defaults will apply).                                                                                                                                                                         |
-| `BP-SKILL-010`           | warning                             | Skill is never activated: empty `activation` in every list **and** not referenced by any agent (`uses-skill`) or workflow node (`node-skill`).                                                                                                                 |
-| `BP-SKILL-011`           | info                                | Skill has no `## Verification` (or equivalent heading) in its body.                                                                                                                                                                                            |
-| `BP-ORPHAN-001` … `-008` | warning                             | Unreferenced skill (001), workflow (002), iron law (003), rule (004), gate (005), tool (006), reference (007), memory (008), computed by `findOrphans(graph)` (see §5).                                                                                        |
-| `BP-LAW-010`             | warning                             | Two iron laws conflict: same category, `rule` sentences that pass the contradiction heuristic (§3). `related` = the other law. Emitted once per pair (lower id first).                                                                                         |
-| `BP-LAW-011`             | info                                | Iron law with `enforcement` containing `hook` or `gate` but no hook/gate references it (by `check-iron-laws` action or gate criterion description mentioning the law name).                                                                                    |
-| `BP-CONTRA-001`          | warning                             | Contradiction across kinds (skill vs skill, skill vs law, law vs workflow body, rule vs law): see §3. `ref` = first artifact, `related` = second.                                                                                                              |
-| `BP-HOOK-010`            | info                                | Hook with `action.type` `command`/`run-tests`/`format`/`lint`/`secret-scan` but no `command`.                                                                                                                                                                  |
-| `BP-GATE-010`            | warning                             | Gate referenced by a workflow node whose `criteria` is empty.                                                                                                                                                                                                  |
-| `BP-REQ-001`             | error (`must`) / warning (`should`) | Requirement not satisfied: no check passed.                                                                                                                                                                                                                    |
-| `BP-REQ-002`             | warning                             | Requirement partially satisfied: some but not all checks passed. `data.passed`, `data.failed`.                                                                                                                                                                 |
-| `BP-REQ-003`             | info                                | Requirement has no checks (only prose), so it cannot be verified automatically.                                                                                                                                                                                |
-| `BP-REQ-004`             | info                                | Requirement has only `ai-judged` checks and no AI is configured; skipped.                                                                                                                                                                                      |
+| Code                                                                                                                                   | Severity                            | Spec                                                                                                                                                                                                                                                                       |
+| -------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `BP-WF-010`                                                                                                                            | warning                             | Unreachable node: not reachable from `entryNodeId` by following edges (any kind). `data.nodeId`. Ignore when `BP-WF-001` already fired for the workflow.                                                                                                                   |
+| `BP-WF-011`                                                                                                                            | warning                             | Workflow has no `verification`, `gate`, `review` or `human-approval` node on any path from start to an end node. Message names the workflow and suggests a verification step before the end.                                                                               |
+| `BP-WF-012`                                                                                                                            | warning                             | A `parallel` node with fewer than two outgoing edges, or a `merge`/`synthesis` node with fewer than two incoming edges.                                                                                                                                                    |
+| `BP-WF-013`                                                                                                                            | warning                             | Dead end: a non-`end` node with no outgoing edge.                                                                                                                                                                                                                          |
+| `BP-WF-014`                                                                                                                            | info                                | Cycle without a `retry` edge or `maxAttempts` (possible infinite loop in orchestration instructions).                                                                                                                                                                      |
+| `BP-AGENT-010`                                                                                                                         | warning                             | Agent is not referenced by any workflow node (`node-agent`), has no `workflowIds`, is not the primary agent and is not a delegation target.                                                                                                                                |
+| `BP-AGENT-011`                                                                                                                         | warning                             | Agent responsibilities without matching skills: no skill in `skillIds` whose name, description, tags or `whenToUse` shares a keyword (stemmed, stop-words removed) with the responsibility sentence. One diagnostic per responsibility; `data.responsibility`.             |
+| `BP-AGENT-012`                                                                                                                         | info                                | Agent has tools but every permission operation is unset (harness defaults will apply).                                                                                                                                                                                     |
+| `BP-SKILL-010`                                                                                                                         | warning                             | Skill is never activated: empty `activation` in every list **and** not referenced by any agent (`uses-skill`) or workflow node (`node-skill`).                                                                                                                             |
+| `BP-SKILL-011`                                                                                                                         | info                                | Skill has no `## Verification` (or equivalent heading) in its body.                                                                                                                                                                                                        |
+| `BP-ORPHAN-001`, `BP-ORPHAN-002`, `BP-ORPHAN-003`, `BP-ORPHAN-004`, `BP-ORPHAN-005`, `BP-ORPHAN-006`, `BP-ORPHAN-007`, `BP-ORPHAN-008` | warning                             | Unreferenced skill (001), workflow (002), iron law (003), rule (004), gate (005), tool (006), reference (007), memory (008), computed by `findOrphans(graph)` (see §5).                                                                                                    |
+| `BP-LAW-010`                                                                                                                           | warning                             | Two iron laws conflict: same category, `rule` sentences that pass the contradiction heuristic (§3). `related` = the other law. Emitted once per pair (lower id first).                                                                                                     |
+| `BP-LAW-011`                                                                                                                           | info                                | Iron law with `enforcement` containing `gate` but no gate mentions it. Implementation note: `hook` enforcement never fires this code, because every adapter generates the check automatically from `enforcement`, so demanding a hand-written hook would be a false alarm. |
+| `BP-CONTRA-001`                                                                                                                        | warning                             | Contradiction across kinds (skill vs skill, skill vs law, law vs workflow body, rule vs law): see §3. `ref` = first artifact, `related` = second.                                                                                                                          |
+| `BP-HOOK-010`                                                                                                                          | info                                | Hook with `action.type` `command`/`run-tests`/`format`/`lint`/`secret-scan` but no `command`.                                                                                                                                                                              |
+| `BP-GATE-010`                                                                                                                          | warning                             | Gate referenced by a workflow node whose `criteria` is empty.                                                                                                                                                                                                              |
+| `BP-REQ-001`                                                                                                                           | error (`must`) / warning (`should`) | Requirement not satisfied: no check passed.                                                                                                                                                                                                                                |
+| `BP-REQ-002`                                                                                                                           | warning                             | Requirement partially satisfied: some but not all checks passed. `data.passed`, `data.failed`.                                                                                                                                                                             |
+| `BP-REQ-003`                                                                                                                           | info                                | Requirement has no checks (only prose), so it cannot be verified automatically.                                                                                                                                                                                            |
+| `BP-REQ-004`                                                                                                                           | info                                | Requirement has only `ai-judged` checks and no AI is configured; skipped.                                                                                                                                                                                                  |
+| `BP-REQ-005`                                                                                                                           | warning                             | A requirement check could not run, for example an invalid regular expression.                                                                                                                                                                                              |
 
-### 2.4 Planned (roadmap P2): portability (`exporters`, surfaced through validation)
+### 2.4 Compilation and portability (implemented: `@agent-blueprint/exporters`, surfaced through validation)
 
-| Code          | Severity | Spec                                                                                                        |
-| ------------- | -------- | ----------------------------------------------------------------------------------------------------------- |
-| `BP-PORT-001` | warning  | A feature used by the Blueprint is `unsupported` on an enabled target (from the adapter capability matrix). |
-| `BP-PORT-002` | info     | A feature is `adapted` or `limited` on an enabled target; message carries the adapter's explanation.        |
+| Code                                                                              | Severity | Spec                                                                                                        |
+| --------------------------------------------------------------------------------- | -------- | ----------------------------------------------------------------------------------------------------------- |
+| `BP-PORT-001`                                                                     | warning  | A feature used by the Blueprint is `unsupported` on an enabled target (from the adapter capability matrix). |
+| `BP-PORT-002`                                                                     | info     | A feature is `adapted` or `limited` on an enabled target; message carries the adapter's explanation.        |
+| `BP-TARGET-003`                                                                   | error    | `TargetConfig.options` failed the adapter schema; the target was skipped.                                   |
+| `BP-COMPILE-001`                                                                  | error    | Two adapters produced different content for one path; neither was written. This is an adapter bug.          |
+| `BP-CLAUDE-001`, `BP-CODEX-001`, `BP-COPILOT-001`, `BP-OPENCODE-001`, `BP-PI-001` | error    | A workflow and a skill share an id, so they compile to the same file and overwrite each other.              |
+| `BP-CODEX-002`                                                                    | warning  | `AGENTS.md` is still over the Codex instruction budget after optional sections moved to a skill.            |
 
-## 3. Contradiction heuristic (planned, `validation/contradictions.ts`)
+### 2.5 Evaluation-only findings (implemented: `evaluation/score.ts`)
+
+Quality judgements rather than correctness ones, so `validateBlueprint` never returns them. They appear only in an `EvaluationReport` and carry `data.penalty`.
+
+| Code                  | Penalty | Meaning                                                                         |
+| --------------------- | ------- | ------------------------------------------------------------------------------- |
+| `BP-EVAL-SKILL-001`   | 5       | Skill body under 200 characters.                                                |
+| `BP-EVAL-SKILL-002`   | 3       | Skill has no Instructions section.                                              |
+| `BP-EVAL-AGENT-001`   | 5       | Agent states no output requirements.                                            |
+| `BP-EVAL-WF-001`      | 5       | Workflow has no triggers.                                                       |
+| `BP-EVAL-LAW-001`     | 3       | Iron Law has no rationale.                                                      |
+| `BP-EVAL-LAW-002`     | 2       | Iron Law has no examples or counterexamples.                                    |
+| `BP-EVAL-LAW-003`     | n/a     | No Iron Laws at all; the dimension scores 40.                                   |
+| `BP-EVAL-PORT-001`    | n/a     | Portability was not assessed because no capability data was injected.           |
+| `BP-EVAL-VERIFY-001`  | 10      | No workflow has a verification step.                                            |
+| `BP-EVAL-VERIFY-002`  | 5       | No gates exist.                                                                 |
+| `BP-EVAL-VERIFY-003`  | 5       | No hook runs tests, a linter or a secret scan.                                  |
+| `BP-EVAL-COMPLEX-001` | 2       | Workflow with more than 25 steps.                                               |
+| `BP-EVAL-COMPLEX-002` | 3       | Two skills whose descriptions overlap by Jaccard 0.7 or more.                   |
+| `BP-EVAL-COMPLEX-003` | 1       | Agent with more than 12 skills.                                                 |
+| `BP-SAFETY-001`       | 10      | An agent may force-push without asking.                                         |
+| `BP-SAFETY-002`       | 10      | An agent may make arbitrary network requests and no security law constrains it. |
+| `BP-SAFETY-003`       | 5       | No Iron Law covers security.                                                    |
+| `BP-SAFETY-004`       | 5       | No hook scans for secrets.                                                      |
+
+The catalogue lives in code as well, in `packages/core/src/validation/codes.ts`; `packages/core/tests/docs.test.ts` fails when a code there is missing from this document.
+
+## 3. Contradiction heuristic (implemented, `validation/contradictions.ts`)
 
 Deterministic first pass; the AI pass (docs/06-ai-layer.md) may add more findings with the same codes and `data.source: 'ai'`.
 
@@ -114,7 +146,7 @@ Inputs: for every skill (`body`, `whenToUse`), iron law (`rule`, `body`), rule (
 
 Tests: positive fixture pair ("Always use Library X" / "Never use Library X"), negative pair with disjoint scopes, negative pair with generic overlap only.
 
-## 4. Requirement checks (planned, `validation/requirements.ts`)
+## 4. Requirement checks (implemented, `validation/requirements.ts`)
 
 Evaluation semantics for each `RequirementCheck` (`packages/core/src/schema/quality.ts`):
 
@@ -145,7 +177,7 @@ Result per requirement: `satisfied` (all non-skipped checks pass, at least one e
 
 The primary agent counts as referenced by the Blueprint (`graph.primaryAgentId`).
 
-## 6. Evaluation scoring (planned, `evaluation/`)
+## 6. Evaluation scoring (implemented, `evaluation/score.ts`)
 
 `evaluateBlueprint(bp, options): EvaluationReport` computes ten dimensions from diagnostics and heuristics. Every score carries the findings that produced it; a score without findings is 100 and says so.
 
@@ -194,7 +226,7 @@ interface EvaluationReport {
 
 Reports are values; they are never written into `blueprint/`.
 
-## 7. Health summary (planned, `evaluation/health.ts`)
+## 7. Health summary (implemented, `evaluation/health.ts`)
 
 ```ts
 interface HealthSummary {

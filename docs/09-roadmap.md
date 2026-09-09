@@ -18,6 +18,15 @@ The backlog for building Agent Blueprint. Phases follow the plan; tasks inside a
    - the fixture re-canonicalized if its format changed (`pnpm --filter @agent-blueprint/core fixtures:canonicalize`).
 6. Verification commands are listed per task; run them and paste real output in the PR.
 
+## Status
+
+| Phase               | State       | Notes                                                                                                                                                                                      |
+| ------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| P0 Foundation       | done        | Workspace, docs, `@agent-blueprint/core` v0, fixture.                                                                                                                                      |
+| P1 Core semantics   | mostly done | P1-01 to P1-06 and P1-09 are implemented and tested. **P1-07 and P1-08 (the templates package) are not started**: `@agent-blueprint/templates` is still a placeholder.                     |
+| P2 Compiler         | done        | P2-01 to P2-09 implemented: adapter interface, registry, shared emitters, pipeline, build manifest, Claude Code and Codex in full, Copilot/OpenCode/Pi minimal, portability, golden tests. |
+| P3 Web shell onward | not started | `apps/web` is the placeholder page from P0.                                                                                                                                                |
+
 ## P0 — Foundation (done)
 
 What exists:

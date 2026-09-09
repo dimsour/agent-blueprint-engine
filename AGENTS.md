@@ -81,4 +81,10 @@ pnpm format                  # prettier
 
 ## 7. Status
 
-Phase P0 (foundation) is complete: workspace, docs, `@agent-blueprint/core` v0 with tests, and the `dotnet-testing-expert` fixture. `exporters`, `ai`, `templates` and the web IDE are placeholders. See `docs/09-roadmap.md` for what comes next.
+Phases P0 and P2 are complete, and P1 apart from the templates package.
+
+- `@agent-blueprint/core`: model, project format, validation (structural, semantic, orphans, contradictions, requirements), dependency graph, evaluation and health, change-sets, migrations.
+- `@agent-blueprint/exporters`: the compiler. Claude Code and Codex map every concept; Copilot, OpenCode and Pi emit the portable artifacts and report what they cannot represent.
+- `@agent-blueprint/templates` is still a placeholder (roadmap P1-07 and P1-08), and `@agent-blueprint/ai` and the web IDE have not been started (P3 onward).
+
+See `docs/09-roadmap.md` for what comes next.

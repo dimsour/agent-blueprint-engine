@@ -40,7 +40,17 @@ export * from './changeset/diff'
 
 // Validation and dependencies
 export * from './validation/types'
+export * from './validation/codes'
 export * from './validation/context'
 export * from './validation/engine'
 export * from './validation/rules/structural'
+export * from './validation/rules/semantic'
+export * from './validation/rules/orphans'
+export * from './validation/contradictions'
+export * from './validation/requirements'
+export * from './validation/text'
+export * from './validation/workflow-graph'
 export * from './dependencies/graph'
+
+// Evaluation
+export * from './evaluation/index'

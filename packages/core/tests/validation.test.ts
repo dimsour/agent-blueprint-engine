@@ -97,7 +97,8 @@ describe('validateBlueprint', () => {
       ],
     }
     const codes = validateBlueprint(bp).map((d) => d.code)
-    expect(codes).toEqual(['BP-TARGET-002', 'BP-AGENT-002'])
+    expect(codes).toContain('BP-TARGET-002')
+    expect(codes).toContain('BP-AGENT-002')
   })
 
   it('emits an info when no target is enabled', () => {

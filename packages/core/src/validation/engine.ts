@@ -1,5 +1,9 @@
 import type { Blueprint } from '../model/types'
 import { createValidationContext, type ValidationContext } from './context'
+import { findContradictions } from './contradictions'
+import { requirementRule } from './requirements'
+import { ORPHAN_RULES } from './rules/orphans'
+import { SEMANTIC_RULES } from './rules/semantic'
 import { STRUCTURAL_RULES } from './rules/structural'
 import { type Diagnostic, sortDiagnostics } from './types'
 
@@ -10,8 +14,23 @@ export interface ValidationRule {
   check(ctx: ValidationContext): Diagnostic[]
 }
 
-/** All built-in rules. Semantic and requirement rules join this list in roadmap phase P1. */
-export const ALL_RULES: readonly ValidationRule[] = [...STRUCTURAL_RULES]
+export const contradictionRule: ValidationRule = {
+  code: 'BP-CONTRA-001',
+  description: 'Two artifacts must not tell the agent opposite things about the same subject.',
+  check: ({ blueprint }) => findContradictions(blueprint),
+}
+
+/**
+ * Every built-in rule. Order does not matter: diagnostics are sorted by severity, code and
+ * artifact before they are returned.
+ */
+export const ALL_RULES: readonly ValidationRule[] = [
+  ...STRUCTURAL_RULES,
+  ...SEMANTIC_RULES,
+  ...ORPHAN_RULES,
+  contradictionRule,
+  requirementRule,
+]
 
 export function validateBlueprint(
   blueprint: Blueprint,
