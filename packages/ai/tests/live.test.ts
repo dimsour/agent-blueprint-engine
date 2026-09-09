@@ -17,13 +17,15 @@
  * that produces a different but valid Blueprint has passed.
  */
 import { createEmptyBlueprint, validateBlueprint, applyChangeSet } from '@agent-blueprint/core'
-import { describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it } from 'vitest'
 
 import {
   createAIClient,
   generateBlueprint,
   improveArtifact,
+  type AIClient,
   type AIClientConfig,
+  type ProbeResult,
 } from '../src/index'
 import { loadFixture } from './helpers'
 
@@ -52,10 +54,22 @@ function config(jsonSchema: boolean): AIClientConfig {
 }
 
 describe.skipIf(!baseUrl)('against a live endpoint', () => {
+  /**
+   * Probed once and shared, because requests are the scarce resource here. Probing per test
+   * spent six of this suite's nine requests discovering the same fact three times, which is
+   * enough on its own to exhaust a hosted free tier — a hosted API's is five a minute.
+   */
+  let probe: ProbeResult
+  let client: AIClient
+
+  beforeAll(async () => {
+    probe = await createAIClient(config(true)).probe()
+    client = createAIClient(config(probe.jsonSchema))
+  }, TIMEOUT)
+
   it(
     'reports what the endpoint can actually do',
-    async () => {
-      const probe = await createAIClient(config(true)).probe()
+    () => {
       expect(probe.reachable, probe.error?.message).toBe(true)
       expect(probe.authenticated, probe.error?.message).toBe(true)
       // Not asserted either way: an endpoint without schema support is supported, through the
@@ -70,8 +84,6 @@ describe.skipIf(!baseUrl)('against a live endpoint', () => {
   it(
     'drafts a Blueprint that applies cleanly and validates',
     async () => {
-      const probe = await createAIClient(config(true)).probe()
-      const client = createAIClient(config(probe.jsonSchema))
       const empty = createEmptyBlueprint({ id: 'live-check', name: 'Untitled' })
 
       const result = await generateBlueprint(
@@ -101,8 +113,6 @@ describe.skipIf(!baseUrl)('against a live endpoint', () => {
   it(
     'improves one artifact without moving it',
     async () => {
-      const probe = await createAIClient(config(true)).probe()
-      const client = createAIClient(config(probe.jsonSchema))
       const blueprint = await loadFixture()
 
       const result = await improveArtifact(

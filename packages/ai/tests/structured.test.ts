@@ -154,6 +154,43 @@ describe('structured', () => {
     expect(sent[1]!.response_format).toBeUndefined()
   })
 
+  it('drops the schema when the endpoint rejects it without saying why', async () => {
+    // a hosted API's OpenAI layer refuses a schema carrying `pattern` or `minLength` with nothing but
+    // "Request contains an invalid argument" — no mention of response_format, so matching on the
+    // wording would never have caught it. Having sent a schema and been refused, asking again
+    // without one costs a single request and is the only move that can work.
+    const { client, sent } = clientWith(
+      [
+        new Response('[{"error":{"code":400,"message":"Request contains an invalid argument."}}]', {
+          status: 400,
+        }),
+        '{"id":"xunit","name":"xUnit"}',
+      ],
+      { jsonSchema: true },
+    )
+    const result = await structured(client, skill, [{ role: 'user', content: 'a skill' }])
+
+    expect(result.mode).toBe('prompt')
+    expect(result.value.id).toBe('xunit')
+    expect(sent[1]!.response_format).toBeUndefined()
+  })
+
+  it('does not retry for ever when the prompt path is refused too', async () => {
+    const { client, sent } = clientWith(
+      [
+        new Response('{"error":"nope"}', { status: 400 }),
+        new Response('{"error":"nope"}', { status: 400 }),
+      ],
+      { jsonSchema: true },
+    )
+    const error = (await structured(client, skill, [{ role: 'user', content: 'a skill' }]).catch(
+      (e: unknown) => e,
+    )) as AIError
+
+    expect(error.code).toBe('bad-request')
+    expect(sent).toHaveLength(2)
+  })
+
   it('repairs once, telling the model which field was wrong', async () => {
     const { client, sent } = clientWith([
       '{"id":"xunit","name":42}',

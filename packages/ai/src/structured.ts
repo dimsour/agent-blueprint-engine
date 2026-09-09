@@ -75,11 +75,15 @@ export async function structured<T>(
           : {}),
       })
       .catch((error: unknown) => {
-        // The endpoint said it does not do schemas after all. That is a fact about the
-        // endpoint, not a failure of this call, so switch paths and try once more.
-        if (error instanceof AIError && error.code === 'unsupported' && mode === 'json-schema') {
-          return undefined
-        }
+        // We sent a schema and the endpoint rejected the request. Whether it said so in words
+        // we recognise (`unsupported`) or not at all is the endpoint's business — a hosted API
+        // rejects schemas carrying `pattern` or `minLength` with nothing but "Request contains
+        // an invalid argument". Either way the cheapest next move is the same: ask again
+        // without the schema. It costs one request, it cannot loop because the retry is on the
+        // prompt path, and a 400 for some other reason still surfaces from there.
+        const rejected =
+          error instanceof AIError && (error.code === 'unsupported' || error.code === 'bad-request')
+        if (rejected && mode === 'json-schema') return undefined
         throw error
       })
 

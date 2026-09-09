@@ -405,7 +405,7 @@ this code. Only failures reproduced with the model loaded are treated as finding
 
 ### What it found
 
-Six bugs, none of which a fake `fetch` could have produced. Each has a regression test named
+Seven bugs, none of which a fake `fetch` could have produced. Each has a regression test named
 after the model that caused it.
 
 1. **The probe was blind to reasoning models.** `max_tokens: 20` was spent on reasoning before
@@ -432,7 +432,13 @@ after the model that caused it.
    grammar-constrained decoding (llama.cpp, so LM Studio and Ollama) handle optional properties
    natively. The dialect is now chosen per preset, and correctness is unaffected because both
    paths end at the same Zod parse.
-6. **One invented permission destroyed the whole draft.** `permissions.operations` is a map
+6. **A rejected schema was never retried without one.** a hosted API's OpenAI layer refuses a schema
+   carrying `pattern` or `minLength` — which ours does, from the slug format — and says only
+   "Request contains an invalid argument". The fallback to the prompt path was gated on the
+   error text naming `response_format`, so a rejection phrased any other way ended the call.
+   Having sent a schema and been refused, asking again without one costs a single request, and
+   is now what happens for any 400 on a schema request.
+7. **One invented permission destroyed the whole draft.** `permissions.operations` is a map
    keyed by a closed enum, so `a local model` asking for `git.fetch` and `git.checkout` failed
    the entire agent — and then the workflow's reference to it was removed as dangling and the
    primary agent ignored for not existing. The result was nineteen changes describing a system
@@ -440,7 +446,12 @@ after the model that caused it.
    operations it cannot express and keeps the agent, exactly as it already does for a reference
    that points at nothing, and says so in the notes.
 
-Two things that are not bugs but are worth knowing. The 120 000 ms default timeout is right for
+Three things that are not bugs but are worth knowing. A hosted free tier can be too small to
+run this suite at all: a hosted API allows five requests a minute, and the suite needs four at best.
+Probing once instead of once per test brought it from nine down to four, which is the difference
+between usable and not.
+
+The 120 000 ms default timeout is right for
 a hosted API and short for a local model drafting a whole Blueprint (roadmap P6-10). And
 `generateBlueprint` is by far the heaviest operation — its schema is the union of eleven entity
 schemas — so it is the one that strains a small local model while every other operation is
