@@ -67,13 +67,44 @@ export function dropNulls(value: unknown): unknown {
 /**
  * Find the JSON object in a model's answer.
  *
- * Models fence it, introduce it, and apologise after it. Scanning for the first balanced
- * `{…}` outside a string literal survives all three, and gives up rather than guessing when
- * the braces never balance.
+ * Models fence it, introduce it, and apologise after it, so this scans for the first balanced
+ * `{…}` outside a string literal and checks that it actually parses before believing it.
+ *
+ * The parse is what makes it safe to look at the whole answer first, and looking at the whole
+ * answer first is the entire point. An earlier version stripped Markdown code fences before
+ * scanning, which works right up until the JSON *contains* a fence — and in this product it
+ * almost always does, because a skill body is Markdown and Markdown has code examples in it.
+ * The fence inside the `body` string was matched, the real object thrown away, and a perfectly
+ * good answer reported as "no JSON object". Found against a live model, where three answers in
+ * four failed that way.
+ *
+ * Fenced blocks are still tried, but only as a fallback for the case they are actually for:
+ * an answer whose prose happens to contain braces before the block.
  */
 export function extractJson(text: string): string | undefined {
-  const fenced = /```(?:json)?\s*([\s\S]*?)```/i.exec(text)
-  const haystack = fenced?.[1] ?? text
+  for (const candidate of [text, ...fencedBlocks(text)]) {
+    const found = balancedObject(candidate)
+    if (found !== undefined && parses(found)) return found
+  }
+  return undefined
+}
+
+function* fencedBlocks(text: string): Generator<string> {
+  const fence = /```(?:[a-z]*)\s*\n([\s\S]*?)```/gi
+  for (const match of text.matchAll(fence)) if (match[1]) yield match[1]
+}
+
+function parses(text: string): boolean {
+  try {
+    JSON.parse(text)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** The first `{…}` whose braces balance, ignoring braces inside string literals. */
+function balancedObject(haystack: string): string | undefined {
   const start = haystack.indexOf('{')
   if (start === -1) return undefined
 

@@ -59,7 +59,7 @@ export async function structured<T>(
 
   let mode: 'json-schema' | 'prompt' = client.config.features.jsonSchema ? 'json-schema' : 'prompt'
   let conversation: ChatMessage[] =
-    mode === 'json-schema' ? [...messages] : [...messages, contractMessage(schema)]
+    mode === 'json-schema' ? [...messages] : withContract(messages, schema)
 
   let usage: TokenUsage | undefined
   let raw = ''
@@ -89,7 +89,7 @@ export async function structured<T>(
 
     if (answer === undefined) {
       mode = 'prompt'
-      conversation = [...messages, contractMessage(schema)]
+      conversation = withContract(messages, schema)
       continue
     }
 
@@ -157,15 +157,29 @@ function validate<T>(schema: z.ZodType<T>, raw: string): Validation<T> {
     : { ok: false, message: issueLines(result.error), fatal: false }
 }
 
-/** The instruction that stands in for `response_format` when the endpoint has none. */
-function contractMessage(schema: z.ZodType): ChatMessage {
-  return {
-    role: 'system',
-    content: [
-      'Answer with a single JSON object and nothing else: no prose, no explanation, no code fence.',
-      'It must validate against this JSON Schema:',
-      JSON.stringify(toJsonSchema(schema)),
-      'Omit optional fields you have nothing to say about rather than inventing a value.',
-    ].join('\n'),
+/**
+ * The instruction that stands in for `response_format` when the endpoint has none.
+ *
+ * It goes on the end of the last user message rather than into a message of its own, and that
+ * is not a style choice. A second `system` message after the user's turn is rejected outright
+ * by any model whose chat template requires the system message to come first — Qwen answered
+ * `Jinja Exception: System message must be at the beginning.` and the whole fallback path was
+ * unusable on it. Two consecutive `user` messages break strict-alternation templates the same
+ * way. Appending keeps one system message at the front and one user turn at the back, which
+ * every template accepts, and it keeps the contract next to the answer, where instructions are
+ * followed best.
+ */
+function withContract(messages: ChatMessage[], schema: z.ZodType): ChatMessage[] {
+  const contract = [
+    'Answer with a single JSON object and nothing else: no prose, no explanation, no code fence.',
+    'It must validate against this JSON Schema:',
+    JSON.stringify(toJsonSchema(schema)),
+    'Omit optional fields you have nothing to say about rather than inventing a value.',
+  ].join('\n')
+
+  const last = messages.at(-1)
+  if (last?.role === 'user') {
+    return [...messages.slice(0, -1), { ...last, content: `${last.content}\n\n${contract}` }]
   }
+  return [...messages, { role: 'user', content: contract }]
 }

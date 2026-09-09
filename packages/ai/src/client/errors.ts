@@ -102,7 +102,12 @@ export function errorForStatus(status: number, body: string): AIErrorCode {
       text.includes('context length') ||
       text.includes('context_length') ||
       text.includes('maximum context') ||
-      text.includes('too many tokens')
+      text.includes('too many tokens') ||
+      // LM Studio's wording, which matches none of the above: "request (5865 tokens) exceeds
+      // the available context size (3328 tokens)", type `exceed_context_size_error`. Without
+      // this the most actionable failure a local endpoint produces arrives as a shrug.
+      text.includes('context size') ||
+      text.includes('exceed_context_size')
     ) {
       return 'context-too-large'
     }

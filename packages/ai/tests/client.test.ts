@@ -197,6 +197,13 @@ describe('createAIClient', () => {
       [403, '{}', 'auth'],
       [400, 'response_format is not supported', 'unsupported'],
       [400, 'maximum context length exceeded', 'context-too-large'],
+      // LM Studio's phrasing, which shares no wording with OpenAI's.
+      [
+        400,
+        'request (5865 tokens) exceeds the available context size (3328 tokens)',
+        'context-too-large',
+      ],
+      [400, '{"type":"exceed_context_size_error"}', 'context-too-large'],
       [400, 'model is required', 'bad-request'],
     ]
     for (const [status, body, code] of cases) {
@@ -319,7 +326,8 @@ describe('probe', () => {
       models: ['gpt-a', 'gpt-b'],
     })
     expect(calls[0]!.url).toBe('https://api.openai.com/v1/models')
-    expect(bodyOf(calls[1]!).max_tokens).toBe(20)
+    // Enough room for a reasoning model to think before it answers; see the probe test below.
+    expect(bodyOf(calls[1]!).max_tokens).toBe(512)
   })
 
   it('does not claim schema support because prose came back', async () => {
@@ -328,6 +336,29 @@ describe('probe', () => {
     expect(result.reachable).toBe(true)
     expect(result.jsonSchema).toBe(false)
     expect(result.models).toEqual([])
+  })
+
+  it('does not read a cut-off answer as a missing schema mode', async () => {
+    // Found against a real LM Studio: a local model spends about forty tokens reasoning before
+    // it writes anything, so a small budget returns empty content with finish_reason "length".
+    // Concluding "no schema support" there is stored in settings and never revisited, while a
+    // wrong "yes" costs one rejected request that structured() recovers from by itself.
+    const cutOff = () =>
+      new Response(
+        JSON.stringify({
+          model: 'a local model',
+          choices: [{ message: { role: 'assistant', content: '' }, finish_reason: 'length' }],
+        }),
+        { status: 200 },
+      )
+    const { fetch } = fakeFetch([failure(404, 'no route'), cutOff])
+    const result = await createAIClient(config({ presetId: 'custom' }), deps(fetch)).probe()
+    expect(result.jsonSchema).toBe(true)
+
+    // An answer that arrived complete and simply is not the shape asked for is a real no.
+    const wrong = fakeFetch([failure(404, 'no route'), completion('I cannot do that.')])
+    const said = await createAIClient(config({ presetId: 'custom' }), deps(wrong.fetch)).probe()
+    expect(said.jsonSchema).toBe(false)
   })
 
   it('believes the Anthropic preset over the answer', async () => {

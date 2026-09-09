@@ -90,9 +90,26 @@ describe('structured', () => {
     expect(result.value).toEqual({ id: 'xunit', name: 'xUnit' })
     expect(result.mode).toBe('prompt')
     expect(sent[0]!.response_format).toBeUndefined()
+
+    // The contract rides on the user's own turn. A second system message after it is rejected
+    // outright by templates that require system-first — Qwen is one — and two user messages in
+    // a row break the ones that require strict alternation.
+    expect(sent[0]!.messages).toHaveLength(1)
     const contract = sent[0]!.messages.at(-1)!
-    expect(contract.role).toBe('system')
+    expect(contract.role).toBe('user')
+    expect(contract.content).toContain('a skill')
     expect(contract.content).toContain('"whenToUse"')
+  })
+
+  it('leaves one system message at the front when there is one', async () => {
+    const { client, sent } = clientWith(['{"id":"a","name":"A"}'])
+    await structured(client, skill, [
+      { role: 'system', content: 'You write skills.' },
+      { role: 'user', content: 'a skill' },
+    ])
+
+    expect(sent[0]!.messages.map((message) => message.role)).toEqual(['system', 'user'])
+    expect(sent[0]!.messages[0]!.content).toBe('You write skills.')
   })
 
   it('falls back to the prompt path when the endpoint rejects the schema', async () => {
@@ -206,6 +223,26 @@ describe('extractJson', () => {
     expect(extractJson('{"a":"\\""}')).toBe('{"a":"\\""}')
     expect(extractJson('no object here')).toBeUndefined()
     expect(extractJson('{"a": unbalanced')).toBeUndefined()
+  })
+
+  it('keeps the object when the object contains a code fence', () => {
+    // The case that broke against a live model: a skill body is Markdown, Markdown has code
+    // examples, and stripping fences first threw the real answer away three times in four.
+    const body = ['# xUnit', '', '```csharp', '[Fact]', 'public void It_works() { }', '```'].join(
+      '\n',
+    )
+    const answer = JSON.stringify({ artifact: { id: 'xunit', body } })
+    expect(extractJson(answer)).toBe(answer)
+    expect(JSON.parse(extractJson(answer)!)).toEqual({ artifact: { id: 'xunit', body } })
+
+    // Still fenced overall, and still carrying a fence inside.
+    expect(extractJson(['Here:', '```json', answer, '```'].join('\n'))).toBe(answer)
+  })
+
+  it('falls back to a fenced block when the prose before it has braces', () => {
+    // `{curly}` is the first balanced pair but is not JSON, so the fence is tried next.
+    const text = ['Use {curly} braces carefully.', '```json', '{"a":1}', '```'].join('\n')
+    expect(extractJson(text)).toBe('{"a":1}')
   })
 })
 

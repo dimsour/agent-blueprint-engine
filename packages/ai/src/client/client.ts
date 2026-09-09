@@ -41,6 +41,14 @@ export function endpointUrl(baseUrl: string, path: string): string {
   return `${trimmed}/${path}${query === undefined ? '' : `?${query}`}`
 }
 
+/**
+ * Room for the probe to answer. Far more than `{"ok":true}` needs, because a reasoning model
+ * spends its budget thinking before it writes anything: a local model burns about forty tokens
+ * of reasoning first, and with a budget of twenty it returns empty content and
+ * `finish_reason: "length"`. That looked exactly like "this endpoint ignores schemas".
+ */
+const PROBE_MAX_TOKENS = 512
+
 /** The probe asks for this shape; a model that ignores schemas will not produce it. */
 const PROBE_SCHEMA = {
   type: 'object',
@@ -190,7 +198,7 @@ export function createAIClient(config: AIClientConfig, deps: AIClientDeps = {}):
     const models = await listModels(options.signal)
     try {
       const result = await chat([{ role: 'user', content: 'Answer with {"ok":true}.' }], {
-        maxTokens: 20,
+        maxTokens: PROBE_MAX_TOKENS,
         temperature: 0,
         retries: 0,
         responseFormat: {
@@ -206,7 +214,7 @@ export function createAIClient(config: AIClientConfig, deps: AIClientDeps = {}):
         reachable: true,
         authenticated: true,
         model: result.model || config.model,
-        jsonSchema: declared === false ? false : probeAnswered(result.content),
+        jsonSchema: declared === false ? false : probeAnswered(result),
         latencyMs: now() - started,
         models,
       }
@@ -318,9 +326,19 @@ function readDelta(payload: string): string | undefined {
   }
 }
 
-function probeAnswered(content: string): boolean {
-  const match = /\{[\s\S]*\}/.exec(content)
-  if (!match) return false
+/**
+ * Did the endpoint honour the schema?
+ *
+ * The interesting case is the one where we cannot tell. An answer cut off by the token budget
+ * says nothing either way, and the two wrong guesses are not equally bad: a wrong `true` costs
+ * one rejected request, because `structured()` sees a 400 naming `response_format` and moves to
+ * the prompt path by itself. A wrong `false` is stored in settings and quietly takes the weaker
+ * path for every call after it, with nothing to notice and nothing to recover from. So when the
+ * probe is inconclusive it says yes, and lets the request that follows find out for real.
+ */
+function probeAnswered(result: ChatResult): boolean {
+  const match = /\{[\s\S]*\}/.exec(result.content)
+  if (!match) return result.finishReason === 'length'
   try {
     return (JSON.parse(match[0]) as { ok?: unknown }).ok === true
   } catch {

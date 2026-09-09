@@ -113,7 +113,7 @@ Presets only pre-fill the form; the stored config is always the explicit `AIClie
 ### probe()
 
 Sends a minimal request with `response_format: { type: 'json_schema', json_schema: { name: 'probe', schema: { type: 'object', properties: { ok: { type: 'boolean' } }, required: ['ok'] } } }`
-and `max_tokens: 20`. Result:
+and `max_tokens: 512`. Result:
 
 ```ts
 export interface ProbeResult {
@@ -129,7 +129,16 @@ export interface ProbeResult {
 
 A preset that already declares `jsonSchema: false` wins over the answer. The Anthropic
 compatibility route would pass this probe by luck and then return prose for real work, so what
-is known about the endpoint beats what one twenty-token reply appeared to show.
+is known about the endpoint beats what one short reply appeared to show.
+
+The budget is 512 rather than the 20 this answer needs because a reasoning model spends its
+budget thinking first: a local model burns about forty tokens of reasoning before it writes
+anything, and with a budget of twenty it returns empty content and `finish_reason: "length"` —
+indistinguishable from an endpoint that ignored the schema. For the same reason, an answer cut
+off by the budget is read as **yes**, not no. The two wrong guesses are not equally bad: a
+wrong yes costs one rejected request, because `structured()` sees a 400 naming
+`response_format` and moves to the prompt path by itself, while a wrong no is stored in
+settings and quietly takes the weaker path for every call afterwards.
 
 The settings screen runs `probe()` on save and stores `features.jsonSchema` from it.
 
@@ -165,11 +174,21 @@ A 400 naming `response_format` is not a failure of the call: the endpoint has ju
 no schema mode, and `structured()` switches to path B and asks again.
 
 Path B (fallback): append a system message containing the JSON Schema and the instruction to
-answer with a single JSON object and no prose. Extract the first balanced `{…}` block (tolerating
-```json fences), `JSON.parse`, `schema.safeParse`. On failure, one repair round-trip: send the
-raw output plus the Zod issues formatted as `path: message` lines and ask for a corrected JSON
-object. After `repairs` failures the call rejects with `AIError('invalid-output')` carrying the
-last raw text so the UI can show it.
+answer with a single JSON object and no prose. Then `extractJson` scans the whole answer for the
+first balanced `{…}` outside a string literal and checks that it parses before believing it;
+only if that fails are fenced blocks tried, one at a time, for the case the fence exists for — an
+answer whose prose happens to contain braces before the block.
+
+That order matters and the reverse is a real bug, found live. Stripping fences first works right
+up until the JSON _contains_ a fence, and in this product it usually does: a skill body is
+Markdown and Markdown has code examples. The fence inside the `body` string was matched, the
+real object thrown away, and a perfectly good answer reported as "no JSON object" — in three
+answers out of four from a local model.
+
+On a validation failure, one repair round-trip: send the raw output plus the Zod issues
+formatted as `path: message` lines and ask for a corrected JSON object. After `repairs`
+failures the call rejects with `AIError('invalid-output')` carrying the last raw text so the UI
+can show it.
 
 One failure is never repaired: an answer containing something shaped like a credential is
 rejected immediately. Asking again would produce the same text, and the point is that it must
@@ -367,12 +386,43 @@ filter can remove them.
 
 ## Live model check (roadmap P6-09)
 
-Not yet run. This table is filled in from the contract tests above — one row per endpoint,
-with the date and what happened — and until it has entries, "works with any OpenAI-compatible
-endpoint" is a design claim rather than an observed one.
+Run against a self-hosted OpenAI-compatible server on 2026-09-09. One row per model; "passes" means all three
+contract tests, including a whole Blueprint that applies with zero rejected ops and no dangling
+references.
 
-| Endpoint | Model | Date | JSON schema | Outcome |
-| -------- | ----- | ---- | ----------- | ------- |
-|          |       |      |             |         |
+| Endpoint  | Model                           | Date       | JSON schema | Outcome                                                                             |
+| --------- | ------------------------------- | ---------- | ----------- | ----------------------------------------------------------------------------------- |
+| LM Studio | `a local model`                   | 2026-09-09 | yes         | Passes. 70s for all three.                                                          |
+| LM Studio | `a local model` | 2026-09-09 | yes         | Passes. Drafted 19 ops with no notes — nothing dropped, nothing unwired. 289s.      |
+| LM Studio | `a local model`                | 2026-09-09 | yes         | Probe and improve pass; the whole-Blueprint draft did not finish inside 10 minutes. |
+| LM Studio | `a local model`             | 2026-09-09 | yes         | Blocked by its own load settings: a 3328-token context, smaller than the request.   |
+| OpenAI    | —                               | —          | —           | Not run.                                                                            |
+
+### What it found
+
+Four bugs, none of which a fake `fetch` could have produced. Each has a regression test named
+after the model that caused it.
+
+1. **The probe was blind to reasoning models.** `max_tokens: 20` was spent on reasoning before
+   any content appeared, so `a local model` returned empty content with `finish_reason: "length"`
+   and the probe read that as "no schema support" — then stored it. Budget raised to 512, and an
+   answer cut off by the budget now counts as yes rather than no (see `probe()` above).
+2. **Code fences inside the JSON destroyed the answer.** `extractJson` stripped Markdown fences
+   before scanning, so an answer whose `body` contained a ```csharp block had the real object
+   thrown away and was reported as "no JSON object". Three answers in four from `a local model`.
+   This product writes Markdown bodies, so it would have failed constantly.
+3. **A trailing system message made the fallback path unusable on some models.** The schema
+   contract was appended as a second `system` message after the user's turn; `a local model`
+   rejected it with `Jinja Exception: System message must be at the beginning.` The contract now
+   rides on the last user message.
+4. **A context overflow arrived as a shrug.** LM Studio says "exceeds the available context
+   size", which matched none of the phrasings mapped to `context-too-large`, so the most
+   actionable failure a local endpoint produces was reported as a generic 400.
+
+Two things that are not bugs but are worth knowing. The 120 000 ms default timeout is right for
+a hosted API and short for a local model drafting a whole Blueprint (roadmap P6-10). And
+`generateBlueprint` is by far the heaviest operation — its schema is the union of eleven entity
+schemas — so it is the one that strains a small local model while every other operation is
+comfortable.
 
 - No live network calls in CI; the fake `fetch` is installed globally in the Vitest setup file.

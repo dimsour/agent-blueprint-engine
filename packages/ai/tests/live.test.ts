@@ -31,14 +31,22 @@ const baseUrl = process.env.AI_TEST_BASE_URL
 const model = process.env.AI_TEST_MODEL ?? 'gpt-5-mini'
 const apiKey = process.env.AI_TEST_API_KEY
 
-/** Real calls are slow; a whole Blueprint from a local model can take a couple of minutes. */
-const TIMEOUT = 240_000
+/**
+ * Real calls are slow. A hosted model drafts a whole Blueprint in about a minute; a 24B model
+ * on a desktop GPU has taken four, so the ceiling here is generous on purpose — a check that
+ * times out before the model finishes tells you nothing about the model.
+ */
+const TIMEOUT = 600_000
 
 function config(jsonSchema: boolean): AIClientConfig {
   return {
     baseUrl: baseUrl ?? '',
     model,
     features: { jsonSchema },
+    // Well past the 120s default. These tests are about the operations, not about the
+    // transport's timeout, and a local model drafting a whole Blueprint genuinely takes
+    // longer than the default allows — a local model needed more than two minutes for it.
+    timeoutMs: 600_000,
     ...(apiKey ? { apiKey } : {}),
   }
 }

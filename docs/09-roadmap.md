@@ -447,13 +447,22 @@ Verification: `pnpm check` green; `pnpm --filter @agent-blueprint/core test` sho
 - Verify: `pnpm --filter web test`
 - Built: a new `judgeRequirements` operation answers the `ai-judged` checks core reports as skipped, emitting `BP-AI-REQ-001` for the ones it will not pass. The evaluation view's **Run AI analysis** merges those and the contradictions into the dimensions they belong beside, deduplicated against the validator's own findings, badged `AI` by `DiagnosticRow`, and deliberately excluded from the score.
 
-### P6-09 Live model check
+### P6-09 Live model check (done)
 
 - Depends on: P6-01..07
 - Description: Manual verification against OpenAI and a local Ollama model, recorded in `docs/06-ai-layer.md` (model, date, outcome).
 - Acceptance: both generate a blueprint from the brief in docs/00 §end-to-end with zero rejected ops.
 - Verify: `AI_TEST_BASE_URL=… AI_TEST_MODEL=… pnpm --filter @agent-blueprint/ai test:live`
-- Ready but not run: `packages/ai/tests/live.test.ts` is the check, excluded from `pnpm test` so CI never makes a network call. It needs a real key and a running Ollama, so it is the one part of P6 that cannot be done from here. The results table in docs/06 is empty until someone runs it.
+- Run 2026-09-09 against a self-hosted OpenAI-compatible server, four models. `a local model` and `a local model` pass all three checks; the second drafted a nineteen-op Blueprint with nothing dropped and no dangling references. `a local model` passes everything but the whole-Blueprint draft, which does not finish inside ten minutes on that hardware, and `a local model` was loaded with a 3328-token context, smaller than the request. Results and the four bugs it found are in docs/06. OpenAI has not been run.
+
+### P6-10 A configurable request timeout
+
+- Package: `apps/web/src/lib/ai/settings.ts`, `packages/ai/src/client/*`
+- Depends on: P6-05
+- Description: `AIClientConfig.timeoutMs` defaults to 120 000, which is right for a hosted API and too short for a local model drafting a whole Blueprint — `a local model` on a desktop GPU exceeded it, and the user's only signal is "No answer within 120s". The endpoint form should offer the timeout, and the default should probably follow the preset (local presets longer than hosted ones).
+- Acceptance: the timeout is part of the stored settings and reaches the client; a local preset defaults higher than a hosted one.
+- Verify: `pnpm --filter web test`
+- Found by: the P6-09 live check.
 
 ## P7 — GitHub
 
