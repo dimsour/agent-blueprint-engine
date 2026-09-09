@@ -1,0 +1,706 @@
+'use client'
+
+/**
+ * The visual editor for one artifact.
+ *
+ * Every field writes straight back through the store, which routes through `upsertEntity`
+ * and re-parses the entity with its Zod schema. That is what makes it impossible to build
+ * an invalid Blueprint from the UI: an edit the schema rejects never becomes state.
+ *
+ * The id is not an ordinary field. It is the file name and the cross-reference key, so
+ * changing it goes through `renameEntity`, which rewrites every reference to it.
+ */
+import {
+  AGENT_ROLES,
+  type AnyEntity,
+  type Blueprint,
+  ENTITY_KIND_INFO,
+  type EntityKind,
+  type EntityRef,
+  GATE_CRITERION_KINDS,
+  GATE_FAILURE_BEHAVIORS,
+  getCollection,
+  GOVERNANCE_CATEGORIES,
+  HOOK_ACTION_TYPES,
+  HOOK_FAILURE_BEHAVIORS,
+  HOOK_TRIGGERS,
+  IRON_LAW_SEVERITIES,
+  MEMORY_SCOPES,
+  MODEL_PREFERENCES,
+  REFERENCE_KINDS,
+  REQUIREMENT_LEVELS,
+  RULE_PRIORITIES,
+  SCENARIO_MODES,
+  TOOL_KINDS,
+} from '@agent-blueprint/core'
+import { useState } from 'react'
+import { toast } from 'sonner'
+
+import {
+  Field,
+  RefListField,
+  SelectField,
+  StringListField,
+  TagsField,
+  TextAreaField,
+  TextField,
+} from '@/components/editors/fields'
+import { PermissionsGrid } from '@/components/editors/permissions-grid'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/primitives'
+import { useWorkspace } from '@/lib/state/workspace-store'
+
+/** Options for a reference picker: every artifact of a kind, by id and display name. */
+function optionsFor(blueprint: Blueprint, kind: EntityKind): { id: string; name: string }[] {
+  return getCollection(blueprint, kind).map((entity) => ({ id: entity.id, name: entity.name }))
+}
+
+export function EntityForm({ selection }: { selection: EntityRef }) {
+  const blueprint = useWorkspace((state) => state.blueprint)
+  const upsert = useWorkspace((state) => state.upsert)
+  const rename = useWorkspace((state) => state.rename)
+  const [rejected, setRejected] = useState<string | undefined>()
+
+  const entity = blueprint
+    ? getCollection(blueprint, selection.kind).find((item) => item.id === selection.id)
+    : undefined
+
+  if (!blueprint || !entity) {
+    return <p className="text-muted-foreground p-4 text-sm">That artifact no longer exists.</p>
+  }
+
+  /**
+   * Merges a patch into the entity and re-parses it through the schema. An edit the schema
+   * rejects (a required field cleared mid-retype) is reported rather than thrown: the field
+   * keeps what was typed and the Blueprint keeps its last valid value.
+   */
+  const update = (patch: Record<string, unknown>) => {
+    try {
+      upsert(selection.kind, {
+        ...(entity as unknown as Record<string, unknown>),
+        ...patch,
+      } as never)
+      setRejected(undefined)
+    } catch (error) {
+      setRejected(
+        error instanceof Error ? error.message.split(String.fromCharCode(10))[0] : String(error),
+      )
+    }
+  }
+
+  return (
+    <div className="flex max-w-3xl flex-col gap-5 p-4">
+      {rejected ? (
+        <p role="alert" className="border-danger text-danger rounded-md border px-3 py-2 text-xs">
+          Not saved yet: {rejected}
+        </p>
+      ) : null}
+      <IdentityFields entity={entity} kind={selection.kind} onRename={rename} update={update} />
+      <KindFields
+        kind={selection.kind}
+        entity={entity as unknown as Record<string, unknown>}
+        blueprint={blueprint}
+        update={update}
+      />
+    </div>
+  )
+}
+
+function IdentityFields({
+  entity,
+  kind,
+  onRename,
+  update,
+}: {
+  entity: AnyEntity
+  kind: EntityKind
+  onRename: (kind: EntityKind, oldId: string, newId: string) => void
+  update: (patch: Record<string, unknown>) => void
+}) {
+  const [draftId, setDraftId] = useState(entity.id)
+  const idChanged = draftId !== entity.id
+
+  const commitRename = () => {
+    if (!idChanged) return
+    try {
+      onRename(kind, entity.id, draftId)
+      toast.success(`Renamed to ${draftId}`, {
+        description: 'Every reference to it was updated.',
+      })
+    } catch (error) {
+      toast.error('Could not rename', {
+        description: error instanceof Error ? error.message : String(error),
+      })
+      setDraftId(entity.id)
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <TextField
+        label="Name"
+        value={entity.name}
+        onChange={(name) => update({ name })}
+        help={`Display name of this ${ENTITY_KIND_INFO[kind].label.toLowerCase()}.`}
+      />
+
+      <Field
+        label="Id"
+        help="The file name and the key every reference uses. Renaming updates all of them."
+      >
+        <div className="flex items-center gap-1">
+          <Input
+            value={draftId}
+            aria-label="Id"
+            className="font-mono"
+            onChange={(event) => setDraftId(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') commitRename()
+              if (event.key === 'Escape') setDraftId(entity.id)
+            }}
+          />
+          <Button variant="outline" size="sm" disabled={!idChanged} onClick={commitRename}>
+            Rename
+          </Button>
+        </div>
+      </Field>
+
+      <TextAreaField
+        label="Description"
+        value={entity.description ?? ''}
+        onChange={(description) => update({ description: description || undefined })}
+        help="One or two sentences. Harnesses use this to decide when to load the artifact."
+        rows={2}
+      />
+
+      <TagsField values={entity.tags} onChange={(tags) => update({ tags })} />
+    </div>
+  )
+}
+
+interface KindFieldProps {
+  kind: EntityKind
+  entity: Record<string, unknown>
+  blueprint: Blueprint
+  update: (patch: Record<string, unknown>) => void
+}
+
+function KindFields({ kind, entity, blueprint, update }: KindFieldProps) {
+  const string = (key: string) => (entity[key] as string | undefined) ?? ''
+  const list = (key: string) => (entity[key] as string[] | undefined) ?? []
+
+  switch (kind) {
+    case 'agent':
+      return (
+        <>
+          <SelectField
+            label="Role"
+            value={string('role') as (typeof AGENT_ROLES)[number]}
+            options={AGENT_ROLES}
+            onChange={(role) => update({ role })}
+            help="What this agent is for. Compiled into the subagent description."
+          />
+          <StringListField
+            label="Responsibilities"
+            values={list('responsibilities')}
+            onChange={(responsibilities) => update({ responsibilities })}
+            help="What it owns. Each one should be covered by a skill."
+          />
+          <StringListField
+            label="Expertise"
+            values={list('expertise')}
+            onChange={(expertise) => update({ expertise })}
+          />
+          <StringListField
+            label="Output requirements"
+            values={list('outputRequirements')}
+            onChange={(outputRequirements) => update({ outputRequirements })}
+            help="What must be true before this agent reports work as done."
+          />
+          <RefListField
+            label="Skills"
+            selected={list('skillIds')}
+            options={optionsFor(blueprint, 'skill')}
+            onChange={(skillIds) => update({ skillIds })}
+          />
+          <RefListField
+            label="Workflows"
+            selected={list('workflowIds')}
+            options={optionsFor(blueprint, 'workflow')}
+            onChange={(workflowIds) => update({ workflowIds })}
+          />
+          <RefListField
+            label="Iron Laws"
+            selected={list('ironLawIds')}
+            options={optionsFor(blueprint, 'iron-law')}
+            onChange={(ironLawIds) => update({ ironLawIds })}
+          />
+          <RefListField
+            label="Rules"
+            selected={list('ruleIds')}
+            options={optionsFor(blueprint, 'rule')}
+            onChange={(ruleIds) => update({ ruleIds })}
+          />
+          <RefListField
+            label="Tools"
+            selected={list('toolIds')}
+            options={optionsFor(blueprint, 'tool')}
+            onChange={(toolIds) => update({ toolIds })}
+          />
+          <RefListField
+            label="References"
+            selected={list('referenceIds')}
+            options={optionsFor(blueprint, 'reference')}
+            onChange={(referenceIds) => update({ referenceIds })}
+          />
+          <RefListField
+            label="Memory"
+            selected={list('memoryIds')}
+            options={optionsFor(blueprint, 'memory')}
+            onChange={(memoryIds) => update({ memoryIds })}
+          />
+          <SelectField
+            label="Model preference"
+            value={
+              ((entity['model'] as { preference?: string } | undefined)?.preference ??
+                'balanced') as (typeof MODEL_PREFERENCES)[number]
+            }
+            options={MODEL_PREFERENCES}
+            onChange={(preference) => update({ model: { preference } })}
+            help="Compiled to a concrete model per harness: fast, balanced or strong."
+          />
+          <PermissionsGrid
+            permissions={entity['permissions'] as never}
+            onChange={(permissions) => update({ permissions })}
+          />
+          <BodyField label="Persona" entity={entity} update={update} />
+        </>
+      )
+
+    case 'skill':
+      return (
+        <>
+          <TextAreaField
+            label="When to use"
+            value={string('whenToUse')}
+            onChange={(whenToUse) => update({ whenToUse: whenToUse || undefined })}
+            help="The sentence a harness reads to decide whether to load this skill."
+            rows={2}
+          />
+          <ActivationFields entity={entity} update={update} />
+          <RefListField
+            label="References"
+            selected={list('referenceIds')}
+            options={optionsFor(blueprint, 'reference')}
+            onChange={(referenceIds) => update({ referenceIds })}
+            help="Copied next to the skill so it stays self-contained."
+          />
+          <RefListField
+            label="Allowed tools"
+            selected={list('allowedToolIds')}
+            options={optionsFor(blueprint, 'tool')}
+            onChange={(allowedToolIds) => update({ allowedToolIds })}
+          />
+          <BodyField label="Instructions" entity={entity} update={update} />
+        </>
+      )
+
+    case 'workflow':
+      return (
+        <>
+          <StringListField
+            label="Trigger intents"
+            values={(entity['triggers'] as { intents?: string[] } | undefined)?.intents ?? []}
+            onChange={(intents) =>
+              update({ triggers: { ...(entity['triggers'] as object), intents } })
+            }
+            help="Requests that should start this workflow."
+          />
+          <Field
+            label="Steps"
+            help="The graph editor arrives in roadmap P4. Until then, steps are edited in the project file."
+          >
+            <p className="text-muted-foreground text-sm">
+              {(entity['nodes'] as unknown[] | undefined)?.length ?? 0} steps,{' '}
+              {(entity['edges'] as unknown[] | undefined)?.length ?? 0} connections.
+            </p>
+          </Field>
+          <BodyField label="Notes" entity={entity} update={update} />
+        </>
+      )
+
+    case 'iron-law':
+      return (
+        <>
+          <TextAreaField
+            label="Rule"
+            value={string('rule')}
+            onChange={(rule) => update({ rule })}
+            help="One or two imperative sentences. This is the law itself."
+          />
+          <TextAreaField
+            label="Rationale"
+            value={string('rationale')}
+            onChange={(rationale) => update({ rationale: rationale || undefined })}
+            help="Why it exists. A law the agent understands is followed more reliably."
+          />
+          <TextAreaField
+            label="If it cannot be honoured"
+            value={string('violationBehavior')}
+            onChange={(violationBehavior) =>
+              update({ violationBehavior: violationBehavior || undefined })
+            }
+            help="Without this, an agent that cannot comply will invent its own way out."
+            rows={2}
+          />
+          <SelectField
+            label="Severity"
+            value={string('severity') as (typeof IRON_LAW_SEVERITIES)[number]}
+            options={IRON_LAW_SEVERITIES}
+            onChange={(severity) => update({ severity })}
+          />
+          <SelectField
+            label="Category"
+            value={string('category') as (typeof GOVERNANCE_CATEGORIES)[number]}
+            options={GOVERNANCE_CATEGORIES}
+            onChange={(category) => update({ category })}
+          />
+          <StringListField
+            label="Examples"
+            values={list('examples')}
+            onChange={(examples) => update({ examples })}
+          />
+          <StringListField
+            label="Counterexamples"
+            values={list('counterexamples')}
+            onChange={(counterexamples) => update({ counterexamples })}
+          />
+          <BodyField label="Notes" entity={entity} update={update} />
+        </>
+      )
+
+    case 'rule':
+      return (
+        <>
+          <TextAreaField
+            label="Guidance"
+            value={string('guidance')}
+            onChange={(guidance) => update({ guidance })}
+          />
+          <SelectField
+            label="Priority"
+            value={string('priority') as (typeof RULE_PRIORITIES)[number]}
+            options={RULE_PRIORITIES}
+            onChange={(priority) => update({ priority })}
+          />
+          <SelectField
+            label="Category"
+            value={string('category') as (typeof GOVERNANCE_CATEGORIES)[number]}
+            options={GOVERNANCE_CATEGORIES}
+            onChange={(category) => update({ category })}
+          />
+          <StringListField
+            label="Applies to"
+            values={list('paths')}
+            onChange={(paths) => update({ paths })}
+            placeholder="**/*.ts"
+            help="File globs. Harnesses that support path-scoped rules load it only for these."
+          />
+          <BodyField label="Notes" entity={entity} update={update} />
+        </>
+      )
+
+    case 'hook':
+      return (
+        <>
+          <SelectField
+            label="Trigger"
+            value={string('trigger') as (typeof HOOK_TRIGGERS)[number]}
+            options={HOOK_TRIGGERS}
+            onChange={(trigger) => update({ trigger })}
+            help="The lifecycle event that fires it."
+          />
+          <SelectField
+            label="Action"
+            value={
+              ((entity['action'] as { type?: string } | undefined)?.type ??
+                'command') as (typeof HOOK_ACTION_TYPES)[number]
+            }
+            options={HOOK_ACTION_TYPES}
+            onChange={(type) => update({ action: { ...(entity['action'] as object), type } })}
+          />
+          <TextField
+            label="Command"
+            mono
+            value={(entity['action'] as { command?: string } | undefined)?.command ?? ''}
+            onChange={(command) =>
+              update({ action: { ...(entity['action'] as object), command: command || undefined } })
+            }
+            help="Run verbatim by every harness that supports command hooks."
+          />
+          <SelectField
+            label="On failure"
+            value={string('onFailure') as (typeof HOOK_FAILURE_BEHAVIORS)[number]}
+            options={HOOK_FAILURE_BEHAVIORS}
+            onChange={(onFailure) => update({ onFailure })}
+          />
+        </>
+      )
+
+    case 'gate':
+      return (
+        <>
+          <SelectField
+            label="If it fails"
+            value={string('onFail') as (typeof GATE_FAILURE_BEHAVIORS)[number]}
+            options={GATE_FAILURE_BEHAVIORS}
+            onChange={(onFail) => update({ onFail })}
+          />
+          <CriteriaFields entity={entity} update={update} />
+        </>
+      )
+
+    case 'tool':
+      return (
+        <>
+          <SelectField
+            label="Kind"
+            value={string('kind') as (typeof TOOL_KINDS)[number]}
+            options={TOOL_KINDS}
+            onChange={(value) => update({ kind: value })}
+          />
+          <StringListField
+            label="Operations"
+            values={list('operations')}
+            onChange={(operations) => update({ operations })}
+          />
+        </>
+      )
+
+    case 'reference':
+      return (
+        <>
+          <SelectField
+            label="Kind"
+            value={string('kind') as (typeof REFERENCE_KINDS)[number]}
+            options={REFERENCE_KINDS}
+            onChange={(value) => update({ kind: value })}
+          />
+          <TextField
+            label="Source URL"
+            value={string('url')}
+            onChange={(url) => update({ url: url || undefined })}
+          />
+          <BodyField label="Content" entity={entity} update={update} />
+        </>
+      )
+
+    case 'memory':
+      return (
+        <>
+          <SelectField
+            label="Scope"
+            value={string('scope') as (typeof MEMORY_SCOPES)[number]}
+            options={MEMORY_SCOPES}
+            onChange={(scope) => update({ scope })}
+            help="How long it survives. Harnesses without memory get this as instructions."
+          />
+          <StringListField
+            label="Categories"
+            values={list('categories')}
+            onChange={(categories) => update({ categories })}
+            help="What is worth remembering."
+          />
+          <BodyField label="Seed" entity={entity} update={update} />
+        </>
+      )
+
+    case 'requirement':
+      return (
+        <>
+          <TextAreaField
+            label="Statement"
+            value={string('statement')}
+            onChange={(statement) => update({ statement })}
+            help="A claim that must hold about this Blueprint."
+          />
+          <SelectField
+            label="Level"
+            value={string('level') as (typeof REQUIREMENT_LEVELS)[number]}
+            options={REQUIREMENT_LEVELS}
+            onChange={(level) => update({ level })}
+            help="An unmet `must` is an error; an unmet `should` is a warning."
+          />
+          <Field
+            label="Checks"
+            help="The check builder arrives in roadmap P3-06; checks are editable in the project file."
+          >
+            <p className="text-muted-foreground text-sm">
+              {(entity['checks'] as unknown[] | undefined)?.length ?? 0} automated checks.
+            </p>
+          </Field>
+          <BodyField label="Notes" entity={entity} update={update} />
+        </>
+      )
+
+    case 'scenario':
+      return (
+        <>
+          <RefListField
+            label="Agent"
+            selected={string('agentId') ? [string('agentId')] : []}
+            options={optionsFor(blueprint, 'agent')}
+            onChange={(ids) => update({ agentId: ids[ids.length - 1] })}
+          />
+          <TextAreaField
+            label="Input"
+            value={string('input')}
+            onChange={(input) => update({ input })}
+            help="The request the agent is given."
+          />
+          <SelectField
+            label="Mode"
+            value={string('mode') as (typeof SCENARIO_MODES)[number]}
+            options={SCENARIO_MODES}
+            onChange={(mode) => update({ mode })}
+          />
+          <StringListField
+            label="Expected behaviours"
+            values={(
+              (entity['expectedBehaviors'] as { description: string }[] | undefined) ?? []
+            ).map((behavior) => behavior.description)}
+            onChange={(descriptions) =>
+              update({ expectedBehaviors: descriptions.map((description) => ({ description })) })
+            }
+          />
+        </>
+      )
+  }
+}
+
+function BodyField({
+  label,
+  entity,
+  update,
+}: {
+  label: string
+  entity: Record<string, unknown>
+  update: (patch: Record<string, unknown>) => void
+}) {
+  return (
+    <TextAreaField
+      label={label}
+      mono
+      rows={16}
+      value={(entity['body'] as string | undefined) ?? ''}
+      onChange={(body) => update({ body })}
+      help="Markdown. The full editor with preview arrives in roadmap P3-07."
+    />
+  )
+}
+
+function ActivationFields({
+  entity,
+  update,
+}: {
+  entity: Record<string, unknown>
+  update: (patch: Record<string, unknown>) => void
+}) {
+  const activation = (entity['activation'] ?? {}) as Record<string, string[]>
+  const set = (key: string, values: string[]) =>
+    update({ activation: { ...activation, [key]: values } })
+
+  return (
+    <>
+      <StringListField
+        label="File patterns"
+        values={activation['filePatterns'] ?? []}
+        onChange={(values) => set('filePatterns', values)}
+        placeholder="**/*.test.ts"
+        help="Claude Code and Copilot load the skill only when a matching file is read."
+      />
+      <StringListField
+        label="Intents"
+        values={activation['intents'] ?? []}
+        onChange={(values) => set('intents', values)}
+        placeholder="write tests"
+        help="Phrases in a request that should bring this skill in."
+      />
+      <StringListField
+        label="File types"
+        values={activation['fileTypes'] ?? []}
+        onChange={(values) => set('fileTypes', values)}
+        placeholder="TypeScript"
+      />
+    </>
+  )
+}
+
+function CriteriaFields({
+  entity,
+  update,
+}: {
+  entity: Record<string, unknown>
+  update: (patch: Record<string, unknown>) => void
+}) {
+  const criteria = (entity['criteria'] ?? []) as {
+    kind: string
+    description?: string
+    command?: string
+  }[]
+
+  const setCriterion = (index: number, patch: Record<string, unknown>) => {
+    update({
+      criteria: criteria.map((criterion, position) =>
+        position === index ? { ...criterion, ...patch } : criterion,
+      ),
+    })
+  }
+
+  return (
+    <Field label="Criteria" help="Every one must hold before the workflow may continue.">
+      <div className="flex flex-col gap-3">
+        {criteria.map((criterion, index) => (
+          <div key={index} className="flex flex-col gap-2 rounded-md border p-3">
+            <SelectField
+              label="Kind"
+              value={criterion.kind as (typeof GATE_CRITERION_KINDS)[number]}
+              options={GATE_CRITERION_KINDS}
+              onChange={(kind) => setCriterion(index, { kind })}
+            />
+            <TextField
+              label="Description"
+              value={criterion.description ?? ''}
+              onChange={(description) => setCriterion(index, { description })}
+            />
+            <TextField
+              label="Command"
+              mono
+              value={criterion.command ?? ''}
+              onChange={(command) => setCriterion(index, { command: command || undefined })}
+              help="A criterion with a command compiles to a real hook; without one it is an instruction."
+            />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() =>
+                update({ criteria: criteria.filter((_, position) => position !== index) })
+              }
+            >
+              Remove criterion
+            </Button>
+          </div>
+        ))}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() =>
+            update({ criteria: [...criteria, { kind: 'tests-pass', description: '' }] })
+          }
+        >
+          Add criterion
+        </Button>
+      </div>
+    </Field>
+  )
+}

@@ -12,6 +12,7 @@ import { AlertTriangleIcon, CircleAlertIcon, InfoIcon } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 
+import { EntityForm } from '@/components/editors/entity-form'
 import { HealthBar } from '@/components/layout/health-bar'
 import { IdeShell, PanelSection } from '@/components/layout/ide-shell'
 import { TopBar } from '@/components/layout/top-bar'
@@ -102,8 +103,6 @@ function Canvas() {
     )
   }
 
-  const body = 'body' in entity && typeof entity.body === 'string' ? entity.body : undefined
-
   return (
     <PanelSection
       title={
@@ -113,19 +112,7 @@ function Canvas() {
         </span>
       }
     >
-      <div className="flex flex-col gap-4 p-4">
-        {entity.description ? <p className="text-sm">{entity.description}</p> : null}
-        {body ? (
-          <pre className="bg-muted overflow-auto rounded-md p-3 font-mono text-xs whitespace-pre-wrap">
-            {body}
-          </pre>
-        ) : (
-          <p className="text-muted-foreground text-sm">This artifact has no body.</p>
-        )}
-        <p className="text-muted-foreground text-xs">
-          Editing forms arrive in roadmap P3-06; the Markdown editor in P3-07.
-        </p>
-      </div>
+      <EntityForm selection={selection} />
     </PanelSection>
   )
 }

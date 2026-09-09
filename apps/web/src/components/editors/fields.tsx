@@ -1,0 +1,330 @@
+'use client'
+
+/**
+ * Form fields.
+ *
+ * Every field is controlled from the store: there is no draft copy, so what you see is
+ * always the Blueprint the validator just ran on. Commits go straight through
+ * `upsertEntity`, which is a schema parse of one entity and cheap enough per keystroke.
+ */
+import { PlusIcon, XIcon } from 'lucide-react'
+import { useId, useState, type ReactNode } from 'react'
+
+import { Button } from '@/components/ui/button'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/overlays'
+import { Badge, Input, Label, Textarea } from '@/components/ui/primitives'
+import { cn } from '@/lib/utils'
+
+/**
+ * Keeps what the user typed while the parent decides whether to accept it.
+ *
+ * A required field is briefly empty when someone selects all and retypes, and the schema
+ * rejects that. Without a draft the input would snap back mid-word. State is adjusted during
+ * render rather than in an effect, which is the pattern React documents for deriving state
+ * from props.
+ */
+function useDraft(value: string): [string, (next: string) => void] {
+  const [draft, setDraft] = useState(value)
+  const [lastValue, setLastValue] = useState(value)
+  if (value !== lastValue) {
+    setLastValue(value)
+    setDraft(value)
+  }
+  return [draft, setDraft]
+}
+
+export function Field({
+  label,
+  help,
+  htmlFor,
+  children,
+  className,
+}: {
+  label: string
+  help?: string
+  htmlFor?: string
+  children: ReactNode
+  className?: string
+}) {
+  return (
+    <div className={cn('flex flex-col gap-1.5', className)}>
+      <Label htmlFor={htmlFor}>{label}</Label>
+      {children}
+      {help ? <p className="text-muted-foreground text-xs">{help}</p> : null}
+    </div>
+  )
+}
+
+export function TextField({
+  label,
+  help,
+  value,
+  onChange,
+  placeholder,
+  mono,
+}: {
+  label: string
+  help?: string
+  value: string
+  onChange: (value: string) => void
+  placeholder?: string
+  mono?: boolean
+}) {
+  const id = useId()
+  const [draft, setDraft] = useDraft(value)
+  return (
+    <Field label={label} {...(help ? { help } : {})} htmlFor={id}>
+      <Input
+        id={id}
+        value={draft}
+        placeholder={placeholder ?? ''}
+        className={mono ? 'font-mono' : undefined}
+        onChange={(event) => {
+          setDraft(event.target.value)
+          onChange(event.target.value)
+        }}
+      />
+    </Field>
+  )
+}
+
+export function TextAreaField({
+  label,
+  help,
+  value,
+  onChange,
+  placeholder,
+  rows = 3,
+  mono,
+}: {
+  label: string
+  help?: string
+  value: string
+  onChange: (value: string) => void
+  placeholder?: string
+  rows?: number
+  mono?: boolean
+}) {
+  const id = useId()
+  const [draft, setDraft] = useDraft(value)
+  return (
+    <Field label={label} {...(help ? { help } : {})} htmlFor={id}>
+      <Textarea
+        id={id}
+        rows={rows}
+        value={draft}
+        placeholder={placeholder ?? ''}
+        className={mono ? 'font-mono text-xs' : undefined}
+        onChange={(event) => {
+          setDraft(event.target.value)
+          onChange(event.target.value)
+        }}
+      />
+    </Field>
+  )
+}
+
+export function SelectField<T extends string>({
+  label,
+  help,
+  value,
+  options,
+  onChange,
+}: {
+  label: string
+  help?: string
+  value: T
+  options: readonly T[] | readonly { value: T; label: string }[]
+  onChange: (value: T) => void
+}) {
+  const normalized = options.map((option) =>
+    typeof option === 'string' ? { value: option, label: option } : option,
+  )
+  return (
+    <Field label={label} {...(help ? { help } : {})}>
+      <Select value={value} onValueChange={(next) => onChange(next as T)}>
+        <SelectTrigger aria-label={label}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {normalized.map((option) => (
+            <SelectItem key={option.value} value={option.value}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </Field>
+  )
+}
+
+/** A list of free-text lines: responsibilities, expertise, examples, intents. */
+export function StringListField({
+  label,
+  help,
+  values,
+  onChange,
+  placeholder,
+}: {
+  label: string
+  help?: string
+  values: readonly string[]
+  onChange: (values: string[]) => void
+  placeholder?: string
+}) {
+  const [draft, setDraft] = useState('')
+
+  const add = () => {
+    const trimmed = draft.trim()
+    if (!trimmed) return
+    onChange([...values, trimmed])
+    setDraft('')
+  }
+
+  return (
+    <Field label={label} {...(help ? { help } : {})}>
+      <ul className="flex flex-col gap-1">
+        {values.map((value, index) => (
+          <li key={`${index}-${value}`} className="flex items-center gap-1">
+            <Input
+              value={value}
+              aria-label={`${label} ${index + 1}`}
+              onChange={(event) => {
+                const next = [...values]
+                next[index] = event.target.value
+                onChange(next)
+              }}
+            />
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={`Remove ${label} ${index + 1}`}
+              onClick={() => onChange(values.filter((_, position) => position !== index))}
+            >
+              <XIcon />
+            </Button>
+          </li>
+        ))}
+      </ul>
+      <div className="flex items-center gap-1">
+        <Input
+          value={draft}
+          placeholder={placeholder ?? `Add ${label.toLowerCase()}…`}
+          aria-label={`New ${label}`}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              event.preventDefault()
+              add()
+            }
+          }}
+        />
+        <Button variant="ghost" size="icon-sm" aria-label={`Add ${label}`} onClick={add}>
+          <PlusIcon />
+        </Button>
+      </div>
+    </Field>
+  )
+}
+
+/** Picks other artifacts by id: an agent's skills, a skill's references, and so on. */
+export function RefListField({
+  label,
+  help,
+  selected,
+  options,
+  onChange,
+}: {
+  label: string
+  help?: string
+  selected: readonly string[]
+  options: readonly { id: string; name: string }[]
+  onChange: (ids: string[]) => void
+}) {
+  const toggle = (id: string) => {
+    onChange(
+      selected.includes(id) ? selected.filter((current) => current !== id) : [...selected, id],
+    )
+  }
+
+  return (
+    <Field label={label} {...(help ? { help } : {})}>
+      {options.length === 0 ? (
+        <p className="text-muted-foreground text-xs">
+          None exist yet. Create one and it will appear here.
+        </p>
+      ) : (
+        <div className="flex flex-wrap gap-1">
+          {options.map((option) => {
+            const isSelected = selected.includes(option.id)
+            return (
+              <button
+                key={option.id}
+                type="button"
+                aria-pressed={isSelected}
+                onClick={() => toggle(option.id)}
+                className={cn(
+                  'rounded border px-1.5 py-0.5 text-xs transition-colors',
+                  isSelected
+                    ? 'bg-accent-muted text-accent border-transparent'
+                    : 'text-muted-foreground hover:border-accent',
+                )}
+              >
+                {option.name}
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </Field>
+  )
+}
+
+/** Free-form tags, shown as chips. */
+export function TagsField({
+  values,
+  onChange,
+}: {
+  values: readonly string[]
+  onChange: (values: string[]) => void
+}) {
+  const [draft, setDraft] = useState('')
+  return (
+    <Field label="Tags">
+      <div className="flex flex-wrap items-center gap-1">
+        {values.map((tag) => (
+          <Badge key={tag} variant="outline" className="gap-1">
+            {tag}
+            <button
+              type="button"
+              aria-label={`Remove tag ${tag}`}
+              onClick={() => onChange(values.filter((current) => current !== tag))}
+            >
+              <XIcon className="size-3" />
+            </button>
+          </Badge>
+        ))}
+        <Input
+          value={draft}
+          aria-label="Add tag"
+          placeholder="Add tag…"
+          className="h-6 w-28 text-xs"
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key !== 'Enter') return
+            event.preventDefault()
+            const trimmed = draft.trim()
+            if (trimmed && !values.includes(trimmed)) onChange([...values, trimmed])
+            setDraft('')
+          }}
+        />
+      </div>
+    </Field>
+  )
+}

@@ -87,6 +87,38 @@ test.describe('workspace layout', () => {
     await expect(page.getByText(/Health\s*\d+/)).toBeVisible()
   })
 
+  test('editing an artifact saves it and survives a reload', async ({ page }) => {
+    await openStarter(page)
+    await page.getByRole('button', { name: 'React testing' }).click()
+
+    const description = page.getByLabel('Description')
+    await description.fill('Testing components by role and label.')
+
+    // The change is unsaved, then autosave commits it without being asked.
+    await expect(page.getByText('Unsaved', { exact: true })).toBeVisible()
+    await expect(page.getByText('Saved', { exact: true })).toBeVisible({ timeout: 10_000 })
+
+    await page.reload()
+    await page.getByRole('button', { name: 'React testing' }).click()
+    await expect(page.getByLabel('Description')).toHaveValue(
+      'Testing components by role and label.',
+    )
+  })
+
+  test('renaming an artifact updates the agent that uses it', async ({ page }) => {
+    await openStarter(page)
+    await page.getByRole('button', { name: 'Accessibility' }).click()
+
+    await page.getByLabel('Id').fill('a11y')
+    await page.getByRole('button', { name: 'Rename' }).click()
+
+    // The agent's skill picker now shows the new id as selected.
+    await page.getByRole('button', { name: 'React Expert', exact: true }).click()
+    await expect(page.getByRole('button', { name: 'Accessibility', pressed: true })).toBeVisible()
+    // And nothing broke: no dangling reference is reported.
+    await expect(page.getByText('BP-REF-001')).toHaveCount(0)
+  })
+
   test('an unknown project id explains itself instead of hanging', async ({ page }) => {
     await page.goto('/p/does-not-exist')
     await expect(page.getByRole('heading', { name: /could not be opened/ })).toBeVisible()

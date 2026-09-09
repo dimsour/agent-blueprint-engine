@@ -1,5 +1,11 @@
 import '@testing-library/jest-dom/vitest'
 import 'fake-indexeddb/auto'
+import { cleanup } from '@testing-library/react'
+import { afterEach } from 'vitest'
+
+// Testing Library only auto-cleans when the test globals are injected; this config keeps
+// `globals: false`, so unmounting between tests is registered here instead.
+afterEach(cleanup)
 
 // jsdom implements neither of these, and Radix and the resizable panels both need them.
 if (!globalThis.ResizeObserver) {
