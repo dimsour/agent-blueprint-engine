@@ -320,7 +320,8 @@ shortest path between what it reads and what it must produce.
 
 `apps/web/src/app/api/ai/proxy/route.ts` forwards `POST` bodies to the base URL in
 `x-ab-upstream-url` plus `/chat/completions`, and streams the answer back with the upstream
-status unchanged. The header names and the allow-list are settled by docs/08-security.md:
+status unchanged. The header names and the allow-list are settled by docs/08-security.md; this
+document said something different until P6-05 and was corrected (ADR-22):
 
 - The credential arrives as `x-ab-upstream-authorization` and is put on the upstream request as
   `Authorization`, or as `api-key` when `x-ab-upstream-auth-header` says so (Azure). It is never

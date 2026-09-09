@@ -1,6 +1,6 @@
 # Security
 
-This document sets the rules for handling credentials and secrets in Agent Blueprint. The product is local-first and bring-your-own-key: users paste an AI API key and a GitHub token into a browser app that has no database. That makes the browser the trust boundary, and it makes "never let a secret reach a Blueprint file, an export, or a log" the single most important invariant. Everything below follows from it.
+This document sets the rules for handling credentials and secrets in Agent Blueprint. Where another document says something different about a credential, this one is right and the other is corrected (ADR-22). The product is local-first and bring-your-own-key: users paste an AI API key and a GitHub token into a browser app that has no database. That makes the browser the trust boundary, and it makes "never let a secret reach a Blueprint file, an export, or a log" the single most important invariant. Everything below follows from it.
 
 ## Invariants
 
