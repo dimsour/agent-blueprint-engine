@@ -48,16 +48,48 @@ set (Azure uses `api-key`; see presets). The client sets `stream: true` only for
 
 ### Presets
 
-| Preset id      | Base URL                                                              | Auth header                                                                                                                                  | Notes                                                                                                                     |
-| -------------- | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `openai`       | `https://api.openai.com/v1`                                           | `Authorization: Bearer`                                                                                                                      | JSON schema supported                                                                                                     |
-| `anthropic`    | `https://api.anthropic.com/v1`                                        | `Authorization: Bearer` (the compatibility route accepts the Anthropic key here; verify against current docs, some clients need `x-api-key`) | Uses the OpenAI-compatible `/chat/completions` route; `response_format` support must be probed                            |
-| `openrouter`   | `https://openrouter.ai/api/v1`                                        | `Authorization: Bearer`                                                                                                                      | `extraHeaders` may carry `HTTP-Referer` and `X-Title`; JSON schema depends on the routed model                            |
-| `ollama`       | `http://localhost:11434/v1`                                           | none                                                                                                                                         | Browser calls need `OLLAMA_ORIGINS` to include the app origin (or `viaProxy`); JSON schema support varies by model, probe |
-| `lm-studio`    | `http://localhost:1234/v1`                                            | none                                                                                                                                         | Enable CORS in LM Studio's server settings, or `viaProxy`                                                                 |
-| `vllm`         | user supplied, e.g. `http://localhost:8000/v1`                        | optional                                                                                                                                     | Guided JSON via `response_format` when the server is started with a supported backend                                     |
-| `azure-openai` | `https://<resource>.openai.azure.com/openai/deployments/<deployment>` | `api-key: <key>`                                                                                                                             | Append `?api-version=<version>`; `model` is the deployment name                                                           |
-| `custom`       | user supplied                                                         | user supplied                                                                                                                                | Everything probed                                                                                                         |
+| Preset id      | Base URL                                                              | Auth header             | Notes                                                                                                                     |
+| -------------- | --------------------------------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `openai`       | `https://api.openai.com/v1`                                           | `Authorization: Bearer` | JSON schema supported                                                                                                     |
+| `anthropic`    | `https://api.anthropic.com/v1/`                                       | `Authorization: Bearer` | Verified 2026-09-09. `response_format` is **ignored**, so this preset always uses the prompt-and-repair path (see below)  |
+| `openrouter`   | `https://openrouter.ai/api/v1`                                        | `Authorization: Bearer` | `extraHeaders` may carry `HTTP-Referer` and `X-Title`; JSON schema depends on the routed model                            |
+| `ollama`       | `http://localhost:11434/v1`                                           | none                    | Browser calls need `OLLAMA_ORIGINS` to include the app origin (or `viaProxy`); JSON schema support varies by model, probe |
+| `lm-studio`    | `http://localhost:1234/v1`                                            | none                    | Enable CORS in LM Studio's server settings, or `viaProxy`                                                                 |
+| `vllm`         | user supplied, e.g. `http://localhost:8000/v1`                        | optional                | Guided JSON via `response_format` when the server is started with a supported backend                                     |
+| `azure-openai` | `https://<resource>.openai.azure.com/openai/deployments/<deployment>` | `api-key: <key>`        | Append `?api-version=<version>`; `model` is the deployment name                                                           |
+| `custom`       | user supplied                                                         | user supplied           | Everything probed                                                                                                         |
+
+### The Anthropic compatibility endpoint (verified 2026-09-09)
+
+Checked against https://platform.claude.com/docs/en/cli-sdks-libraries/libraries/openai-sdk.
+Anthropic exposes an OpenAI-compatible chat completions route, and the differences below
+change how `AIClient` must behave, so they are settled here rather than discovered at runtime.
+
+| Question                   | Answer                                                                                                                                                              |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Base URL                   | `https://api.anthropic.com/v1/`                                                                                                                                     |
+| Auth header                | `Authorization: Bearer <key>`. The documented header table lists `authorization` as fully supported; `x-api-key` is the native API's header and is not needed here. |
+| `response_format`          | **Ignored.** JSON-schema structured output is not available on this route.                                                                                          |
+| `tools[].function.strict`  | Ignored, so tool-call arguments are not guaranteed to match the schema either.                                                                                      |
+| `stream`, `stream_options` | Fully supported.                                                                                                                                                    |
+| `n`                        | Must be exactly 1.                                                                                                                                                  |
+| `temperature`              | Clamped to the range 0 to 1; higher values are capped.                                                                                                              |
+| System messages            | Every system and developer message is hoisted to the front and concatenated with newlines, because Claude takes a single system message.                            |
+| Workspace-scoped keys      | A personal or service-account key with access to several workspaces must also send `anthropic-workspace-id`; expose it through `extraHeaders`.                      |
+
+Consequences for the client:
+
+1. `probe()` must not conclude that JSON schema works simply because the request is accepted:
+   unsupported fields on this route are ignored silently rather than rejected. The preset
+   therefore declares `features.jsonSchema: false` outright, and `structured()` uses path B
+   (schema in the prompt, parse, validate with Zod, one repair round-trip).
+2. Do not send several system messages expecting them to stay in place, and do not rely on
+   `n`, `seed`, `logprobs`, `presence_penalty` or `frequency_penalty`.
+3. Anthropic documents this layer as a way to test and compare models rather than a
+   production surface. The settings UI should say so next to the preset, and users who want
+   guaranteed schema conformance from Claude should be pointed at the native API, which the
+   `custom` preset cannot express today. Adding a native Anthropic provider is a candidate for
+   roadmap P6.
 
 Presets only pre-fill the form; the stored config is always the explicit `AIClientConfig`.
 
