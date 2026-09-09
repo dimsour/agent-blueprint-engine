@@ -140,27 +140,56 @@ export function SelectField<T extends string>({
   label: string
   help?: string
   value: T
-  options: readonly T[] | readonly { value: T; label: string }[]
+  options: readonly T[]
   onChange: (value: T) => void
 }) {
-  const normalized = options.map((option) =>
-    typeof option === 'string' ? { value: option, label: option } : option,
-  )
+  const id = useId()
   return (
-    <Field label={label} {...(help ? { help } : {})}>
+    // The label points at the trigger, so the visible text and the accessible name are the
+    // same thing rather than two names that happen to agree.
+    <Field label={label} htmlFor={id} {...(help ? { help } : {})}>
       <Select value={value} onValueChange={(next) => onChange(next as T)}>
-        <SelectTrigger aria-label={label}>
+        <SelectTrigger id={id}>
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          {normalized.map((option) => (
-            <SelectItem key={option.value} value={option.value}>
-              {option.label}
+          {options.map((option) => (
+            <SelectItem key={option} value={option}>
+              {option}
             </SelectItem>
           ))}
         </SelectContent>
       </Select>
     </Field>
+  )
+}
+
+/**
+ * One row of a string list.
+ *
+ * The schema requires every item to be non-empty, so clearing a row to retype it is briefly
+ * invalid and the parent will refuse it. The draft keeps what was typed either way, which is
+ * what makes select-all-and-retype work at all.
+ */
+function ListItemInput({
+  value,
+  label,
+  onChange,
+}: {
+  value: string
+  label: string
+  onChange: (value: string) => void
+}) {
+  const [draft, setDraft] = useDraft(value)
+  return (
+    <Input
+      value={draft}
+      aria-label={label}
+      onChange={(event) => {
+        setDraft(event.target.value)
+        onChange(event.target.value)
+      }}
+    />
   )
 }
 
@@ -191,13 +220,15 @@ export function StringListField({
     <Field label={label} {...(help ? { help } : {})}>
       <ul className="flex flex-col gap-1">
         {values.map((value, index) => (
-          <li key={`${index}-${value}`} className="flex items-center gap-1">
-            <Input
+          // Keyed by position only. Including the value would change the key on every
+          // keystroke, remounting the input and taking the caret with it.
+          <li key={index} className="flex items-center gap-1">
+            <ListItemInput
               value={value}
-              aria-label={`${label} ${index + 1}`}
-              onChange={(event) => {
+              label={`${label} ${index + 1}`}
+              onChange={(text) => {
                 const next = [...values]
-                next[index] = event.target.value
+                next[index] = text
                 onChange(next)
               }}
             />

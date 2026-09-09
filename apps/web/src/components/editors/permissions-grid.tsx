@@ -17,7 +17,7 @@ import { useState } from 'react'
 
 import { Field } from '@/components/editors/fields'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/primitives'
+import { Input, SEVERITY_CLASSES, type Severity } from '@/components/ui/primitives'
 import { cn } from '@/lib/utils'
 
 type Operation = (typeof PERMISSION_OPERATIONS)[number]
@@ -38,10 +38,11 @@ const OPERATION_LABELS: Record<Operation, string> = {
   mcp: 'Use MCP servers',
 }
 
-const DECISION_STYLES: Record<Decision, string> = {
-  allow: 'bg-success-muted text-success border-transparent',
-  ask: 'bg-warning-muted text-warning border-transparent',
-  deny: 'bg-danger-muted text-danger border-transparent',
+/** The severity colours the whole product uses, named for what a decision means here. */
+const DECISION_VARIANT: Record<Decision, Severity> = {
+  allow: 'success',
+  ask: 'warning',
+  deny: 'danger',
 }
 
 export function PermissionsGrid({
@@ -89,10 +90,15 @@ export function PermissionsGrid({
                   </td>
                   {PERMISSION_DECISIONS.map((decision) => (
                     <td key={decision} className="py-1 text-center">
+                      {/*
+                        A toggle rather than a radio: the three cells sit in separate table
+                        cells, so they cannot form a radio group, and a lone "radio, 1 of 1"
+                        is worse than an honest pressed state. Clicking the current decision
+                        clears it, which no radio can express either.
+                      */}
                       <button
                         type="button"
-                        role="radio"
-                        aria-checked={current === decision}
+                        aria-pressed={current === decision}
                         aria-label={`${OPERATION_LABELS[operation]}: ${decision}`}
                         onClick={() =>
                           setOperation(operation, current === decision ? undefined : decision)
@@ -100,7 +106,7 @@ export function PermissionsGrid({
                         className={cn(
                           'rounded border px-2 py-0.5 text-xs transition-colors',
                           current === decision
-                            ? DECISION_STYLES[decision]
+                            ? SEVERITY_CLASSES[DECISION_VARIANT[decision]]
                             : 'text-muted-foreground hover:border-accent',
                         )}
                       >
@@ -128,7 +134,7 @@ export function PermissionsGrid({
               <span
                 className={cn(
                   'rounded border px-1.5 py-0.5 text-xs',
-                  DECISION_STYLES[entry.decision],
+                  SEVERITY_CLASSES[DECISION_VARIANT[entry.decision]],
                 )}
               >
                 {entry.decision}

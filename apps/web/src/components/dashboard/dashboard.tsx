@@ -10,13 +10,16 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { FileUpIcon, FolderOpenIcon, PlusIcon, Trash2Icon } from 'lucide-react'
+import { CloudUploadIcon, FileUpIcon, FolderOpenIcon, PlusIcon, Trash2Icon } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Badge, Card } from '@/components/ui/primitives'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/overlays'
 import { ThemeToggle } from '@/components/theme'
 import { ImportDialog } from '@/components/dashboard/import-dialog'
+import { useClientValue } from '@/lib/client-value'
 import {
+  fileSystemAccessSupported,
   fileSystemStore,
   importProject,
   indexedDbStore,
@@ -45,6 +48,10 @@ export function Dashboard({ starters }: { starters: StarterInfo[] }) {
   const [recent, setRecent] = useState<ProjectSummary[]>([])
   const [busy, setBusy] = useState<string | undefined>(undefined)
   const [preview, setPreview] = useState<ImportPreview | undefined>()
+  // The server cannot know whether this browser can open a folder. Branching on it directly
+  // made the server HTML and the first client render disagree, which React reports as a
+  // hydration failure and recovers from by re-rendering the whole page.
+  const canOpenFolder = useClientValue(fileSystemAccessSupported, false)
   const fileInput = useRef<HTMLInputElement>(null)
 
   const refresh = useCallback(async () => {
@@ -85,8 +92,14 @@ export function Dashboard({ starters }: { starters: StarterInfo[] }) {
 
   const confirmImport = useCallback(async () => {
     if (!preview) return
-    const { summary } = await importProject(preview.files)
-    router.push(`/p/${summary.id}`)
+    try {
+      const { summary } = await importProject(preview.files)
+      router.push(`/p/${summary.id}`)
+    } catch (error) {
+      // Storage can be full, blocked or denied. Saying so beats a spinner that stops.
+      toast.error('Could not open that project', { description: describeError(error) })
+      setPreview(undefined)
+    }
   }, [preview, router])
 
   const startFrom = useCallback(
@@ -134,9 +147,13 @@ export function Dashboard({ starters }: { starters: StarterInfo[] }) {
 
   const remove = useCallback(
     async (summary: ProjectSummary) => {
-      await indexedDbStore.delete(summary.id)
-      toast.success(`Deleted ${summary.name}`)
-      await refresh()
+      try {
+        await indexedDbStore.delete(summary.id)
+        toast.success(`Deleted ${summary.name}`)
+        await refresh()
+      } catch (error) {
+        toast.error(`Could not delete ${summary.name}`, { description: describeError(error) })
+      }
     },
     [refresh],
   )
@@ -175,7 +192,7 @@ export function Dashboard({ starters }: { starters: StarterInfo[] }) {
           <FileUpIcon />
           Import ZIP
         </Button>
-        {fileSystemStore.available ? (
+        {canOpenFolder ? (
           <Button
             variant="outline"
             onClick={() => void importFolder()}
@@ -185,6 +202,18 @@ export function Dashboard({ starters }: { starters: StarterInfo[] }) {
             Open folder
           </Button>
         ) : null}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            {/* Disabled buttons swallow pointer events, so the tooltip needs a wrapper. */}
+            <span>
+              <Button variant="outline" disabled>
+                <CloudUploadIcon />
+                Open from GitHub
+              </Button>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>Opening and cloning from GitHub arrives in roadmap P7</TooltipContent>
+        </Tooltip>
         <input
           ref={fileInput}
           type="file"

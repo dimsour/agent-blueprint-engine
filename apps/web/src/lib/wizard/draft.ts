@@ -21,6 +21,7 @@ import {
   type EntityRef,
   deleteEntity,
   getCollection,
+  isSlug,
   type HarnessId,
   HARNESS_IDS,
   slugify,
@@ -93,16 +94,46 @@ export function primaryAgent(draft: Blueprint): Agent | undefined {
   return id ? draft.agents.find((agent) => agent.id === id) : draft.agents[0]
 }
 
-/** Step 1. The id follows the name until the author types one, and never becomes empty. */
+const FALLBACK_ID = 'untitled-blueprint'
+
+/** True while the id is still whatever the name produced, so it is safe to keep deriving it. */
+export function idFollowsName(draft: Blueprint): boolean {
+  return draft.id === (slugify(draft.name) || FALLBACK_ID)
+}
+
+/**
+ * Step 1.
+ *
+ * The id follows the name until the author edits it, and then it stops: an id the author
+ * chose is not something a later typo fix in the name should quietly undo. Whether it was
+ * authored is derived rather than tracked, by asking whether the current id is still exactly
+ * what the current name would produce.
+ *
+ * Neither field can leave the draft invalid. An id that is not yet a slug (mid-typing, or
+ * with capitals) is not written; the field keeps the text and the Blueprint keeps the last
+ * good value, which is the same bargain the artifact forms make.
+ */
 export function setIdentity(
   draft: Blueprint,
   patch: { name?: string; id?: string; description?: string },
 ): Blueprint {
+  const authored = !idFollowsName(draft)
   const name = patch.name ?? draft.name
+  const derived = slugify(name) || FALLBACK_ID
+
+  const id =
+    patch.id !== undefined
+      ? isSlug(patch.id)
+        ? patch.id
+        : draft.id
+      : authored
+        ? draft.id
+        : derived
+
   return {
     ...draft,
     name: name.trim() === '' ? DRAFT_PLACEHOLDER_NAME : name,
-    id: patch.id ?? (slugify(name) || 'untitled-blueprint'),
+    id,
     ...(patch.description !== undefined ? { description: patch.description } : {}),
   }
 }
@@ -123,8 +154,15 @@ export function setAgent(draft: Blueprint, patch: Partial<AgentInput>): Blueprin
     id: base.id,
   } as AgentInput
 
-  const next = upsertEntity(draft, 'agent', merged)
-  return { ...next, settings: { ...next.settings, primaryAgentId: base.id } }
+  try {
+    const next = upsertEntity(draft, 'agent', merged)
+    return { ...next, settings: { ...next.settings, primaryAgentId: base.id } }
+  } catch {
+    // A change handler must not throw. Clearing a required field to retype it is an ordinary
+    // thing to do, and the schema rejects the empty moment in between: the field keeps what
+    // was typed and the draft keeps its last valid agent, exactly as the artifact forms do.
+    return draft
+  }
 }
 
 /** Adds `id` to the agent field that links this kind, if there is one and an agent exists. */
@@ -152,9 +190,11 @@ export function addFromTemplate(draft: Blueprint, templateId: string): AddedArti
   if (!template) return undefined
 
   const taken = getCollection(draft, template.kind).map((entity) => entity.id)
-  const id = uniqueSlug(template.label, taken)
+  const id = uniqueSlug(template.label, taken, template.kind)
   const changeSet = template.build({ id, name: template.label })
   const applied = applyChangeSet(draft, changeSet)
+  // Linking an artifact the domain refused to create would leave a dangling reference.
+  if (applied.applied.length === 0) return undefined
 
   return { draft: link(applied.blueprint, template.kind, id), ref: { kind: template.kind, id } }
 }
@@ -180,14 +220,12 @@ export function setTargets(draft: Blueprint, enabled: readonly HarnessId[]): Blu
   const wanted = HARNESS_IDS.filter((id) => enabled.includes(id))
   return {
     ...draft,
-    targets: wanted.map(
-      (harnessId) =>
-        draft.targets.find((target) => target.harnessId === harnessId) ?? {
-          harnessId,
-          enabled: true,
-          options: {},
-        },
-    ),
+    targets: wanted.map((harnessId) => {
+      const existing = draft.targets.find((target) => target.harnessId === harnessId)
+      // Being listed is what "chosen" means here, so a target that arrived disabled from an
+      // imported Blueprint is turned on when it is checked, keeping any options it carried.
+      return existing ? { ...existing, enabled: true } : { harnessId, enabled: true, options: {} }
+    }),
   }
 }
 

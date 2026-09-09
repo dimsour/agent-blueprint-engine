@@ -266,7 +266,12 @@ function KindFields({ kind, entity, blueprint, update }: KindFieldProps) {
                 'balanced') as (typeof MODEL_PREFERENCES)[number]
             }
             options={MODEL_PREFERENCES}
-            onChange={(preference) => update({ model: { preference } })}
+            onChange={(preference) =>
+              // Spread the existing model so a hint written in the project file survives.
+              update({
+                model: { ...(entity['model'] as Record<string, unknown> | undefined), preference },
+              })
+            }
             help="Compiled to a concrete model per harness: fast, balanced or strong."
           />
           <PermissionsGrid
@@ -533,7 +538,7 @@ function KindFields({ kind, entity, blueprint, update }: KindFieldProps) {
           />
           <Field
             label="Checks"
-            help="The check builder arrives in roadmap P3-06; checks are editable in the project file."
+            help="Checks are edited in the project file for now; the builder arrives with the requirements view."
           >
             <p className="text-muted-foreground text-sm">
               {(entity['checks'] as unknown[] | undefined)?.length ?? 0} automated checks.
@@ -594,7 +599,7 @@ function BodyField({
       rows={16}
       value={(entity['body'] as string | undefined) ?? ''}
       onChange={(body) => update({ body })}
-      help="Markdown. The full editor with preview arrives in roadmap P3-07."
+      help="Markdown. The Markdown tab above edits the same text as the file, with a preview."
     />
   )
 }
@@ -661,20 +666,22 @@ function CriteriaFields({
     <Field label="Criteria" help="Every one must hold before the workflow may continue.">
       <div className="flex flex-col gap-3">
         {criteria.map((criterion, index) => (
+          // Keyed by position: criteria have no id, and the fields below are re-labelled
+          // by position too, so a removal renumbers the whole list consistently.
           <div key={index} className="flex flex-col gap-2 rounded-md border p-3">
             <SelectField
-              label="Kind"
+              label={`Criterion ${index + 1} kind`}
               value={criterion.kind as (typeof GATE_CRITERION_KINDS)[number]}
               options={GATE_CRITERION_KINDS}
               onChange={(kind) => setCriterion(index, { kind })}
             />
             <TextField
-              label="Description"
+              label={`Criterion ${index + 1} description`}
               value={criterion.description ?? ''}
               onChange={(description) => setCriterion(index, { description })}
             />
             <TextField
-              label="Command"
+              label={`Criterion ${index + 1} command`}
               mono
               value={criterion.command ?? ''}
               onChange={(command) => setCriterion(index, { command: command || undefined })}
@@ -687,7 +694,7 @@ function CriteriaFields({
                 update({ criteria: criteria.filter((_, position) => position !== index) })
               }
             >
-              Remove criterion
+              Remove criterion {index + 1}
             </Button>
           </div>
         ))}

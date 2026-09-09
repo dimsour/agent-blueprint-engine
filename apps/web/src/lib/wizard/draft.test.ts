@@ -43,6 +43,31 @@ describe('the wizard draft', () => {
     expect(draft.id).toBe('rrc')
   })
 
+  it('stops following the name once the id has been edited', () => {
+    let draft = setIdentity(emptyDraft(), { name: 'Rust Review Crew' })
+    draft = setIdentity(draft, { id: 'rrc' })
+    draft = setIdentity(draft, { name: 'Rust Review Crew v2' })
+    draft = setIdentity(draft, { description: 'Reviews Rust.' })
+
+    expect(draft.id).toBe('rrc')
+  })
+
+  it('keeps following the name until then', () => {
+    let draft = setIdentity(emptyDraft(), { name: 'Rust Review Crew' })
+    expect(draft.id).toBe('rust-review-crew')
+    draft = setIdentity(draft, { name: 'Rust Review Crew v2' })
+    expect(draft.id).toBe('rust-review-crew-v2')
+  })
+
+  it('will not write an id that is not a slug', () => {
+    const named = setIdentity(emptyDraft(), { name: 'Ok' })
+    // Mid-typing, capitals, and cleared: the draft keeps its last good id in every case.
+    expect(setIdentity(named, { id: '' }).id).toBe('ok')
+    expect(setIdentity(named, { id: 'Rust Crew' }).id).toBe('ok')
+    expect(setIdentity(named, { id: 'rust-' }).id).toBe('ok')
+    expect(setIdentity(named, { id: 'rust-crew' }).id).toBe('rust-crew')
+  })
+
   it('never lets the name or the id go empty mid-edit', () => {
     const draft = setIdentity(emptyDraft(), { name: '' })
     expect(draft.name).toBe(DRAFT_PLACEHOLDER_NAME)
@@ -58,6 +83,22 @@ describe('the wizard draft', () => {
     expect(draft.agents).toHaveLength(1)
     expect(primaryAgent(draft)?.name).toBe('Docs Writer')
     expect(draft.settings.primaryAgentId).toBe(draft.agents[0]?.id)
+  })
+
+  it('does not throw when a required agent field is cleared to be retyped', () => {
+    const draft = setAgent(emptyDraft(), { name: 'Reviewer' })
+
+    expect(() => setAgent(draft, { name: '' })).not.toThrow()
+    // The draft keeps its last valid agent; the field keeps what was typed.
+    expect(primaryAgent(setAgent(draft, { name: '' }))?.name).toBe('Reviewer')
+  })
+
+  it('turns on a target that arrived disabled', () => {
+    const imported = {
+      ...emptyDraft(),
+      targets: [{ harnessId: 'pi' as const, enabled: false, options: {} }],
+    }
+    expect(enabledTargetIds(setTargets(imported, ['pi']))).toEqual(['pi'])
   })
 
   it('edits the same agent rather than adding another', () => {

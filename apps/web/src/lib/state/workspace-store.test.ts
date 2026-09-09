@@ -8,9 +8,174 @@ import { diagnosticsFor, useWorkspace, workspaceHistory } from './workspace-stor
 async function loadStarter(id = 'react-expert') {
   const { blueprint } = await parseProject(readStarterFiles(id))
   useWorkspace.getState().load('test-project', blueprint)
-  workspaceHistory.clear()
   return blueprint
 }
+
+describe('leaving a project', () => {
+  beforeEach(async () => {
+    useWorkspace.getState().close()
+    await resetDbForTests()
+  })
+
+  it('starts with no undo history, so undo cannot erase the project', async () => {
+    await loadStarter()
+
+    expect(workspaceHistory.canUndo).toBe(false)
+    workspaceHistory.undo()
+    expect(useWorkspace.getState().blueprint).toBeDefined()
+  })
+
+  it('cannot pull one project into another', async () => {
+    const a = (await parseProject(readStarterFiles('react-expert'))).blueprint
+    const b = (await parseProject(readStarterFiles('software-engineering-team'))).blueprint
+
+    useWorkspace.getState().load('project-a', a)
+    useWorkspace.getState().upsert('skill', { ...a.skills[0]!, description: 'edited in A' })
+    useWorkspace.getState().load('project-b', b)
+    workspaceHistory.undo()
+
+    // The store is a singleton across client-side navigation, so this is the shape of the
+    // bug that would otherwise autosave one project's content over another's.
+    expect(useWorkspace.getState().blueprint?.id).toBe(b.id)
+    expect(useWorkspace.getState().projectId).toBe('project-b')
+  })
+
+  it('writes a pending edit before switching, rather than dropping it', async () => {
+    const store = new IndexedDbStore()
+    const a = (await parseProject(readStarterFiles('react-expert'))).blueprint
+    useWorkspace.getState().load('project-a', a)
+    useWorkspace.getState().upsert('skill', { ...a.skills[0]!, description: 'about to switch' })
+
+    // No flush: exactly what happens when someone clicks away inside the debounce window.
+    useWorkspace.getState().load('project-b', a)
+    await useWorkspace.getState().flushPending(store)
+
+    const written = await store.open('project-a')
+    expect(written?.[`blueprint/skills/${a.skills[0]!.id}/SKILL.md`]).toContain('about to switch')
+  })
+
+  it('carries no save state from one project to the next', async () => {
+    await loadStarter()
+    await loadStarter('software-engineering-team')
+    const state = useWorkspace.getState()
+
+    expect(state.saving).toBe(false)
+    expect(state.saveError).toBeUndefined()
+    expect(state.lastSavedAt).toBeUndefined()
+  })
+})
+
+describe('undo and redo', () => {
+  beforeEach(async () => {
+    useWorkspace.getState().close()
+    await resetDbForTests()
+  })
+
+  it('marks the workspace dirty, so the revert is persisted too', async () => {
+    const blueprint = await loadStarter()
+    useWorkspace.getState().upsert('skill', { ...blueprint.skills[0]!, description: 'edited' })
+    await useWorkspace.getState().flushPending()
+    expect(useWorkspace.getState().dirty).toBe(false)
+
+    workspaceHistory.undo()
+    expect(useWorkspace.getState().dirty).toBe(true)
+  })
+
+  it('re-validates, so the health bar cannot describe the wrong Blueprint', async () => {
+    const blueprint = await loadStarter()
+    const skill = blueprint.skills[0]!
+    useWorkspace.getState().upsert('skill', { ...skill, description: 'edited' })
+    await useWorkspace.getState().flushPending()
+
+    workspaceHistory.undo()
+    expect(useWorkspace.getState().validating).toBe(true)
+    await useWorkspace.getState().flushPending()
+    expect(useWorkspace.getState().blueprint?.skills[0]?.description).toBe(skill.description)
+  })
+
+  it('drops a selection the restored Blueprint no longer has', async () => {
+    await loadStarter()
+    const ref = useWorkspace.getState().create('skill', 'Ephemeral')
+    expect(useWorkspace.getState().selection).toEqual(ref)
+
+    workspaceHistory.undo()
+    expect(useWorkspace.getState().selection).toBeUndefined()
+  })
+})
+
+describe('saving', () => {
+  beforeEach(async () => {
+    useWorkspace.getState().close()
+    await resetDbForTests()
+  })
+
+  it('stays dirty when an edit lands while the save is in flight', async () => {
+    const blueprint = await loadStarter()
+    const skill = blueprint.skills[0]!
+    useWorkspace.getState().upsert('skill', { ...skill, description: 'first' })
+
+    const saving = useWorkspace.getState().save()
+    useWorkspace.getState().upsert('skill', { ...skill, description: 'second' })
+    await saving
+
+    // The save wrote "first"; "second" is not on disk, so the workspace is still dirty.
+    expect(useWorkspace.getState().dirty).toBe(true)
+  })
+
+  it('reports a failure instead of pretending the project is saved', async () => {
+    await loadStarter()
+    const failing = {
+      ...new IndexedDbStore(),
+      kind: 'indexeddb' as const,
+      available: true,
+      list: async () => [],
+      open: async () => undefined,
+      delete: async () => {},
+      importFiles: async () => {
+        throw new Error('nope')
+      },
+      save: async () => {
+        throw new Error('The database is full.')
+      },
+    }
+    await useWorkspace.getState().save(failing)
+
+    expect(useWorkspace.getState().saveError).toBe('The database is full.')
+    expect(useWorkspace.getState().dirty).toBe(false)
+  })
+})
+
+describe('the source tab', () => {
+  beforeEach(async () => {
+    useWorkspace.getState().close()
+    await resetDbForTests()
+  })
+
+  it('refuses to leave a file that does not parse, whoever asks', async () => {
+    await loadStarter()
+    useWorkspace.getState().select({ kind: 'skill', id: 'react-testing' })
+    useWorkspace.getState().setArtifactTab('source')
+    useWorkspace.getState().setSourceError('Not applied: bad YAML')
+
+    // The palette and the shortcuts call this directly; the guard has to live here.
+    useWorkspace.getState().setArtifactTab('visual')
+    expect(useWorkspace.getState().artifactTab).toBe('source')
+
+    useWorkspace.getState().setSourceError(undefined)
+    useWorkspace.getState().setArtifactTab('visual')
+    expect(useWorkspace.getState().artifactTab).toBe('visual')
+  })
+
+  it('forgets the error when the selection changes', async () => {
+    await loadStarter()
+    useWorkspace.getState().select({ kind: 'skill', id: 'react-testing' })
+    useWorkspace.getState().setSourceError('Not applied: bad YAML')
+    useWorkspace.getState().select({ kind: 'skill', id: 'accessibility' })
+
+    expect(useWorkspace.getState().sourceError).toBeUndefined()
+    expect(useWorkspace.getState().artifactTab).toBe('visual')
+  })
+})
 
 describe('workspace store', () => {
   beforeEach(async () => {

@@ -8,6 +8,14 @@ async function openStarter(page: Page, label = 'React Expert') {
   await expect(page.getByRole('navigation', { name: 'Blueprint artifacts' })).toBeVisible()
 }
 
+/**
+ * An artifact in the project tree. The name must match exactly: each row also has an actions
+ * menu labelled "Actions for <name>", and a kind group has a "New <kind>" button.
+ */
+function artifact(page: Page, name: string) {
+  return page.getByRole('button', { name, exact: true })
+}
+
 /** The page itself must never scroll sideways; panels scroll inside their own bounds. */
 async function expectNoHorizontalScroll(page: Page) {
   const overflow = await page.evaluate(
@@ -43,6 +51,19 @@ test.describe('dashboard', () => {
     await expect(page.getByText('No findings. This Blueprint is clean.')).toBeVisible()
   })
 
+  test('hydrates without throwing away the server render', async ({ page }) => {
+    // The folder button depends on a browser capability the server cannot see. Branching on
+    // it directly made React discard the server HTML and re-render the whole page.
+    const errors: string[] = []
+    page.on('pageerror', (error) => errors.push(error.message))
+
+    await page.goto('/')
+    await page.getByRole('heading', { level: 1 }).waitFor()
+    await page.waitForTimeout(500)
+
+    expect(errors).toEqual([])
+  })
+
   test('a project reopens from the recent list', async ({ page }) => {
     await openStarter(page)
     await page.goto('/')
@@ -70,11 +91,8 @@ test.describe('workspace layout', () => {
   test('selecting an artifact shows it in the canvas and the inspector', async ({ page }) => {
     await openStarter(page)
 
-    await page.getByRole('button', { name: 'React testing' }).click()
-    await expect(page.getByRole('button', { name: 'React testing' })).toHaveAttribute(
-      'aria-current',
-      'true',
-    )
+    await artifact(page, 'React testing').click()
+    await expect(artifact(page, 'React testing')).toHaveAttribute('aria-current', 'true')
     await expect(page.getByText('Nothing to report for this artifact.')).toBeVisible()
   })
 
@@ -82,7 +100,7 @@ test.describe('workspace layout', () => {
     page,
   }) => {
     await openStarter(page)
-    await page.getByRole('button', { name: 'React testing' }).click()
+    await artifact(page, 'React testing').click()
 
     const usedBy = page.getByRole('list', { name: 'Used by' })
     await expect(usedBy).toContainText('React Expert')
@@ -94,7 +112,7 @@ test.describe('workspace layout', () => {
 
   test('deleting an artifact names what it affects first', async ({ page }) => {
     await openStarter(page)
-    await page.getByRole('button', { name: 'React testing' }).click()
+    await artifact(page, 'React testing').click()
     await page.getByRole('button', { name: 'Delete' }).click()
 
     const dialog = page.getByRole('dialog')
@@ -103,12 +121,12 @@ test.describe('workspace layout', () => {
     )
 
     await dialog.getByRole('button', { name: 'Delete' }).click()
-    await expect(page.getByRole('button', { name: 'React testing' })).toHaveCount(0)
+    await expect(artifact(page, 'React testing')).toHaveCount(0)
   })
 
   test('adding from a template shows the change before applying it', async ({ page }) => {
     await openStarter(page)
-    await page.getByRole('button', { name: 'React testing' }).click()
+    await artifact(page, 'React testing').click()
     await page.getByRole('button', { name: 'New from template' }).click()
 
     const dialog = page.getByRole('dialog')
@@ -116,7 +134,7 @@ test.describe('workspace layout', () => {
     await expect(dialog).toContainText('bundle-budget')
     await dialog.getByRole('button', { name: 'Add' }).click()
 
-    await expect(page.getByRole('button', { name: 'Bundle Budget' })).toBeVisible()
+    await expect(artifact(page, 'Bundle Budget')).toBeVisible()
   })
 
   test('shows the health bar with the artifact count and the targets', async ({ page }) => {
@@ -130,7 +148,7 @@ test.describe('workspace layout', () => {
 
   test('editing an artifact saves it and survives a reload', async ({ page }) => {
     await openStarter(page)
-    await page.getByRole('button', { name: 'React testing' }).click()
+    await artifact(page, 'React testing').click()
 
     const description = page.getByLabel('Description')
     await description.fill('Testing components by role and label.')
@@ -140,7 +158,7 @@ test.describe('workspace layout', () => {
     await expect(page.getByText('Saved', { exact: true })).toBeVisible({ timeout: 10_000 })
 
     await page.reload()
-    await page.getByRole('button', { name: 'React testing' }).click()
+    await artifact(page, 'React testing').click()
     await expect(page.getByLabel('Description')).toHaveValue(
       'Testing components by role and label.',
     )
@@ -148,7 +166,7 @@ test.describe('workspace layout', () => {
 
   test('renaming an artifact updates the agent that uses it', async ({ page }) => {
     await openStarter(page)
-    await page.getByRole('button', { name: 'Accessibility' }).click()
+    await artifact(page, 'Accessibility').click()
 
     await page.getByLabel('Id').fill('a11y')
     // The inspector offers "Rename…", which opens a dialog; this is the form's inline commit.
@@ -174,7 +192,7 @@ test.describe('export and import', () => {
     await openStarter(page)
 
     // Edit first, so the archive proves it holds the live Blueprint and not the starter.
-    await page.getByRole('button', { name: 'React testing' }).click()
+    await artifact(page, 'React testing').click()
     await page.getByLabel('Description').fill('Round tripped through a ZIP.')
 
     await page.getByRole('button', { name: 'Export', exact: true }).click()
@@ -202,7 +220,7 @@ test.describe('export and import', () => {
     // Same artifacts, and the unsaved edit came along.
     await expect(page.getByRole('button', { name: 'Skills 4' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Agents 1' })).toBeVisible()
-    await page.getByRole('button', { name: 'React testing' }).click()
+    await artifact(page, 'React testing').click()
     await expect(page.getByLabel('Description')).toHaveValue('Round tripped through a ZIP.')
   })
 
@@ -282,7 +300,7 @@ test.describe('creation wizard', () => {
     await expect(page.getByText('codex')).toHaveCount(0)
 
     // The agent owns what the wizard added.
-    await page.getByRole('button', { name: 'Rust Reviewer' }).click()
+    await artifact(page, 'Rust Reviewer').click()
     await expect(page.getByRole('list', { name: 'Depends on' })).toContainText('Domain expertise')
   })
 
@@ -301,7 +319,7 @@ test.describe('creation wizard', () => {
 
     await page.reload()
     await expect(page.getByRole('button', { name: 'Agents 1' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Only Agent' })).toBeVisible()
+    await expect(artifact(page, 'Only Agent')).toBeVisible()
   })
 })
 
@@ -319,7 +337,7 @@ test.describe('command palette', () => {
     // The new skill is selected and its form is open, ready to be named.
     await expect(page.getByRole('tab', { name: /Visual/ })).toHaveAttribute('data-state', 'active')
     await expect(page.getByLabel('Name')).toHaveValue('New skill')
-    await expect(page.getByRole('button', { name: 'New skill' })).toBeVisible()
+    await expect(artifact(page, 'New skill')).toBeVisible()
   })
 
   test('opens from the top bar and jumps to an artifact', async ({ page }) => {
@@ -344,7 +362,7 @@ test.describe('command palette', () => {
 
   test('the preview shortcut opens the preview tab', async ({ page }) => {
     await openStarter(page)
-    await page.getByRole('button', { name: 'React testing' }).click()
+    await artifact(page, 'React testing').click()
     await page.keyboard.press('ControlOrMeta+p')
 
     await expect(page.getByRole('tab', { name: /Preview/ })).toHaveAttribute('data-state', 'active')
@@ -355,7 +373,7 @@ test.describe('command palette', () => {
 test.describe('source editor', () => {
   test('shows the project file and applies an edit to the visual form', async ({ page }) => {
     await openStarter(page)
-    await page.getByRole('button', { name: 'React testing' }).click()
+    await artifact(page, 'React testing').click()
     await page.getByRole('tab', { name: /Markdown/ }).click()
 
     // The tab shows the real file, at its real path.
@@ -374,14 +392,14 @@ test.describe('source editor', () => {
     await expect(page.getByLabel('Description')).toHaveValue('Written through the editor.')
 
     // The tree follows the rename of the display name.
-    await expect(page.getByRole('button', { name: 'Typed In Editor' })).toBeVisible()
+    await expect(artifact(page, 'Typed In Editor')).toBeVisible()
   })
 
   test('blocks the other tabs while the file does not parse, without losing the text', async ({
     page,
   }) => {
     await openStarter(page)
-    await page.getByRole('button', { name: 'React testing' }).click()
+    await artifact(page, 'React testing').click()
     await page.getByRole('tab', { name: /Markdown/ }).click()
 
     const editor = page.locator('.cm-content')
@@ -395,12 +413,12 @@ test.describe('source editor', () => {
     await expect(editor).toContainText('[unclosed')
 
     // The Blueprint kept its last valid value, so the tree still shows the old name.
-    await expect(page.getByRole('button', { name: 'React testing' })).toBeVisible()
+    await expect(artifact(page, 'React testing')).toBeVisible()
   })
 
   test('renders the body in the preview tab', async ({ page }) => {
     await openStarter(page)
-    await page.getByRole('button', { name: 'React testing' }).click()
+    await artifact(page, 'React testing').click()
     await page.getByRole('tab', { name: /Preview/ }).click()
 
     await expect(page.getByRole('heading', { name: 'React testing', level: 1 })).toBeVisible()
@@ -409,7 +427,7 @@ test.describe('source editor', () => {
 
   test('offers YAML rather than Markdown for a gate', async ({ page }) => {
     await openStarter(page)
-    await page.getByRole('button', { name: 'Tests must pass' }).click()
+    await artifact(page, 'Tests must pass').click()
 
     await expect(page.getByRole('tab', { name: /YAML/ })).toBeVisible()
     await expect(page.getByRole('tab', { name: /Preview/ })).toHaveCount(0)

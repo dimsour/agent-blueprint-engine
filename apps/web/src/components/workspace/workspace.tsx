@@ -20,6 +20,7 @@ import { IdeShell, PanelSection } from '@/components/layout/ide-shell'
 import { TopBar } from '@/components/layout/top-bar'
 import { ProjectTree } from '@/components/tree/project-tree'
 import { Button } from '@/components/ui/button'
+import { validateNow } from '@/lib/actions'
 import { hasPreview } from '@/lib/artifact-source'
 import { useShortcuts } from '@/lib/shortcuts'
 import { openProject } from '@/lib/storage'
@@ -40,9 +41,12 @@ export function Workspace({ projectId }: { projectId: string }) {
     undo: workspaceHistory.undo,
     redo: workspaceHistory.redo,
     preview: () => {
-      // Only artifacts stored as Markdown have a preview; on the others the key is free.
+      // Only artifacts stored as Markdown have a preview. Declining leaves the key to the
+      // browser, so Print still works everywhere else.
       const { selection, setArtifactTab } = useWorkspace.getState()
-      if (selection && hasPreview(selection)) setArtifactTab('preview')
+      if (!selection || !hasPreview(selection)) return false
+      setArtifactTab('preview')
+      return true
     },
   })
 
@@ -84,7 +88,11 @@ export function Workspace({ projectId }: { projectId: string }) {
     <>
       <IdeShell
         topBar={
-          <TopBar onOpenPalette={() => setPaletteOpen(true)} onExport={() => setExportOpen(true)} />
+          <TopBar
+            onOpenPalette={() => setPaletteOpen(true)}
+            onExport={() => setExportOpen(true)}
+            onValidate={() => void validateNow()}
+          />
         }
         sidebar={<ProjectTree />}
         inspector={<Inspector />}

@@ -10,7 +10,9 @@
  * editor, only the palette and Save fire; everything else, undo above all, belongs to the
  * field the cursor is in.
  */
-import { useEffect, useRef, useSyncExternalStore } from 'react'
+import { useEffect, useRef } from 'react'
+
+import { useClientValue } from '@/lib/client-value'
 
 export type ShortcutId =
   'palette' | 'save' | 'export' | 'ai' | 'preview' | 'apply' | 'undo' | 'redo'
@@ -33,7 +35,12 @@ export function matchShortcut(event: KeyEventLike): ShortcutId | undefined {
 
   const key = event.key.toLowerCase()
 
-  if (event.shiftKey) return key === 'z' ? 'redo' : undefined
+  // Shift is part of redo, and on German, French and other layouts it is also how "/" is
+  // typed at all, so that one combination has to survive the filter.
+  if (event.shiftKey) {
+    if (key === 'z') return 'redo'
+    return key === '/' ? 'ai' : undefined
+  }
 
   switch (key) {
     case 'k':
@@ -68,7 +75,12 @@ export function isTyping(target: EventTarget | null): boolean {
   return target.isContentEditable || target.closest('[contenteditable="true"]') !== null
 }
 
-export type ShortcutHandlers = Partial<Record<ShortcutId, () => void>>
+/**
+ * A handler returns `false` when it decided not to act, so the key keeps whatever the
+ * browser would have done with it. Preview is the case that matters: ⌘P must still print
+ * when the artifact on screen has nothing to preview.
+ */
+export type ShortcutHandlers = Partial<Record<ShortcutId, () => void | boolean>>
 
 /**
  * Binds the shortcuts that have a handler. An unhandled shortcut is left to the browser, so
@@ -89,24 +101,20 @@ export function useShortcuts(handlers: ShortcutHandlers): void {
       if (isTyping(event.target) && !WHILE_TYPING.has(id)) return
       const handler = latest.current[id]
       if (!handler) return
+      if (handler() === false) return
       event.preventDefault()
-      handler()
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [])
 }
 
-const subscribeToNothing = () => () => {}
-const isMacClient = () => /mac|iphone|ipad/i.test(globalThis.navigator?.platform ?? '')
-// The server cannot know the keyboard, so it renders the Windows and Linux spelling and
-// React swaps it after hydration. `useSyncExternalStore` is how that is done without a
-// state update in an effect.
-const isMacServer = () => false
+const isMac = () => /mac|iphone|ipad/i.test(globalThis.navigator?.platform ?? '')
 
 /**
  * How the modifier key is written on this machine: `⌘` on Apple keyboards, `Ctrl+` elsewhere.
+ * The server renders the Windows and Linux spelling and hydration corrects it.
  */
 export function useModifierLabel(): string {
-  return useSyncExternalStore(subscribeToNothing, isMacClient, isMacServer) ? '⌘' : 'Ctrl+'
+  return useClientValue(isMac, false) ? '⌘' : 'Ctrl+'
 }

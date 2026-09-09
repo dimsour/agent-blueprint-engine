@@ -9,6 +9,7 @@
  */
 import type { Blueprint, Diagnostic } from '@agent-blueprint/core'
 
+import { MANIFEST_PATH } from './paths'
 import { parseProject } from './project'
 import type { ProjectFiles } from './types'
 import { StorageError } from './types'
@@ -17,21 +18,31 @@ import { zipToFiles } from './zip'
 /** Extensions the import picker accepts. */
 export const IMPORT_ACCEPT = '.zip,.yaml,.yml,.json,application/zip'
 
-/** A lone manifest is a project with no artifact files; its diagnostics say the rest. */
-const MANIFEST_PATH = 'blueprint/blueprint.yaml'
+/** Every ZIP archive begins with these four bytes. */
+const ZIP_MAGIC = [0x50, 0x4b, 0x03, 0x04]
 
-function isManifestName(name: string): boolean {
-  return /\.(ya?ml|json)$/i.test(name)
+function looksLikeZip(bytes: Uint8Array): boolean {
+  return ZIP_MAGIC.every((byte, index) => bytes[index] === byte)
 }
 
-/** Turns an uploaded file into the file map `parseProject` consumes. */
+/**
+ * Turns an uploaded file into the file map `parseProject` consumes.
+ *
+ * The choice is made on the bytes rather than the file name, because a file dragged out of a
+ * chat or renamed by a colleague often carries the wrong extension, and "that file is not a
+ * readable ZIP archive" is a poor way to describe a manifest. A lone manifest becomes a
+ * project with no artifact files, which reads as diagnostics rather than as a failure.
+ */
 export async function readUpload(file: File): Promise<ProjectFiles> {
-  if (isManifestName(file.name)) {
-    const text = await file.text()
-    if (text.trim() === '') throw new StorageError('That file is empty.', 'invalid')
-    return { [MANIFEST_PATH]: text }
+  const buffer = await file.arrayBuffer()
+  if (looksLikeZip(new Uint8Array(buffer.slice(0, ZIP_MAGIC.length)))) return zipToFiles(buffer)
+
+  const text = new TextDecoder().decode(buffer)
+  if (text.trim() === '') throw new StorageError('That file is empty.', 'invalid')
+  if (text.includes(String.fromCharCode(0))) {
+    throw new StorageError(`${file.name} is neither a ZIP archive nor a text manifest.`, 'invalid')
   }
-  return zipToFiles(await file.arrayBuffer())
+  return { [MANIFEST_PATH]: text }
 }
 
 export interface ImportPreview {

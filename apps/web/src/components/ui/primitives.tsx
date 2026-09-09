@@ -50,6 +50,18 @@ export function Label({ className, ...props }: ComponentProps<'label'>) {
   )
 }
 
+/**
+ * The three severity colours, defined once. Badges use them as variants; controls that are
+ * not badges, such as the permission cells, ask for them by name.
+ */
+export const SEVERITY_CLASSES = {
+  success: 'bg-success-muted text-success border-transparent',
+  warning: 'bg-warning-muted text-warning border-transparent',
+  danger: 'bg-danger-muted text-danger border-transparent',
+} as const
+
+export type Severity = keyof typeof SEVERITY_CLASSES
+
 const badgeVariants = cva(
   'inline-flex w-fit shrink-0 items-center gap-1 rounded border px-1.5 py-0.5 text-xs font-medium whitespace-nowrap',
   {
@@ -58,9 +70,7 @@ const badgeVariants = cva(
         default: 'bg-muted text-muted-foreground border-transparent',
         outline: 'text-foreground',
         accent: 'bg-accent-muted text-accent border-transparent',
-        success: 'bg-success-muted text-success border-transparent',
-        warning: 'bg-warning-muted text-warning border-transparent',
-        danger: 'bg-danger-muted text-danger border-transparent',
+        ...SEVERITY_CLASSES,
       },
     },
     defaultVariants: { variant: 'default' },

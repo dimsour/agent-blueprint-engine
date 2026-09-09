@@ -4,6 +4,7 @@ import Link from 'next/link'
 import {
   CheckIcon,
   SearchIcon,
+  TriangleAlertIcon,
   CloudUploadIcon,
   DownloadIcon,
   LoaderIcon,
@@ -47,14 +48,18 @@ function PendingAction({
 export function TopBar({
   onOpenPalette,
   onExport,
+  onValidate,
 }: {
   onOpenPalette: () => void
   onExport: () => void
+  onValidate: () => void
 }) {
   const blueprint = useWorkspace((state) => state.blueprint)
   const dirty = useWorkspace((state) => state.dirty)
   const saving = useWorkspace((state) => state.saving)
+  const validating = useWorkspace((state) => state.validating)
   const save = useWorkspace((state) => state.save)
+  const saveError = useWorkspace((state) => state.saveError)
   const mod = useModifierLabel()
 
   return (
@@ -73,7 +78,17 @@ export function TopBar({
         {blueprint?.name ?? 'Loading…'}
       </span>
 
-      {dirty ? (
+      {saveError ? (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Badge variant="danger" role="alert">
+              <TriangleAlertIcon className="size-3" />
+              Not saved
+            </Badge>
+          </TooltipTrigger>
+          <TooltipContent>{saveError}</TooltipContent>
+        </Tooltip>
+      ) : dirty ? (
         <Badge variant="warning">Unsaved</Badge>
       ) : blueprint ? (
         <Badge variant="success">
@@ -87,6 +102,10 @@ export function TopBar({
           <SearchIcon />
           <span className="hidden sm:inline">Commands</span>
           <Kbd>{mod}K</Kbd>
+        </Button>
+        <Button variant="ghost" size="sm" onClick={onValidate} disabled={!blueprint || validating}>
+          {validating ? <LoaderIcon className="animate-spin" /> : <CheckIcon />}
+          Validate
         </Button>
         <Button variant="ghost" size="sm" onClick={() => void save()} disabled={!dirty || saving}>
           {saving ? <LoaderIcon className="animate-spin" /> : <SaveIcon />}

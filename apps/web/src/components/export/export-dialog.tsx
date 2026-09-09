@@ -29,7 +29,7 @@ import { downloadZip, filesToZip, projectFilesOf } from '@/lib/storage'
 import { useWorkspace } from '@/lib/state/workspace-store'
 
 /** Bytes as a short human string. Sizes here are kilobytes, so one decimal is enough. */
-export function formatBytes(bytes: number): string {
+function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
   return `${(bytes / 1024).toFixed(1)} kB`
 }
@@ -44,11 +44,24 @@ export function ExportDialog({
   const blueprint = useWorkspace((state) => state.blueprint)
   const [busy, setBusy] = useState(false)
 
-  const files = useMemo(() => (blueprint ? projectFilesOf(blueprint) : {}), [blueprint])
+  // Rendering the whole project is not free, and this dialog is mounted for the life of the
+  // workspace. Without the `open` guard every keystroke in the editor would serialise the
+  // entire Blueprint for a dialog nobody is looking at.
+  const files = useMemo(
+    () => (blueprint && open ? projectFilesOf(blueprint) : {}),
+    [blueprint, open],
+  )
+  const sizes = useMemo(
+    () =>
+      Object.fromEntries(
+        Object.entries(files).map(([path, content]) => [path, new Blob([content]).size]),
+      ),
+    [files],
+  )
   const paths = useMemo(() => Object.keys(files).sort(), [files])
   const totalBytes = useMemo(
-    () => paths.reduce((total, path) => total + new Blob([files[path] ?? '']).size, 0),
-    [files, paths],
+    () => Object.values(sizes).reduce((total, size) => total + size, 0),
+    [sizes],
   )
 
   if (!blueprint) return null
@@ -56,7 +69,7 @@ export function ExportDialog({
   const download = async () => {
     setBusy(true)
     try {
-      downloadZip(await filesToZip(files), `${blueprint.id}.zip`)
+      downloadZip(await filesToZip(projectFilesOf(blueprint)), `${blueprint.id}.zip`)
       onOpenChange(false)
       toast.success(`Exported ${paths.length} files`, {
         description: `${blueprint.id}.zip is in your downloads.`,
@@ -95,7 +108,7 @@ export function ExportDialog({
             >
               <span className="truncate font-mono">{path}</span>
               <span className="text-muted-foreground shrink-0 tabular-nums">
-                {formatBytes(new Blob([files[path] ?? '']).size)}
+                {formatBytes(sizes[path] ?? 0)}
               </span>
             </li>
           ))}

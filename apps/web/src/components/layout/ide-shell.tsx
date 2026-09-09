@@ -27,9 +27,11 @@ export interface IdeShellProps {
   layoutId?: string
 }
 
-function Handle() {
+/** The separator is focusable, so it needs to say which boundary it moves. */
+function Handle({ label }: { label: string }) {
   return (
     <ResizeSeparator
+      aria-label={label}
       className={cn(
         'bg-border data-[state=dragging]:bg-accent hover:bg-accent w-px shrink-0 transition-colors',
         // A one-pixel target is unusable; widen the hit area without widening the line.
@@ -67,7 +69,7 @@ export function IdeShell({
           {sidebar}
         </Panel>
 
-        <Handle />
+        <Handle label="Resize the project panel" />
 
         <Panel id="canvas" defaultSize={inspector ? '55' : '80'} minSize="30" className="panel">
           {children}
@@ -75,7 +77,7 @@ export function IdeShell({
 
         {inspector ? (
           <>
-            <Handle />
+            <Handle label="Resize the inspector panel" />
             <Panel
               id="inspector"
               defaultSize="25"

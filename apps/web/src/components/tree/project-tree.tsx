@@ -5,6 +5,10 @@
  *
  * Counts and diagnostic badges come from the store, so the tree is the fastest place to see
  * that something is wrong and the shortest path to the artifact that is wrong.
+ *
+ * Every kind is listed, including the empty ones, because an empty kind is information: it
+ * is how a designer notices there are no Iron Laws yet, and it is where the button to add
+ * the first one lives. Overview sits above them all and is the way back out of a selection.
  */
 import {
   ENTITY_KIND_INFO,
@@ -12,11 +16,14 @@ import {
   type EntityKind,
   getCollection,
 } from '@agent-blueprint/core'
-import { ChevronRightIcon } from 'lucide-react'
+import { ChevronRightIcon, LayoutGridIcon, PlusIcon } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import { toast } from 'sonner'
 
+import { ArtifactMenu } from '@/components/tree/artifact-menu'
 import { PanelSection } from '@/components/layout/ide-shell'
 import { Badge } from '@/components/ui/primitives'
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { diagnosticsFor, useWorkspace } from '@/lib/state/workspace-store'
 
@@ -25,6 +32,7 @@ export function ProjectTree() {
   const diagnostics = useWorkspace((state) => state.diagnostics)
   const selection = useWorkspace((state) => state.selection)
   const select = useWorkspace((state) => state.select)
+  const create = useWorkspace((state) => state.create)
   const [collapsed, setCollapsed] = useState<ReadonlySet<EntityKind>>(new Set())
 
   const groups = useMemo(() => {
@@ -33,7 +41,7 @@ export function ProjectTree() {
       kind,
       info: ENTITY_KIND_INFO[kind],
       entities: getCollection(blueprint, kind),
-    })).filter((group) => group.entities.length > 0)
+    }))
   }, [blueprint])
 
   if (!blueprint) return null
@@ -47,34 +55,64 @@ export function ProjectTree() {
     })
   }
 
+  const addOne = (kind: EntityKind) => {
+    const name = `New ${ENTITY_KIND_INFO[kind].label.toLowerCase()}`
+    const ref = create(kind, name)
+    if (ref) toast.success(`Added ${name}`, { description: 'Rename it from the inspector.' })
+  }
+
   return (
     <PanelSection title="Project">
       <nav aria-label="Blueprint artifacts" className="py-1">
-        {groups.length === 0 ? (
-          <p className="text-muted-foreground px-3 py-2 text-xs">
-            This Blueprint is empty. Add an agent to begin.
-          </p>
-        ) : null}
+        <button
+          type="button"
+          onClick={() => select(undefined)}
+          aria-current={selection ? undefined : 'true'}
+          className={cn(
+            'flex w-full items-center gap-2 px-2 py-1 text-left text-sm',
+            selection ? 'hover:bg-muted' : 'bg-accent-muted text-accent',
+          )}
+        >
+          <LayoutGridIcon className="size-3.5 shrink-0" />
+          Overview
+        </button>
 
         {groups.map(({ kind, info, entities }) => {
           const isCollapsed = collapsed.has(kind)
           return (
             <div key={kind}>
-              <button
-                type="button"
-                onClick={() => toggle(kind)}
-                aria-expanded={!isCollapsed}
-                className="text-muted-foreground hover:text-foreground flex w-full items-center gap-1 px-2 py-1 text-xs font-medium"
-              >
-                <ChevronRightIcon
-                  className={cn('size-3 transition-transform', !isCollapsed && 'rotate-90')}
-                />
-                <span className="flex-1 text-left">{info.pluralLabel}</span>
-                <span className="tabular-nums">{entities.length}</span>
-              </button>
+              <div className="group/kind flex items-center">
+                <button
+                  type="button"
+                  onClick={() => toggle(kind)}
+                  aria-expanded={!isCollapsed}
+                  className="text-muted-foreground hover:text-foreground flex min-w-0 flex-1 items-center gap-1 px-2 py-1 text-xs font-medium"
+                >
+                  <ChevronRightIcon
+                    className={cn(
+                      'size-3 shrink-0 transition-transform',
+                      !isCollapsed && 'rotate-90',
+                    )}
+                  />
+                  <span className="flex-1 truncate text-left">{info.pluralLabel}</span>
+                  <span className="tabular-nums">{entities.length}</span>
+                </button>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={`Add ${info.label.toLowerCase()}`}
+                  className="mr-1 opacity-0 transition-opacity group-hover/kind:opacity-100 focus-visible:opacity-100"
+                  onClick={() => addOne(kind)}
+                >
+                  <PlusIcon />
+                </Button>
+              </div>
 
               {isCollapsed ? null : (
                 <ul>
+                  {entities.length === 0 ? (
+                    <li className="text-muted-foreground px-2 py-1 pl-7 text-xs">None yet.</li>
+                  ) : null}
                   {entities.map((entity) => {
                     const own = diagnosticsFor(diagnostics, { kind, id: entity.id })
                     const worst = own.find((diagnostic) => diagnostic.severity === 'error')
@@ -85,13 +123,13 @@ export function ProjectTree() {
                     const isSelected = selection?.kind === kind && selection.id === entity.id
 
                     return (
-                      <li key={entity.id}>
+                      <li key={entity.id} className="group/item flex items-center">
                         <button
                           type="button"
                           onClick={() => select({ kind, id: entity.id })}
                           aria-current={isSelected ? 'true' : undefined}
                           className={cn(
-                            'flex w-full items-center gap-2 py-1 pr-2 pl-7 text-left text-sm',
+                            'flex min-w-0 flex-1 items-center gap-2 py-1 pr-1 pl-7 text-left text-sm',
                             isSelected ? 'bg-accent-muted text-accent' : 'hover:bg-muted',
                           )}
                         >
@@ -102,6 +140,10 @@ export function ProjectTree() {
                             </Badge>
                           ) : null}
                         </button>
+                        <ArtifactMenu
+                          artifact={{ kind, id: entity.id, name: entity.name }}
+                          className="mr-1 opacity-0 transition-opacity group-hover/item:opacity-100 focus-within:opacity-100 data-[state=open]:opacity-100"
+                        />
                       </li>
                     )
                   })}

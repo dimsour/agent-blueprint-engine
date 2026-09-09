@@ -7,6 +7,9 @@
  * `renderProjectFiles` would write, and what is typed is parsed back through the same schema.
  * While the text does not parse, the Blueprint keeps its last valid value and the other tabs
  * are unavailable, because switching away would silently discard the edit in progress.
+ *
+ * Both the tab and that error live in the store. The palette and the keyboard can change the
+ * tab too, and a guard that only exists inside this component would not stop them.
  */
 import { ENTITY_KIND_INFO, type EntityRef } from '@agent-blueprint/core'
 import { AlertTriangleIcon, CodeIcon, EyeIcon, SlidersHorizontalIcon } from 'lucide-react'
@@ -30,7 +33,7 @@ export function ArtifactEditor({ selection }: { selection: EntityRef }) {
   // The tab lives in the store so a keyboard shortcut can reach it (docs/07, ⌘P).
   const tab = useWorkspace((state) => state.artifactTab)
   const setTab = useWorkspace((state) => state.setArtifactTab)
-  const [sourceError, setSourceError] = useState<string | undefined>()
+  const sourceError = useWorkspace((state) => state.sourceError)
 
   const language = sourceLanguage(selection)
   const blocked = sourceError !== undefined
@@ -38,11 +41,8 @@ export function ArtifactEditor({ selection }: { selection: EntityRef }) {
   return (
     <Tabs
       value={tab}
-      onValueChange={(next) => {
-        // An unparseable file cannot be shown as a form, so leaving is refused until it parses.
-        if (blocked && next !== 'source') return
-        setTab(next as ArtifactTab)
-      }}
+      // The store refuses a move away from an unparseable file; this only forwards it.
+      onValueChange={(next) => setTab(next as ArtifactTab)}
       className="panel flex-1"
     >
       <div className="flex h-9 shrink-0 items-center gap-3 border-b px-3">
@@ -78,7 +78,7 @@ export function ArtifactEditor({ selection }: { selection: EntityRef }) {
       </TabsContent>
 
       <TabsContent value="source" className="min-h-0">
-        <SourceTab selection={selection} onErrorChange={setSourceError} />
+        <SourceTab selection={selection} />
       </TabsContent>
 
       {hasPreview(selection) ? (
@@ -100,15 +100,10 @@ function SourcePath({ selection }: { selection: EntityRef }) {
   )
 }
 
-function SourceTab({
-  selection,
-  onErrorChange,
-}: {
-  selection: EntityRef
-  onErrorChange: (message: string | undefined) => void
-}) {
+function SourceTab({ selection }: { selection: EntityRef }) {
   const blueprint = useWorkspace((state) => state.blueprint)
   const upsert = useWorkspace((state) => state.upsert)
+  const setSourceError = useWorkspace((state) => state.setSourceError)
 
   // Seeded once, when the tab mounts. Switching tabs or artifacts remounts and re-seeds,
   // which is why the visual form and the source never drift.
@@ -122,12 +117,12 @@ function SourceTab({
     if (result.ok) {
       upsert(selection.kind, result.entity as never)
       setMessage(undefined)
-      onErrorChange(undefined)
+      setSourceError(undefined)
       return
     }
     // The text stays exactly as typed; only the Blueprint declines to follow it.
     setMessage(result.message)
-    onErrorChange(result.message)
+    setSourceError(result.message)
   }
 
   return (

@@ -13,7 +13,6 @@ import {
   ENTITY_KINDS,
   type EntityKind,
   getCollection,
-  summarizeDiagnostics,
 } from '@agent-blueprint/core'
 import { Command } from 'cmdk'
 import {
@@ -30,9 +29,9 @@ import {
   UndoIcon,
 } from 'lucide-react'
 import { type ReactNode, useMemo } from 'react'
-import { toast } from 'sonner'
 
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/overlays'
+import { validateNow } from '@/lib/actions'
 import { hasPreview } from '@/lib/artifact-source'
 import { useModifierLabel } from '@/lib/shortcuts'
 import { useWorkspace, workspaceHistory } from '@/lib/state/workspace-store'
@@ -101,7 +100,6 @@ export function CommandPalette({ open, onOpenChange, onExport }: CommandPaletteP
   const setArtifactTab = useWorkspace((state) => state.setArtifactTab)
   const updateBlueprint = useWorkspace((state) => state.updateBlueprint)
   const save = useWorkspace((state) => state.save)
-  const flushPending = useWorkspace((state) => state.flushPending)
   const mod = useModifierLabel()
 
   const artifacts = useMemo(() => {
@@ -117,19 +115,6 @@ export function CommandPalette({ open, onOpenChange, onExport }: CommandPaletteP
   const run = (action: () => void) => () => {
     action()
     onOpenChange(false)
-  }
-
-  const validate = () => {
-    void flushPending().then(() => {
-      const counts = summarizeDiagnostics(useWorkspace.getState().diagnostics)
-      const total = counts.errors + counts.warnings + counts.infos
-      toast.success(total === 0 ? 'No findings' : `${total} findings`, {
-        description:
-          total === 0
-            ? 'This Blueprint is clean.'
-            : `${counts.errors} errors, ${counts.warnings} warnings, ${counts.infos} suggestions.`,
-      })
-    })
   }
 
   return (
@@ -186,7 +171,11 @@ export function CommandPalette({ open, onOpenChange, onExport }: CommandPaletteP
             ) : null}
 
             <Group heading="Verify">
-              <Item icon={<CheckIcon />} label="Validate" onSelect={run(validate)} />
+              <Item
+                icon={<CheckIcon />}
+                label="Validate"
+                onSelect={run(() => void validateNow())}
+              />
             </Group>
 
             <Group heading="Blueprint">

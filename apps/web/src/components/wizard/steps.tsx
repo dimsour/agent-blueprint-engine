@@ -10,6 +10,7 @@ import {
   AGENT_ROLES,
   type Blueprint,
   ENTITY_KIND_INFO,
+  ENTITY_KINDS,
   type EntityKind,
   type EntityRef,
   evaluateBlueprint,
@@ -34,6 +35,7 @@ import { Badge, Card, Input, Label } from '@/components/ui/primitives'
 import {
   addBlank,
   addFromTemplate,
+  DRAFT_PLACEHOLDER_NAME,
   enabledTargetIds,
   primaryAgent,
   removeArtifact,
@@ -57,7 +59,7 @@ export function AboutStep({ draft, onChange }: StepProps) {
       <TextField
         label="Name"
         help="What this system is called. Everything else can change later."
-        value={draft.name === 'Untitled Blueprint' ? '' : draft.name}
+        value={draft.name === DRAFT_PLACEHOLDER_NAME ? '' : draft.name}
         placeholder="Rust Review Crew"
         onChange={(name) => onChange(setIdentity(draft, { name }))}
       />
@@ -133,7 +135,7 @@ function AddedList({
   rowExtra,
 }: StepProps & {
   kind: EntityKind
-  rowExtra?: (id: string) => React.ReactNode
+  rowExtra?: (entity: { id: string; name: string }) => React.ReactNode
 }) {
   const added = getCollection(draft, kind)
   if (added.length === 0) {
@@ -156,7 +158,7 @@ function AddedList({
                 {entity.id}
               </span>
             </span>
-            {rowExtra?.(entity.id)}
+            {rowExtra?.({ id: entity.id, name: entity.name })}
             <Button
               variant="ghost"
               size="icon-sm"
@@ -212,14 +214,17 @@ export function ArtifactStep({
   onChange,
   kind,
   rowExtra,
-}: StepProps & { kind: EntityKind; rowExtra?: (id: string) => React.ReactNode }) {
+}: StepProps & {
+  kind: EntityKind
+  rowExtra?: (entity: { id: string; name: string }) => React.ReactNode
+}) {
   const templates = useMemo(() => templatesForKind(kind), [kind])
 
   return (
     <div className="flex max-w-2xl flex-col gap-5">
       {templates.length > 0 ? (
         <div className="flex flex-col gap-2">
-          <Label>Start from a template</Label>
+          <span className="text-sm font-medium">Start from a template</span>
           <ul className="grid gap-2 sm:grid-cols-2">
             {templates.map((template) => (
               <li key={template.id}>
@@ -267,13 +272,13 @@ export function ToolsStep({ draft, onChange }: StepProps) {
         draft={draft}
         onChange={onChange}
         kind="tool"
-        rowExtra={(id) => {
+        rowExtra={({ id, name }) => {
           const tool = draft.tools.find((candidate) => candidate.id === id)
           if (!tool) return null
           return (
             <span className="w-40 shrink-0">
               <SelectField
-                label="Kind"
+                label={`${name} kind`}
                 value={tool.kind}
                 options={TOOL_KINDS}
                 onChange={(kind) => {
@@ -306,13 +311,13 @@ export function MemoryStep({ draft, onChange }: StepProps) {
       draft={draft}
       onChange={onChange}
       kind="memory"
-      rowExtra={(id) => {
+      rowExtra={({ id, name }) => {
         const memory = draft.memories.find((candidate) => candidate.id === id)
         if (!memory) return null
         return (
           <span className="w-40 shrink-0">
             <SelectField
-              label="Scope"
+              label={`${name} scope`}
               value={memory.scope}
               options={MEMORY_SCOPES}
               onChange={(scope) => {
@@ -364,7 +369,7 @@ export function TargetsStep({ draft, onChange }: StepProps) {
 
       <div className="flex flex-col gap-2">
         <span className="flex items-baseline gap-2">
-          <Label>Portability</Label>
+          <span className="text-sm font-medium">Portability</span>
           <Badge variant={portability.score >= 90 ? 'success' : 'warning'}>
             {portability.score}
           </Badge>
@@ -433,7 +438,7 @@ export function EvaluateStep({ draft }: StepProps) {
 
       {report.diagnostics.length > 0 ? (
         <div className="flex flex-col gap-1.5">
-          <Label>Findings</Label>
+          <span className="text-sm font-medium">Findings</span>
           <ul className="flex flex-col gap-1">
             {report.diagnostics.slice(0, 10).map((diagnostic, index) => (
               <li key={`${diagnostic.code}-${index}`} className="text-muted-foreground text-xs">
@@ -454,13 +459,12 @@ export function EvaluateStep({ draft }: StepProps) {
 // ---------------------------------------------------------------------------
 
 export function FinishStep({ draft }: StepProps) {
-  const counts = ENTITY_KIND_INFO
   const present = useMemo(
     () =>
-      (Object.keys(counts) as EntityKind[])
-        .map((kind) => ({ kind, count: getCollection(draft, kind).length }))
-        .filter((entry) => entry.count > 0),
-    [draft, counts],
+      ENTITY_KINDS.map((kind) => ({ kind, count: getCollection(draft, kind).length })).filter(
+        (entry) => entry.count > 0,
+      ),
+    [draft],
   )
 
   return (
@@ -484,7 +488,7 @@ export function FinishStep({ draft }: StepProps) {
       </ul>
 
       <div className="flex flex-col gap-1.5">
-        <Label>Compiles for</Label>
+        <span className="text-sm font-medium">Compiles for</span>
         <span className="flex flex-wrap gap-2">
           {enabledTargetIds(draft).map((id) => (
             <Badge key={id} variant="accent">

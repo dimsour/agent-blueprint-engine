@@ -48,7 +48,15 @@ export function Wizard() {
   const router = useRouter()
   const [draft, setDraft] = useState<Blueprint>(emptyDraft)
   const [index, setIndex] = useState(0)
+  // How far the wizard has been taken, so stepping back to check something does not make
+  // every step after it unreachable again.
+  const [furthest, setFurthest] = useState(0)
   const [creating, setCreating] = useState(false)
+
+  const goTo = (position: number) => {
+    setIndex(position)
+    setFurthest((current) => Math.max(current, position))
+  }
 
   const step = WIZARD_STEPS[index]
   if (!step) return null
@@ -98,10 +106,10 @@ export function Wizard() {
             <button
               key={candidate.id}
               type="button"
-              // Going back is always allowed; going forward past an unfinished step is not.
-              disabled={position > index}
+              // Anywhere already reached is reachable again; nothing beyond it is.
+              disabled={position > furthest}
               aria-current={current ? 'step' : undefined}
-              onClick={() => setIndex(position)}
+              onClick={() => goTo(position)}
               className={cn(
                 'flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs transition-colors',
                 current && 'border-accent bg-accent-muted text-accent',
@@ -129,7 +137,7 @@ export function Wizard() {
       <footer className="mt-auto flex items-center gap-2 border-t pt-4">
         <Button
           variant="outline"
-          onClick={() => setIndex((current) => Math.max(0, current - 1))}
+          onClick={() => goTo(Math.max(0, index - 1))}
           disabled={index === 0}
         >
           <ArrowLeftIcon />
@@ -151,7 +159,7 @@ export function Wizard() {
           </Button>
         ) : (
           <Button
-            onClick={() => setIndex((current) => Math.min(WIZARD_STEPS.length - 1, current + 1))}
+            onClick={() => goTo(Math.min(WIZARD_STEPS.length - 1, index + 1))}
             disabled={blocked !== undefined}
           >
             Next

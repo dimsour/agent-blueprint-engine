@@ -8,6 +8,12 @@
  *
  * Validation and autosave are debounced because both run on every keystroke in the Markdown
  * editor. Tests call `flushPending` instead of waiting.
+ *
+ * The store is a module singleton that outlives client-side navigation, so switching
+ * projects has to be explicit about three things: the pending autosave belongs to the
+ * project being left and is written before the switch, the undo history belongs to that
+ * project and is discarded with it, and a save already in flight must not report its result
+ * into whatever is loaded by the time it lands.
  */
 import {
   type Blueprint,
@@ -23,6 +29,7 @@ import {
   type EntityRef,
   type ImpactReport,
   buildDependencyGraph,
+  hasEntity,
   impactOf,
   validateBlueprint,
 } from '@agent-blueprint/core'
@@ -54,6 +61,10 @@ export const WORKSPACE_VIEWS = [
 
 export type WorkspaceView = (typeof WORKSPACE_VIEWS)[number]
 
+export function isWorkspaceView(value: string | null | undefined): value is WorkspaceView {
+  return typeof value === 'string' && (WORKSPACE_VIEWS as readonly string[]).includes(value)
+}
+
 /** The canvas tab for the selected artifact. Store state so a shortcut can reach it. */
 export type ArtifactTab = 'visual' | 'source' | 'preview'
 
@@ -66,6 +77,12 @@ export interface WorkspaceState {
   selection?: EntityRef | undefined
   view: WorkspaceView
   artifactTab: ArtifactTab
+  /**
+   * Set while the artifact's project file does not parse. It lives here rather than in the
+   * editor because the palette and the shortcuts can change the tab too, and all of them
+   * have to refuse to walk away from an edit that was never applied.
+   */
+  sourceError?: string | undefined
   diagnostics: Diagnostic[]
   /** True while diagnostics are older than the Blueprint. */
   validating: boolean
@@ -83,7 +100,8 @@ export interface WorkspaceState {
   create(kind: EntityKind, name: string): EntityRef | undefined
   rename(kind: EntityKind, oldId: string, newId: string): void
   remove(ref: EntityRef): void
-  apply(changeSet: ChangeSet, accept?: string[]): void
+  /** Applies a change-set and hands back the ops the domain refused, for the caller to report. */
+  apply(changeSet: ChangeSet, accept?: string[]): { rejected: { opId: string; reason: string }[] }
   updateBlueprint(
     patch: Partial<Pick<Blueprint, 'name' | 'description' | 'version' | 'settings' | 'targets'>>,
   ): void
@@ -91,17 +109,23 @@ export interface WorkspaceState {
   select(ref?: EntityRef): void
   setView(view: WorkspaceView): void
   setArtifactTab(tab: ArtifactTab): void
+  setSourceError(message: string | undefined): void
+  /** Brings derived state back in line after undo or redo replaced the Blueprint. */
+  afterHistory(): void
 
   /** What would be affected by deleting this artifact; shown before a delete is confirmed. */
   impact(ref: EntityRef): ImpactReport | undefined
 
   save(store?: ProjectStore): Promise<void>
-  /** Runs any pending validation and autosave immediately. */
+  /** Runs any pending validation and autosave immediately, and awaits a save in flight. */
   flushPending(store?: ProjectStore): Promise<void>
+  clearSaveError(): void
 }
 
 let validationTimer: ReturnType<typeof setTimeout> | undefined
 let autosaveTimer: ReturnType<typeof setTimeout> | undefined
+/** The save currently talking to storage, so `flushPending` can wait for it. */
+let pendingSave: Promise<void> | undefined
 
 function clearTimers(): void {
   if (validationTimer) clearTimeout(validationTimer)
@@ -110,13 +134,19 @@ function clearTimers(): void {
   autosaveTimer = undefined
 }
 
+/**
+ * Undo history belongs to one project. This is a function rather than a direct call so the
+ * store's own actions can reach the temporal store, which only exists once the store does.
+ */
+function resetHistory(): void {
+  useWorkspace.temporal.getState().clear()
+}
+
 export const useWorkspace = create<WorkspaceState>()(
   temporal(
     (set, get) => {
-      /** Applies a new Blueprint and schedules validation and autosave. */
-      const commit = (blueprint: Blueprint): void => {
-        set({ blueprint, dirty: true, validating: true })
-
+      /** Recomputes diagnostics and writes the project, both debounced. */
+      const scheduleWork = (): void => {
         if (validationTimer) clearTimeout(validationTimer)
         validationTimer = setTimeout(() => {
           validationTimer = undefined
@@ -131,6 +161,20 @@ export const useWorkspace = create<WorkspaceState>()(
         }, AUTOSAVE_DEBOUNCE_MS)
       }
 
+      /** Applies a new Blueprint and schedules validation and autosave. */
+      const commit = (blueprint: Blueprint): void => {
+        set({ blueprint, dirty: true, validating: true })
+        scheduleWork()
+      }
+
+      /** Writes a debounced edit now, so leaving a project cannot drop it. */
+      const flushAutosave = (): void => {
+        if (!autosaveTimer) return
+        clearTimeout(autosaveTimer)
+        autosaveTimer = undefined
+        void get().save()
+      }
+
       return {
         view: 'overview',
         artifactTab: 'visual',
@@ -140,6 +184,8 @@ export const useWorkspace = create<WorkspaceState>()(
         saving: false,
 
         load(projectId, blueprint, diagnostics) {
+          // The debounced edit belongs to the project being left, not to this one.
+          flushAutosave()
           clearTimers()
           set({
             projectId,
@@ -148,24 +194,35 @@ export const useWorkspace = create<WorkspaceState>()(
             selection: undefined,
             view: 'overview',
             artifactTab: 'visual',
+            sourceError: undefined,
             validating: false,
             dirty: false,
             saving: false,
+            lastSavedAt: undefined,
             saveError: undefined,
           })
+          // Undo must not reach across projects, nor back past the load itself.
+          resetHistory()
         },
 
         close() {
+          flushAutosave()
           clearTimers()
           set({
             projectId: undefined,
             blueprint: undefined,
             selection: undefined,
             diagnostics: [],
+            view: 'overview',
+            artifactTab: 'visual',
+            sourceError: undefined,
             dirty: false,
             validating: false,
+            saving: false,
+            lastSavedAt: undefined,
             saveError: undefined,
           })
+          resetHistory()
         },
 
         upsert(kind, input) {
@@ -182,7 +239,7 @@ export const useWorkspace = create<WorkspaceState>()(
           const entity = createEntity(blueprint, kind, { name })
           commit(coreUpsertEntity(blueprint, kind, entity as never))
           const ref = { kind, id: entity.id }
-          set({ selection: ref, artifactTab: 'visual' })
+          set({ selection: ref, artifactTab: 'visual', sourceError: undefined })
           return ref
         },
 
@@ -203,14 +260,25 @@ export const useWorkspace = create<WorkspaceState>()(
           if (!blueprint) return
           commit(coreDeleteEntity(blueprint, ref).blueprint)
           const selection = get().selection
-          if (selection?.kind === ref.kind && selection.id === ref.id) set({ selection: undefined })
+          if (selection?.kind === ref.kind && selection.id === ref.id) {
+            set({ selection: undefined, sourceError: undefined })
+          }
         },
 
         apply(changeSet, accept) {
           const blueprint = get().blueprint
-          if (!blueprint) return
+          if (!blueprint) return { rejected: [] }
           const result = applyChangeSet(blueprint, changeSet, accept ? { accept } : {})
-          commit(result.blueprint)
+          // Applying nothing changed nothing: committing would mark the project dirty and
+          // record an undo step for a no-op.
+          if (result.applied.length > 0) {
+            commit(result.blueprint)
+            const selection = get().selection
+            if (selection && !hasEntity(result.blueprint, selection)) {
+              set({ selection: undefined, sourceError: undefined })
+            }
+          }
+          return { rejected: result.rejected.map((op) => ({ opId: op.opId, reason: op.reason })) }
         },
 
         updateBlueprint(patch) {
@@ -221,7 +289,7 @@ export const useWorkspace = create<WorkspaceState>()(
 
         select(ref) {
           // A different artifact opens on its form, never on the tab the last one was on.
-          set({ selection: ref, artifactTab: 'visual' })
+          set({ selection: ref, artifactTab: 'visual', sourceError: undefined })
         },
 
         setView(view) {
@@ -229,7 +297,26 @@ export const useWorkspace = create<WorkspaceState>()(
         },
 
         setArtifactTab(tab) {
+          // An unparseable file cannot be shown as a form, so leaving is refused until it
+          // parses. The guard lives here because the palette and the shortcuts set the tab
+          // too, and every one of them has to respect it.
+          if (get().sourceError !== undefined && tab !== 'source') return
           set({ artifactTab: tab })
+        },
+
+        setSourceError(message) {
+          set({ sourceError: message })
+        },
+
+        afterHistory() {
+          const blueprint = get().blueprint
+          if (!blueprint) return
+          // Undo replaced the Blueprint behind the store's back: everything derived from it
+          // is stale, and the restored version is not what is on disk.
+          set({ dirty: true, validating: true, sourceError: undefined })
+          const selection = get().selection
+          if (selection && !hasEntity(blueprint, selection)) set({ selection: undefined })
+          scheduleWork()
         },
 
         impact(ref) {
@@ -241,16 +328,33 @@ export const useWorkspace = create<WorkspaceState>()(
         async save(store) {
           const { projectId, blueprint } = get()
           if (!projectId || !blueprint) return
-          set({ saving: true })
-          try {
-            await saveProject(projectId, blueprint, store)
-            set({ saving: false, dirty: false, lastSavedAt: Date.now(), saveError: undefined })
-          } catch (error) {
-            set({
-              saving: false,
-              saveError: error instanceof Error ? error.message : String(error),
-            })
-          }
+
+          const write = (async () => {
+            set({ saving: true })
+            try {
+              await saveProject(projectId, blueprint, store)
+              const current = get()
+              // A save reports only on the project it wrote, and clears `dirty` only when
+              // nothing was edited while it was in flight.
+              if (current.projectId !== projectId) return
+              set({
+                saving: false,
+                dirty: current.blueprint !== blueprint,
+                lastSavedAt: Date.now(),
+                saveError: undefined,
+              })
+            } catch (error) {
+              if (get().projectId !== projectId) return
+              set({
+                saving: false,
+                saveError: error instanceof Error ? error.message : String(error),
+              })
+            }
+          })()
+
+          pendingSave = write
+          await write
+          if (pendingSave === write) pendingSave = undefined
         },
 
         async flushPending(store) {
@@ -265,6 +369,12 @@ export const useWorkspace = create<WorkspaceState>()(
             autosaveTimer = undefined
             await get().save(store)
           }
+          // A save may already have been in flight when this was called.
+          await pendingSave
+        },
+
+        clearSaveError() {
+          set({ saveError: undefined })
         },
       }
     },
@@ -277,10 +387,21 @@ export const useWorkspace = create<WorkspaceState>()(
   ),
 )
 
-/** Undo and redo, for the palette and the keyboard shortcuts. */
+/**
+ * Undo and redo, for the palette and the keyboard shortcuts.
+ *
+ * zundo writes the Blueprint straight into the store, bypassing every action, so each of
+ * these has to put the derived state back in order afterwards.
+ */
 export const workspaceHistory = {
-  undo: () => useWorkspace.temporal.getState().undo(),
-  redo: () => useWorkspace.temporal.getState().redo(),
+  undo: () => {
+    useWorkspace.temporal.getState().undo()
+    useWorkspace.getState().afterHistory()
+  },
+  redo: () => {
+    useWorkspace.temporal.getState().redo()
+    useWorkspace.getState().afterHistory()
+  },
   clear: () => useWorkspace.temporal.getState().clear(),
   get canUndo() {
     return useWorkspace.temporal.getState().pastStates.length > 0

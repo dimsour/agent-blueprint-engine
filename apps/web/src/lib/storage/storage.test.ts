@@ -54,6 +54,40 @@ describe('ZIP round trip', () => {
     await expect(zipToFiles(new TextEncoder().encode('not a zip'))).rejects.toThrow(StorageError)
   })
 
+  it('produces the same bytes for the same input, whenever it runs', async () => {
+    const files = readStarterFiles('react-expert')
+    const first = new Uint8Array(await (await filesToZip(files)).arrayBuffer())
+    // Long enough that a wall-clock stamp would land in a different DOS timestamp second.
+    await new Promise((resolve) => setTimeout(resolve, 1200))
+    const second = new Uint8Array(await (await filesToZip(files)).arrayBuffer())
+
+    expect(Array.from(second)).toEqual(Array.from(first))
+  })
+
+  it('ignores the files an archiver adds around a project', async () => {
+    const wrapped: Record<string, string> = {
+      '__MACOSX/._blueprint': 'resource fork',
+      'my-agent/.DS_Store': 'finder junk',
+    }
+    for (const [path, content] of Object.entries(files())) wrapped[`my-agent/${path}`] = content
+
+    const restored = await zipToFiles(await filesToZip(wrapped))
+    expect(Object.keys(restored)).toContain('blueprint/blueprint.yaml')
+  })
+
+  it('does not unwrap a project whose own folder is called blueprint', async () => {
+    const wrapped = Object.fromEntries(
+      Object.entries(files()).map(([path, content]) => [`blueprint/${path}`, content]),
+    )
+    const restored = await zipToFiles(await filesToZip(wrapped))
+    expect(Object.keys(restored)).toContain('blueprint/blueprint.yaml')
+  })
+
+  it('drops path segments that would escape the project', async () => {
+    const restored = await zipToFiles(await filesToZip({ '../../etc/passwd': 'no', ...files() }))
+    expect(Object.keys(restored).some((path) => path.includes('..'))).toBe(false)
+  })
+
   // The acceptance criterion for the export and import pair: nothing is lost either way.
   it('changes nothing about any starter, measured as a change-set', async () => {
     for (const id of starterIds) {
@@ -81,6 +115,24 @@ describe('reading an uploaded file', () => {
     const manifest = files()['blueprint/blueprint.yaml'] ?? ''
     const read = await readUpload(upload('blueprint.yaml', manifest))
     expect(Object.keys(read)).toEqual(['blueprint/blueprint.yaml'])
+  })
+
+  it('goes by the bytes, not the file name', async () => {
+    // An archive that lost its extension, and a manifest that was handed a wrong one.
+    const zip = await filesToZip(files())
+    expect(Object.keys(await readUpload(upload('download', zip)))).toContain(
+      'blueprint/blueprint.yaml',
+    )
+
+    const manifest = files()['blueprint/blueprint.yaml'] ?? ''
+    expect(Object.keys(await readUpload(upload('project.zip', manifest)))).toEqual([
+      'blueprint/blueprint.yaml',
+    ])
+  })
+
+  it('refuses binary that is neither an archive nor text', async () => {
+    const binary = new Uint8Array([1, 2, 0, 3, 4])
+    await expect(readUpload(upload('mystery.bin', binary))).rejects.toThrow(StorageError)
   })
 
   it('refuses an empty manifest rather than reporting it as a broken project', async () => {

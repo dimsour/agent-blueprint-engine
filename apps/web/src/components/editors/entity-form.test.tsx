@@ -96,13 +96,13 @@ describe('EntityForm', () => {
     const user = userEvent.setup()
     render(<EntityForm selection={{ kind: 'agent', id: 'react-expert' }} />)
 
-    await user.click(screen.getByRole('radio', { name: 'Delete files: deny' }))
+    await user.click(screen.getByRole('button', { name: 'Delete files: deny', pressed: false }))
     expect(useWorkspace.getState().blueprint?.agents[0]?.permissions.operations['fs.delete']).toBe(
       'deny',
     )
 
     // Clicking the same decision again clears it back to the harness default.
-    await user.click(screen.getByRole('radio', { name: 'Delete files: deny' }))
+    await user.click(screen.getByRole('button', { name: 'Delete files: deny', pressed: true }))
     expect(
       useWorkspace.getState().blueprint?.agents[0]?.permissions.operations['fs.delete'],
     ).toBeUndefined()
