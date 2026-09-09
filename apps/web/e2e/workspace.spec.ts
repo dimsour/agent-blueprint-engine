@@ -21,7 +21,7 @@ test.describe('dashboard', () => {
     await page.goto('/')
 
     await expect(page.getByRole('heading', { level: 1 })).toContainText('Design once')
-    await expect(page.getByRole('button', { name: 'Create Blueprint' })).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Create Blueprint' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Import ZIP' })).toBeVisible()
 
     await expect(page.getByText('10 complete agent systems')).toBeVisible()
@@ -166,6 +166,83 @@ test.describe('workspace layout', () => {
     await expect(page.getByRole('heading', { name: /could not be opened/ })).toBeVisible()
     await page.getByRole('link', { name: 'Back to all projects' }).click()
     await expect(page.getByRole('heading', { level: 1 })).toContainText('Design once')
+  })
+})
+
+test.describe('creation wizard', () => {
+  test('walks the ten steps and creates the project it showed', async ({ page }) => {
+    await page.goto('/')
+    await page.getByRole('link', { name: 'Create Blueprint' }).click()
+    await page.waitForURL(/\/new/)
+
+    // 1 · the project. The id follows the name until it is edited.
+    await expect(page.getByRole('button', { name: /^Next/ })).toBeDisabled()
+    await page.getByLabel('Name').fill('Rust Review Crew')
+    await expect(page.getByLabel('Id')).toHaveValue('rust-review-crew')
+    await page.getByRole('button', { name: /^Next/ }).click()
+
+    // 2 · the agent.
+    await expect(page.getByRole('button', { name: /^Next/ })).toBeDisabled()
+    await page.getByLabel('Agent name').fill('Rust Reviewer')
+    await page.getByRole('button', { name: /^Next/ }).click()
+
+    // 3, 4, 5 · one artifact each, from a template.
+    await page.getByRole('button', { name: 'Add Domain expertise' }).click()
+    await page.getByRole('button', { name: /^Next/ }).click()
+    await page.getByRole('button', { name: 'Add Code review' }).click()
+    await page.getByRole('button', { name: /^Next/ }).click()
+    await page.getByRole('button', { name: 'Add Security: never expose secrets' }).click()
+    await page.getByRole('button', { name: /^Next/ }).click()
+
+    // 6 · tools, 7 · memory: both optional here.
+    await page.getByRole('button', { name: /^Next/ }).click()
+    await page.getByRole('button', { name: /^Next/ }).click()
+
+    // 8 · targets. Compile for Claude Code only.
+    await expect(page.getByRole('heading', { name: 'Where should it run?' })).toBeVisible()
+    await page.getByRole('checkbox', { name: 'Codex' }).uncheck()
+    await page.getByRole('button', { name: /^Next/ }).click()
+
+    // 9 · the score, computed on the draft.
+    await expect(page.getByRole('list', { name: 'Scores by dimension' })).toBeVisible()
+    await page.getByRole('button', { name: /^Next/ }).click()
+
+    // 10 · the summary, then create.
+    await expect(page.getByRole('heading', { name: 'Rust Review Crew' })).toBeVisible()
+    await page.getByRole('button', { name: /Create project/ }).click()
+    await page.waitForURL(/\/p\//)
+
+    // The workspace opens on the Blueprint the wizard built.
+    await expect(page.getByRole('button', { name: 'Agents 1' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Skills 1' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Workflows 1' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Iron Laws 1' })).toBeVisible()
+
+    // Only the chosen harness is a target.
+    await expect(page.getByText('claude-code')).toBeVisible()
+    await expect(page.getByText('codex')).toHaveCount(0)
+
+    // The agent owns what the wizard added.
+    await page.getByRole('button', { name: 'Rust Reviewer' }).click()
+    await expect(page.getByRole('list', { name: 'Depends on' })).toContainText('Domain expertise')
+  })
+
+  test('a project made by the wizard survives a reload', async ({ page }) => {
+    await page.goto('/new')
+    await page.getByLabel('Name').fill('Minimal Crew')
+    await page.getByRole('button', { name: /^Next/ }).click()
+    await page.getByLabel('Agent name').fill('Only Agent')
+
+    // Every step after the second is optional, so the wizard can be finished early.
+    for (let step = 0; step < 8; step += 1) {
+      await page.getByRole('button', { name: /^Next/ }).click()
+    }
+    await page.getByRole('button', { name: /Create project/ }).click()
+    await page.waitForURL(/\/p\//)
+
+    await page.reload()
+    await expect(page.getByRole('button', { name: 'Agents 1' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Only Agent' })).toBeVisible()
   })
 })
 

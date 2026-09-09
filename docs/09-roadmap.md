@@ -20,12 +20,12 @@ The backlog for building Agent Blueprint. Phases follow the plan; tasks inside a
 
 ## Status
 
-| Phase               | State       | Notes                                                                                                                                                                                             |
-| ------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| P0 Foundation       | done        | Workspace, docs, `@agent-blueprint/core` v0, fixture.                                                                                                                                             |
-| P1 Core semantics   | done        | P1-01 to P1-09 implemented and tested, including 29 artifact templates and 10 starter blueprints.                                                                                                 |
-| P2 Compiler         | done        | P2-01 to P2-09 implemented: adapter interface, registry, shared emitters, pipeline, build manifest, Claude Code and Codex in full, Copilot/OpenCode/Pi minimal, portability, golden tests.        |
-| P3 Web shell onward | in progress | P3-01 to P3-09 done: shell, storage, state store, dashboard, workspace tree, entity forms, the source editor, the inspector and the command palette. P3-10 and P3-11 (wizard, ZIP export) remain. |
+| Phase               | State       | Notes                                                                                                                                                                                                           |
+| ------------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P0 Foundation       | done        | Workspace, docs, `@agent-blueprint/core` v0, fixture.                                                                                                                                                           |
+| P1 Core semantics   | done        | P1-01 to P1-09 implemented and tested, including 29 artifact templates and 10 starter blueprints.                                                                                                               |
+| P2 Compiler         | done        | P2-01 to P2-09 implemented: adapter interface, registry, shared emitters, pipeline, build manifest, Claude Code and Codex in full, Copilot/OpenCode/Pi minimal, portability, golden tests.                      |
+| P3 Web shell onward | in progress | P3-01 to P3-10 done: shell, storage, state store, dashboard, workspace tree, entity forms, the source editor, the inspector, the command palette and the creation wizard. P3-11 (ZIP import/export UI) remains. |
 
 ## P0 — Foundation (done)
 

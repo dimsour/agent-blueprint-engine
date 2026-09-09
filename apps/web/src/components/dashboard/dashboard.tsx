@@ -6,6 +6,7 @@
  * Everything here is local. Recent projects come from IndexedDB in the browser, starters are
  * fetched from the server only when one is chosen, and import never leaves the machine.
  */
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
@@ -15,7 +16,6 @@ import { Button } from '@/components/ui/button'
 import { Badge, Card } from '@/components/ui/primitives'
 import { ThemeToggle } from '@/components/theme'
 import {
-  createProject,
   fileSystemStore,
   importProject,
   indexedDbStore,
@@ -94,19 +94,6 @@ export function Dashboard({ starters }: { starters: StarterInfo[] }) {
     [openFiles],
   )
 
-  const createBlank = useCallback(async () => {
-    setBusy('blank')
-    try {
-      const { createEmptyBlueprint } = await import('@agent-blueprint/core')
-      const blueprint = createEmptyBlueprint({ id: 'new-blueprint', name: 'New Blueprint' })
-      const summary = await createProject(blueprint)
-      router.push(`/p/${summary.id}`)
-    } catch (error) {
-      toast.error('Could not create the Blueprint', { description: describeError(error) })
-      setBusy(undefined)
-    }
-  }, [router])
-
   const importZip = useCallback(
     async (file: File) => {
       setBusy('import')
@@ -163,9 +150,12 @@ export function Dashboard({ starters }: { starters: StarterInfo[] }) {
       </header>
 
       <section className="flex flex-wrap items-center gap-2">
-        <Button variant="accent" onClick={() => void createBlank()} disabled={busy !== undefined}>
-          <PlusIcon />
-          Create Blueprint
+        {/* A link, not a button: the wizard is a route, so it opens in a new tab like one. */}
+        <Button variant="accent" asChild>
+          <Link href="/new">
+            <PlusIcon />
+            Create Blueprint
+          </Link>
         </Button>
         <Button
           variant="outline"

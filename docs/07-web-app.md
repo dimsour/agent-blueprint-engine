@@ -121,7 +121,11 @@ The draft is a convenience; the project written through `writeProject` is the so
 | 9    | Evaluate                | runs `validateBlueprint` and the evaluation report on the draft                        |
 | 10   | Finish                  | shows the overview graph; Create writes the project                                    |
 
-Step 1 offers _Generate first draft with AI_ when an endpoint is configured. The draft is a ChangeSet reviewed in step 10 before the project is created.
+The draft is a real Blueprint from the first keystroke: every step is a pure function in `lib/wizard/draft` that goes through the same schemas and the same `upsertEntity` as the workspace, so the wizard cannot produce something the editor would refuse. Artifacts added in steps 3 to 7 are linked to the primary agent as they are created.
+
+Only steps 1 and 2 block: a Blueprint needs a name, and the system needs the agent it is built around. Everything after that is optional, so the wizard can be finished early and the rest added in the workspace. Step 8 records only the chosen harnesses as targets, which is how the starters read on disk; step 9 scores the draft with `evaluateBlueprint` and the exporters' portability provider; step 10 is a summary, since the overview graph is P4.
+
+Step 1 will offer _Generate first draft with AI_ when an endpoint is configured (P6). That draft is a ChangeSet reviewed before the project is created.
 
 ## ChangeSet review (P6, component in P3 for templates)
 
