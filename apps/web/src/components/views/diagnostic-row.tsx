@@ -12,6 +12,7 @@ import type { Diagnostic, EntityRef } from '@agent-blueprint/core'
 import { AlertTriangleIcon, CircleAlertIcon, InfoIcon } from 'lucide-react'
 
 import { Badge } from '@/components/ui/primitives'
+import { nodeIdsOf } from '@/lib/graph/workflow'
 import { cn } from '@/lib/utils'
 
 export function SeverityIcon({ severity }: { severity: Diagnostic['severity'] }) {
@@ -21,13 +22,9 @@ export function SeverityIcon({ severity }: { severity: Diagnostic['severity'] })
   return <InfoIcon className="text-muted-foreground size-3.5 shrink-0" />
 }
 
-/** The step a finding is about, when it names one. */
-export function nodeIdOf(diagnostic: Diagnostic): string | undefined {
-  const data = diagnostic.data as Record<string, unknown> | undefined
-  const single = data?.['nodeId']
-  if (typeof single === 'string') return single
-  const many = data?.['nodeIds']
-  return Array.isArray(many) && typeof many[0] === 'string' ? many[0] : undefined
+/** The step to open on, when a finding names one. A finding about a cycle names several. */
+function firstNodeId(diagnostic: Diagnostic): string | undefined {
+  return nodeIdsOf(diagnostic)[0]
 }
 
 export function DiagnosticRow({
@@ -56,7 +53,7 @@ export function DiagnosticRow({
   return (
     <button
       type="button"
-      onClick={() => onNavigate(diagnostic.ref, nodeIdOf(diagnostic))}
+      onClick={() => onNavigate(diagnostic.ref, firstNodeId(diagnostic))}
       className={cn(
         'hover:bg-muted flex w-full items-start gap-2 rounded px-1 py-0.5 text-left',
         className,

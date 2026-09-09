@@ -3,15 +3,16 @@
 /**
  * The health bar: the one line that says whether this Blueprint is in good shape.
  *
- * Every number here opens the findings behind it. A count nobody can act on is decoration,
- * and the whole point of computing diagnostics against a model is that each one knows which
- * artifact it is about, down to the step inside a workflow.
+ * Every number here opens the findings behind it, so every number has to come from the same
+ * place those findings do. One report is computed and `healthSummary` reads the counts, the
+ * score and the per-target status off it, which is what stops the bar from showing three
+ * clean zeroes beside a score that a dozen findings pulled down.
  */
 import {
-  countEntities,
   type Diagnostic,
   evaluateBlueprint,
-  summarizeDiagnostics,
+  healthSummary,
+  type TargetStatus,
 } from '@agent-blueprint/core'
 import { portabilityProvider } from '@agent-blueprint/exporters'
 import {
@@ -25,10 +26,17 @@ import { useMemo, useState } from 'react'
 
 import { DiagnosticRow } from '@/components/views/diagnostic-row'
 import { cn } from '@/lib/utils'
-import { enabledTargetIds } from '@/lib/wizard/draft'
 import { useWorkspace } from '@/lib/state/workspace-store'
 
 type Severity = Diagnostic['severity']
+
+/** What a target's status means, said in words rather than only in the colour of a dot. */
+const TARGET_STATUS: Record<TargetStatus, { label: string; dot: string }> = {
+  ok: { label: 'compiles cleanly', dot: 'bg-success' },
+  adapted: { label: 'compiles, with some concepts adapted', dot: 'bg-muted-foreground' },
+  limited: { label: 'compiles, with some concepts limited', dot: 'bg-warning' },
+  blocked: { label: 'blocked by an error', dot: 'bg-danger' },
+}
 
 export function HealthBar() {
   const blueprint = useWorkspace((state) => state.blueprint)
@@ -38,25 +46,25 @@ export function HealthBar() {
   const setView = useWorkspace((state) => state.setView)
   const [open, setOpen] = useState<Severity | undefined>()
 
-  const counts = useMemo(() => summarizeDiagnostics(diagnostics), [diagnostics])
-  // Scoring walks the whole Blueprint, so it is recomputed only when the Blueprint changes.
-  const score = useMemo(
+  const report = useMemo(
     () =>
       blueprint
-        ? evaluateBlueprint(blueprint, {
-            diagnostics,
-            portability: portabilityProvider({ targets: enabledTargetIds(blueprint) }),
-          }).overall
+        ? evaluateBlueprint(blueprint, { diagnostics, portability: portabilityProvider() })
         : undefined,
     [blueprint, diagnostics],
   )
-
-  const listed = useMemo(
-    () => (open ? diagnostics.filter((diagnostic) => diagnostic.severity === open) : []),
-    [diagnostics, open],
+  const summary = useMemo(
+    () => (blueprint && report ? healthSummary(blueprint, report) : undefined),
+    [blueprint, report],
   )
 
-  if (!blueprint) return null
+  const listed = useMemo(
+    () =>
+      open ? (report?.diagnostics ?? []).filter((diagnostic) => diagnostic.severity === open) : [],
+    [report, open],
+  )
+
+  if (!blueprint || !summary) return null
 
   const toggle = (severity: Severity) =>
     setOpen((current) => (current === severity ? undefined : severity))
@@ -114,25 +122,25 @@ export function HealthBar() {
         </div>
       ) : null}
 
-      <span className="font-medium">{countEntities(blueprint)} artifacts</span>
+      <span className="font-medium">{summary.artifacts} artifacts</span>
 
       {counter(
         'error',
-        counts.errors,
-        <CircleAlertIcon className={counts.errors > 0 ? 'text-danger size-3.5' : 'size-3.5'} />,
+        summary.errors,
+        <CircleAlertIcon className={summary.errors > 0 ? 'text-danger size-3.5' : 'size-3.5'} />,
         'errors',
       )}
       {counter(
         'warning',
-        counts.warnings,
+        summary.warnings,
         <AlertTriangleIcon
-          className={counts.warnings > 0 ? 'text-warning size-3.5' : 'size-3.5'}
+          className={summary.warnings > 0 ? 'text-warning size-3.5' : 'size-3.5'}
         />,
         'warnings',
       )}
-      {counter('info', counts.infos, <InfoIcon className="size-3.5" />, 'suggestions')}
+      {counter('info', summary.infos, <InfoIcon className="size-3.5" />, 'suggestions')}
 
-      {counts.errors + counts.warnings + counts.infos > 0 ? (
+      {summary.errors + summary.warnings + summary.infos > 0 ? (
         <ChevronUpIcon className={cn('size-3', open && 'rotate-180')} aria-hidden />
       ) : null}
 
@@ -144,29 +152,26 @@ export function HealthBar() {
       ) : null}
 
       <span className="ml-auto flex items-center gap-3">
-        {blueprint.targets
-          .filter((target) => target.enabled)
-          .map((target) => (
-            <button
-              key={target.harnessId}
-              type="button"
-              onClick={() => {
-                select(undefined)
-                setView('compatibility')
-              }}
-              className="hover:bg-muted flex items-center gap-1 rounded px-1"
-            >
-              <span
-                aria-hidden
-                className={
-                  counts.errors > 0
-                    ? 'bg-danger size-2 rounded-full'
-                    : 'bg-success size-2 rounded-full'
-                }
-              />
-              {target.harnessId}
-            </button>
-          ))}
+        {summary.targets.map((target) => (
+          <button
+            key={target.harnessId}
+            type="button"
+            // The status is part of the name, not only the colour of the dot.
+            aria-label={`${target.harnessId}: ${TARGET_STATUS[target.status].label}`}
+            title={TARGET_STATUS[target.status].label}
+            onClick={() => {
+              select(undefined)
+              setView('compatibility')
+            }}
+            className="hover:bg-muted flex items-center gap-1 rounded px-1"
+          >
+            <span
+              aria-hidden
+              className={cn('size-2 rounded-full', TARGET_STATUS[target.status].dot)}
+            />
+            {target.harnessId}
+          </button>
+        ))}
         <button
           type="button"
           onClick={() => {
@@ -176,9 +181,7 @@ export function HealthBar() {
           className="hover:bg-muted rounded px-1 font-medium"
         >
           Health{' '}
-          <span className={score !== undefined && score < 70 ? 'text-warning' : ''}>
-            {score ?? '—'}
-          </span>
+          <span className={summary.overall < 70 ? 'text-warning' : ''}>{summary.overall}</span>
         </button>
       </span>
     </>

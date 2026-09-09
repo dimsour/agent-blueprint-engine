@@ -9,13 +9,12 @@ import {
 } from '@agent-blueprint/core'
 import { beforeAll, describe, expect, it } from 'vitest'
 
+import { EDGE_KIND_INFO, NODE_TYPE_INFO, WORKFLOW_NODE_SIZE } from '@/lib/graph/steps'
 import {
   addNode,
   connect,
   diagnosticsByNode,
   insertSubgraph,
-  EDGE_KIND_INFO,
-  NODE_TYPE_INFO,
   removeEdge,
   removeNode,
   setEntry,
@@ -23,7 +22,6 @@ import {
   updateEdge,
   updateNode,
   updateNodeConfig,
-  WORKFLOW_NODE_SIZE,
 } from '@/lib/graph/workflow'
 import { parseProject } from '@/lib/storage'
 

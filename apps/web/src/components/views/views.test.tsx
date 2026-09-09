@@ -129,6 +129,23 @@ describe('ExportView', () => {
     expect(screen.getByRole('list', { name: 'OpenAI Codex files' })).toBeInTheDocument()
   })
 
+  it('counts the files it is showing, and shows each of them once', async () => {
+    await load()
+    render(<ExportView />)
+
+    const rows = screen
+      .getAllByRole('list')
+      .filter((list) => /files$/.test(list.getAttribute('aria-label') ?? ''))
+      .flatMap((list) => within(list).getAllByRole('listitem'))
+
+    // The badge used to count the compiler's files while the tree listed shared files under
+    // every harness that reads them, so the number and the list disagreed by ten rows.
+    expect(screen.getByText(`${rows.length} files`)).toBeInTheDocument()
+
+    const paths = rows.map((row) => row.textContent)
+    expect(new Set(paths).size).toBe(paths.length)
+  })
+
   it('shows a file exactly as it would be written', async () => {
     const blueprint = await load()
     const compiled = compileBlueprint(blueprint)

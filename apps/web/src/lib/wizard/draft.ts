@@ -23,12 +23,13 @@ import {
   getCollection,
   isSlug,
   type HarnessId,
-  HARNESS_IDS,
   slugify,
   uniqueSlug,
   upsertEntity,
 } from '@agent-blueprint/core'
 import { templateById } from '@agent-blueprint/templates/artifacts'
+
+import { withOnlyTargets } from '@/lib/targets'
 
 export const WIZARD_STEP_IDS = [
   'about',
@@ -212,25 +213,11 @@ export function removeArtifact(draft: Blueprint, ref: EntityRef): Blueprint {
 }
 
 /**
- * Step 8. Only chosen harnesses become targets at all, rather than a row per harness with a
- * flag: an unchosen target is absent from `blueprint.yaml`, which is how the starters read.
- * Options already set for a harness survive being unchecked and rechecked in one sitting.
+ * Step 8. The rule for which harnesses a Blueprint compiles for lives in `lib/targets`,
+ * because the compatibility view and the palette change the same thing.
  */
 export function setTargets(draft: Blueprint, enabled: readonly HarnessId[]): Blueprint {
-  const wanted = HARNESS_IDS.filter((id) => enabled.includes(id))
-  return {
-    ...draft,
-    targets: wanted.map((harnessId) => {
-      const existing = draft.targets.find((target) => target.harnessId === harnessId)
-      // Being listed is what "chosen" means here, so a target that arrived disabled from an
-      // imported Blueprint is turned on when it is checked, keeping any options it carried.
-      return existing ? { ...existing, enabled: true } : { harnessId, enabled: true, options: {} }
-    }),
-  }
-}
-
-export function enabledTargetIds(draft: Blueprint): HarnessId[] {
-  return draft.targets.filter((target) => target.enabled).map((target) => target.harnessId)
+  return { ...draft, targets: withOnlyTargets(draft, enabled) }
 }
 
 /** What a step still needs before it can be called done, or undefined when it is. */

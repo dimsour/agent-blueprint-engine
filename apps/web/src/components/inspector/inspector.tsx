@@ -15,15 +15,7 @@ import {
   type EntityRef,
   getCollection,
 } from '@agent-blueprint/core'
-import {
-  AlertTriangleIcon,
-  CircleAlertIcon,
-  CopyIcon,
-  InfoIcon,
-  PencilIcon,
-  PlusIcon,
-  Trash2Icon,
-} from 'lucide-react'
+import { CopyIcon, PencilIcon, PlusIcon, Trash2Icon } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
@@ -34,6 +26,7 @@ import {
   TemplateDialog,
 } from '@/components/inspector/dialogs'
 import { PanelSection } from '@/components/layout/ide-shell'
+import { SeverityIcon } from '@/components/views/diagnostic-row'
 import { Button } from '@/components/ui/button'
 import { Badge, Card } from '@/components/ui/primitives'
 import { entityOf } from '@/lib/artifact-source'
@@ -253,13 +246,7 @@ function DiagnosticCard({
   const body = (
     <>
       <span className="flex items-center gap-1.5">
-        {diagnostic.severity === 'error' ? (
-          <CircleAlertIcon className="text-danger size-3.5 shrink-0" />
-        ) : diagnostic.severity === 'warning' ? (
-          <AlertTriangleIcon className="text-warning size-3.5 shrink-0" />
-        ) : (
-          <InfoIcon className="text-muted-foreground size-3.5 shrink-0" />
-        )}
+        <SeverityIcon severity={diagnostic.severity} />
         <Badge variant="outline" className="font-mono">
           {diagnostic.code}
         </Badge>

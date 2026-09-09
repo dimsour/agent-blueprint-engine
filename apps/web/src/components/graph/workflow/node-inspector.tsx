@@ -6,6 +6,10 @@
  * A step's configuration is a flat bag of optional fields on purpose, so that changing a
  * step's type does not lose what was already written. This shows the fields that type
  * actually uses, and nothing else, which is what makes the bag readable.
+ *
+ * It is also the only place a connection can be made without a mouse, and the only place the
+ * kind of a connection is chosen while making it: dragging between two handles always draws
+ * a sequential edge, and a keyboard user has no drag at all.
  */
 import {
   type Blueprint,
@@ -19,7 +23,8 @@ import {
   WORKFLOW_EDGE_KINDS,
   WORKFLOW_NODE_TYPES,
 } from '@agent-blueprint/core'
-import { FlagIcon, Trash2Icon } from 'lucide-react'
+import { ArrowRightIcon, FlagIcon, Trash2Icon } from 'lucide-react'
+import { useState } from 'react'
 
 import {
   Field,
@@ -31,10 +36,9 @@ import {
 } from '@/components/editors/fields'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/primitives'
+import { EDGE_KIND_INFO, type EdgeKind, type NodeType, NODE_TYPE_INFO } from '@/lib/graph/steps'
 import {
-  EDGE_KIND_INFO,
-  type NodeType,
-  NODE_TYPE_INFO,
+  connect,
   removeEdge,
   removeNode,
   setEntry,
@@ -52,6 +56,89 @@ export interface InspectorProps {
 
 function refOptions(blueprint: Blueprint, kind: Parameters<typeof getCollection>[1]) {
   return getCollection(blueprint, kind).map((entity) => ({ id: entity.id, name: entity.name }))
+}
+
+/**
+ * The method a verification step uses.
+ *
+ * Both controls read it through here, because they used to disagree: the picker showed one
+ * default and typing a command wrote another, so a step could be saved as something other
+ * than what the panel had been showing all along.
+ */
+function verificationMethod(
+  config: Record<string, unknown>,
+): (typeof VERIFICATION_METHODS)[number] {
+  const method = (config['verification'] as { method?: string } | undefined)?.method
+  return VERIFICATION_METHODS.includes(method as (typeof VERIFICATION_METHODS)[number])
+    ? (method as (typeof VERIFICATION_METHODS)[number])
+    : 'command'
+}
+
+/** What this step leads to, and the way to add one more without dragging. */
+function Connections({
+  node,
+  workflow,
+  onChange,
+}: {
+  node: WorkflowNode
+  workflow: Workflow
+  onChange: (workflow: Workflow) => void
+}) {
+  const [kind, setKind] = useState<EdgeKind>('sequential')
+
+  const outgoing = workflow.edges.filter((edge) => edge.from === node.id)
+  const labelOf = (id: string) => workflow.nodes.find((step) => step.id === id)?.label ?? id
+  const candidates = workflow.nodes
+    .filter((step) => step.id !== node.id)
+    .filter((step) => !outgoing.some((edge) => edge.to === step.id))
+    .map((step) => ({ id: step.id, name: step.label }))
+
+  return (
+    <div className="flex flex-col gap-3 border-t pt-3">
+      <Field label="Leads to">
+        {outgoing.length === 0 ? (
+          <p className="text-muted-foreground text-xs">Nothing yet.</p>
+        ) : (
+          <ul aria-label="Leads to" className="flex flex-col gap-1">
+            {outgoing.map((edge) => (
+              <li key={edge.id} className="flex items-center gap-1.5 text-xs">
+                <ArrowRightIcon className="text-muted-foreground size-3 shrink-0" />
+                <span className="min-w-0 flex-1 truncate">{labelOf(edge.to)}</span>
+                <Badge variant="outline">{edge.kind}</Badge>
+                <button
+                  type="button"
+                  aria-label={`Disconnect ${labelOf(edge.to)}`}
+                  onClick={() => onChange(removeEdge(workflow, edge.id))}
+                  className="hover:bg-muted rounded p-0.5"
+                >
+                  <Trash2Icon className="text-danger size-3" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Field>
+
+      <SelectField
+        label="Kind of the next connection"
+        value={kind}
+        options={WORKFLOW_EDGE_KINDS}
+        onChange={setKind}
+        help={EDGE_KIND_INFO[kind].hint}
+      />
+
+      <RefListField
+        label="Connect to"
+        selected={[]}
+        options={candidates}
+        onChange={(ids) => {
+          const to = ids.at(-1)
+          if (to) onChange(connect(workflow, node.id, to, kind))
+        }}
+        help="Choosing a step draws the connection. Dragging between two steps does the same, always as sequential."
+      />
+    </div>
+  )
 }
 
 export function NodePanel({
@@ -137,10 +224,7 @@ export function NodePanel({
         <>
           <SelectField
             label="How it is verified"
-            value={
-              ((config['verification'] as { method?: string } | undefined)?.method ??
-                'tests') as (typeof VERIFICATION_METHODS)[number]
-            }
+            value={verificationMethod(config)}
             options={VERIFICATION_METHODS}
             onChange={(method) =>
               setConfig({
@@ -158,9 +242,7 @@ export function NodePanel({
             onChange={(command) =>
               setConfig({
                 verification: {
-                  method:
-                    (config['verification'] as { method?: string } | undefined)?.method ??
-                    'command',
+                  method: verificationMethod(config),
                   ...(command ? { command } : {}),
                 },
               })
@@ -221,6 +303,8 @@ export function NodePanel({
         options={NODE_FAILURE_BEHAVIORS}
         onChange={(onFailure) => setConfig({ onFailure })}
       />
+
+      <Connections node={node} workflow={workflow} onChange={onChange} />
 
       <div className="flex flex-wrap gap-1.5">
         <Button

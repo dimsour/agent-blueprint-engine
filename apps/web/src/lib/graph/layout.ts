@@ -10,7 +10,7 @@
  * moves about between renders, and a tidy that wrote different positions each time would
  * make every workflow a source of spurious diffs.
  */
-import ELK, { type ElkNode } from 'elkjs/lib/elk.bundled.js'
+import type { ElkNode } from 'elkjs/lib/elk.bundled.js'
 
 export interface LayoutNode {
   id: string
@@ -37,10 +37,22 @@ export interface LayoutOptions {
 export type Positions = Record<string, { x: number; y: number }>
 
 /**
- * ELK is stateful enough that a shared instance is cheaper than one per call, and the
- * bundled build runs without a worker, which is what lets tests use it unchanged.
+ * ELK arrives when a layout is first asked for, not when the workspace loads.
+ *
+ * The bundled build is a megabyte and a half, and it runs without a worker, which is what
+ * lets the tests call it unchanged. Importing it at the top of this module put all of that
+ * on the critical path of every project, including for someone who only wanted to read the
+ * export view. Loading it here costs one await the first time a graph is drawn.
+ *
+ * The instance is shared because ELK holds state across calls and one is cheaper than one
+ * per layout.
  */
-const elk = new ELK()
+let engine: Promise<{ layout(graph: ElkNode): Promise<ElkNode> }> | undefined
+
+function elk() {
+  engine ??= import('elkjs/lib/elk.bundled.js').then((module) => new module.default())
+  return engine
+}
 
 /** Rounded so a position is stable to the pixel and cheap to compare in a test. */
 function round(value: number | undefined): number {
@@ -78,7 +90,7 @@ export async function layoutGraph(
       .map((edge) => ({ id: edge.id, sources: [edge.source], targets: [edge.target] })),
   }
 
-  const laid = await elk.layout(graph)
+  const laid = await (await elk()).layout(graph)
   const positions: Positions = {}
   for (const child of laid.children ?? []) {
     positions[child.id] = { x: round(child.x), y: round(child.y) }

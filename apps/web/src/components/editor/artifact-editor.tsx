@@ -90,7 +90,8 @@ export function ArtifactEditor({ selection }: { selection: EntityRef }) {
 
       {hasGraph ? (
         <TabsContent value="graph" className="min-h-0">
-          <WorkflowEditor workflowId={selection.id} />
+          {/* Keyed so a step selected in one workflow does not appear selected in another. */}
+          <WorkflowEditor key={selection.id} workflowId={selection.id} />
         </TabsContent>
       ) : null}
 

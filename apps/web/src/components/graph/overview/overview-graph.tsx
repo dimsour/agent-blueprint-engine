@@ -10,7 +10,7 @@
  * Positions are computed, never stored. Clicking a node selects the artifact, so the graph
  * is also a way of navigating rather than only a picture.
  */
-import { ENTITY_KIND_INFO, ENTITY_KINDS, type EntityKind } from '@agent-blueprint/core'
+import { ENTITY_KIND_INFO, type EntityKind } from '@agent-blueprint/core'
 import {
   Background,
   Controls,
@@ -32,6 +32,7 @@ import { Badge } from '@/components/ui/primitives'
 import { layoutGraph } from '@/lib/graph/layout'
 import {
   kindColor,
+  kindsPresent,
   type OverviewGraph as OverviewModel,
   type OverviewNode,
   overviewGraph,
@@ -48,6 +49,9 @@ function ArtifactNodeView({ data }: NodeProps<ArtifactNode>) {
     <div
       className={cn(
         'bg-card flex items-center gap-2 rounded-md border px-2.5 py-2 text-left shadow-sm',
+        // The primary agent compiles to the root instruction file, which is the single most
+        // consequential fact about a Blueprint's shape.
+        artifact.isPrimary && 'border-success border-2',
         selected && 'border-accent ring-accent/40 ring-2',
         artifact.severity === 'error' && 'border-danger',
         artifact.severity === 'warning' && !selected && 'border-warning',
@@ -63,18 +67,24 @@ function ArtifactNodeView({ data }: NodeProps<ArtifactNode>) {
       <span className="min-w-0 flex-1">
         <span className="block truncate text-xs font-medium">{artifact.name}</span>
         <span className="text-muted-foreground block truncate text-[10px]">
-          {artifact.kindLabel}
+          {artifact.isPrimary ? `${artifact.kindLabel} · primary` : artifact.kindLabel}
         </span>
       </span>
+      {/*
+        An orphan always carries a warning too, so these cannot be alternatives: showing
+        only the severity meant the orphan marker could never appear.
+      */}
+      {artifact.isOrphan ? (
+        <span
+          aria-hidden
+          className="border-muted-foreground size-2 shrink-0 rounded-full border border-dashed"
+          title="Nothing refers to this artifact"
+        />
+      ) : null}
       {artifact.severity === 'error' ? (
         <CircleAlertIcon className="text-danger size-3 shrink-0" />
       ) : artifact.severity === 'warning' ? (
         <AlertTriangleIcon className="text-warning size-3 shrink-0" />
-      ) : artifact.isOrphan ? (
-        <span
-          className="border-muted-foreground/50 size-2 shrink-0 rounded-full border border-dashed"
-          title="Nothing refers to this artifact"
-        />
       ) : null}
       <Handle type="source" position={Position.Bottom} className="!bg-border !border-0" />
     </div>
@@ -101,6 +111,7 @@ function Graph({ kinds }: { kinds: ReadonlySet<EntityKind> }) {
   // The laid-out nodes are kept with the model they came from, so "is this current" is a
   // comparison rather than a second piece of state that has to be kept in step.
   const [layout, setLayout] = useState<{ model: OverviewModel; nodes: ArtifactNode[] }>()
+  const [failed, setFailed] = useState<string>()
   const laidOut = layout?.model === model
 
   // Layout is asynchronous, so state is set from the callback, never in the effect body.
@@ -109,19 +120,24 @@ function Graph({ kinds }: { kinds: ReadonlySet<EntityKind> }) {
     void layoutGraph(
       model.nodes.map((node) => ({ id: node.id, ...OVERVIEW_NODE_SIZE })),
       model.edges,
-    ).then((positions) => {
-      if (cancelled) return
-      setLayout({
-        model,
-        nodes: model.nodes.map((node) => ({
-          id: node.id,
-          type: 'artifact' as const,
-          position: positions[node.id] ?? { x: 0, y: 0 },
-          data: { artifact: node, selected: false },
-          draggable: false,
-        })),
+    )
+      .then((positions) => {
+        if (cancelled) return
+        setLayout({
+          model,
+          nodes: model.nodes.map((node) => ({
+            id: node.id,
+            type: 'artifact' as const,
+            position: positions[node.id] ?? { x: 0, y: 0 },
+            data: { artifact: node, selected: false },
+            draggable: false,
+          })),
+        })
       })
-    })
+      .catch((error: unknown) => {
+        // Without this the spinner below would run for ever behind an empty canvas.
+        if (!cancelled) setFailed(error instanceof Error ? error.message : String(error))
+      })
     return () => {
       cancelled = true
     }
@@ -176,7 +192,14 @@ function Graph({ kinds }: { kinds: ReadonlySet<EntityKind> }) {
 
   return (
     <div className="relative h-full w-full">
-      {!laidOut ? (
+      {failed ? (
+        <p
+          role="alert"
+          className="text-danger absolute inset-0 z-10 flex items-center justify-center p-4 text-sm"
+        >
+          The graph could not be laid out: {failed}
+        </p>
+      ) : !laidOut ? (
         <p className="text-muted-foreground absolute inset-0 z-10 flex items-center justify-center gap-2 text-sm">
           <LoaderIcon className="size-4 animate-spin" />
           Working out the shape…
@@ -203,13 +226,9 @@ export function OverviewGraph() {
   const blueprint = useWorkspace((state) => state.blueprint)
   const [hidden, setHidden] = useState<ReadonlySet<EntityKind>>(new Set())
 
-  // Only kinds that exist are worth offering as a filter.
-  const present = useMemo(() => {
-    if (!blueprint) return []
-    return ENTITY_KINDS.filter(
-      (kind) => overviewGraph(blueprint, { kinds: [kind] }).nodes.length > 0,
-    )
-  }, [blueprint])
+  // Only kinds that exist are worth offering as a filter. Asking the model once per kind
+  // rebuilt the whole dependency graph twelve times over.
+  const present = useMemo(() => (blueprint ? kindsPresent(blueprint) : []), [blueprint])
 
   const shown = useMemo(
     () => new Set(present.filter((kind) => !hidden.has(kind))),

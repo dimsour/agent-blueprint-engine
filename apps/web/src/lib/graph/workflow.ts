@@ -9,6 +9,9 @@
  * Positions are part of a workflow and are written to the project file, unlike the overview
  * graph. That is why `tidy` uses the same deterministic layout: a tidy that placed nodes
  * differently each time would turn every use of it into a spurious diff.
+ *
+ * The names and colours of the step types live in `graph/steps`, so that reading them does
+ * not pull in the layout engine.
  */
 import {
   type Diagnostic,
@@ -17,70 +20,10 @@ import {
   type Workflow,
   type WorkflowEdge,
   type WorkflowNode,
-  type WORKFLOW_EDGE_KINDS,
-  type WORKFLOW_NODE_TYPES,
 } from '@agent-blueprint/core'
 
 import { layoutGraph } from '@/lib/graph/layout'
-
-export type NodeType = (typeof WORKFLOW_NODE_TYPES)[number]
-export type EdgeKind = (typeof WORKFLOW_EDGE_KINDS)[number]
-
-export interface NodeTypeInfo {
-  label: string
-  /** What the step does, shown in the palette. */
-  hint: string
-  hue: number
-  /** Which artifact, if any, this type of step points at. */
-  refField?: 'agentId' | 'skillId' | 'toolId' | 'gateId'
-}
-
-/**
- * The sixteen step types, with the wording the palette uses. The hue groups them: work is
- * blue-ish, checks are green, control flow is amber, and the ends are neutral.
- */
-export const NODE_TYPE_INFO: Record<NodeType, NodeTypeInfo> = {
-  start: { label: 'Start', hint: 'Where the workflow begins', hue: 250 },
-  end: { label: 'End', hint: 'Where it finishes', hue: 250 },
-  agent: { label: 'Agent', hint: 'An agent does the work', hue: 264, refField: 'agentId' },
-  skill: { label: 'Skill', hint: 'Apply a skill', hue: 200, refField: 'skillId' },
-  tool: { label: 'Tool', hint: 'Use a tool', hue: 140, refField: 'toolId' },
-  condition: { label: 'Condition', hint: 'Branch on a question', hue: 60 },
-  verification: { label: 'Verification', hint: 'Prove it worked', hue: 150 },
-  review: { label: 'Review', hint: 'Another pass over the work', hue: 170 },
-  gate: { label: 'Gate', hint: 'A checkpoint that can stop it', hue: 25, refField: 'gateId' },
-  'human-approval': { label: 'Human approval', hint: 'Ask a person', hue: 320 },
-  output: { label: 'Output', hint: 'Produce the result', hue: 230 },
-  parallel: { label: 'Parallel', hint: 'Split into branches', hue: 45 },
-  merge: { label: 'Merge', hint: 'Bring the branches back', hue: 45 },
-  retry: { label: 'Retry', hint: 'Try again, up to a limit', hue: 30 },
-  delegate: { label: 'Delegate', hint: 'Hand off to another agent', hue: 290, refField: 'agentId' },
-  synthesis: { label: 'Synthesis', hint: 'Combine what came back', hue: 210 },
-}
-
-export interface EdgeKindInfo {
-  label: string
-  hint: string
-  dashed: boolean
-}
-
-export const EDGE_KIND_INFO: Record<EdgeKind, EdgeKindInfo> = {
-  sequential: { label: 'Then', hint: 'The ordinary next step', dashed: false },
-  parallel: { label: 'In parallel', hint: 'Runs alongside its siblings', dashed: false },
-  conditional: { label: 'If', hint: 'Taken when the condition holds', dashed: true },
-  fallback: { label: 'Otherwise', hint: 'Taken when the others do not', dashed: true },
-  retry: { label: 'Retry', hint: 'Goes back to try again', dashed: true },
-  delegation: { label: 'Delegates to', hint: 'Hands the work over', dashed: false },
-  review: { label: 'For review', hint: 'Sends the work to be checked', dashed: false },
-  aggregation: { label: 'Collects into', hint: 'Feeds a merge or synthesis', dashed: false },
-}
-
-export function nodeColor(type: NodeType): string {
-  return `oklch(0.62 0.15 ${NODE_TYPE_INFO[type].hue})`
-}
-
-/** Node box used for layout, matched by the CSS so edges meet the boxes they connect. */
-export const WORKFLOW_NODE_SIZE = { width: 190, height: 52 } as const
+import { type EdgeKind, NODE_TYPE_INFO, type NodeType, WORKFLOW_NODE_SIZE } from '@/lib/graph/steps'
 
 function nodeIds(workflow: Workflow): string[] {
   return workflow.nodes.map((node) => node.id)
@@ -240,11 +183,18 @@ export function insertSubgraph(
       return { ...edge, id, from: renamed.get(edge.from)!, to: renamed.get(edge.to)! }
     })
 
-  // Placed to one side of what is already drawn, so the insertion is visible rather than
-  // buried under the existing steps. Tidy is one click away for anyone who wants it neat.
+  // Placed clear of what is already drawn, measured against the target rather than against
+  // the template's own coordinates: templates are all laid out around x = 0, so a fixed
+  // offset put the second insertion exactly on top of the first.
+  const right = workflow.nodes.reduce(
+    (edge, node) => Math.max(edge, node.position.x + WORKFLOW_NODE_SIZE.width),
+    0,
+  )
+  const left = nodes.reduce((edge, node) => Math.min(edge, node.position.x), 0)
+  const offset = workflow.nodes.length === 0 ? 0 : right + 80 - left
   const placed = nodes.map((node) => ({
     ...node,
-    position: { x: node.position.x + 320, y: node.position.y },
+    position: { x: node.position.x + offset, y: node.position.y },
   }))
 
   return {
@@ -283,25 +233,32 @@ export async function tidy(workflow: Workflow): Promise<Workflow> {
   }
 }
 
+/**
+ * Every step a diagnostic names.
+ *
+ * The workflow rules put the step in `data.nodeId`, or several in `data.nodeIds` when the
+ * finding is about a cycle. This is the one place that shape is read.
+ */
+export function nodeIdsOf(diagnostic: Diagnostic): string[] {
+  const data = diagnostic.data as Record<string, unknown> | undefined
+  if (!data) return []
+  const one = typeof data['nodeId'] === 'string' ? [data['nodeId']] : []
+  const many = Array.isArray(data['nodeIds'])
+    ? data['nodeIds'].filter((id): id is string => typeof id === 'string')
+    : []
+  return [...one, ...many]
+}
+
 /** Diagnostics that name a step, keyed by that step's id. */
 export function diagnosticsByNode(
   diagnostics: readonly Diagnostic[],
   workflowId: string,
 ): Map<string, Diagnostic[]> {
   const byNode = new Map<string, Diagnostic[]>()
-
-  const add = (nodeId: unknown, diagnostic: Diagnostic) => {
-    if (typeof nodeId !== 'string') return
-    byNode.set(nodeId, [...(byNode.get(nodeId) ?? []), diagnostic])
-  }
-
   for (const diagnostic of diagnostics) {
     if (diagnostic.ref?.kind !== 'workflow' || diagnostic.ref.id !== workflowId) continue
-    const data = diagnostic.data as Record<string, unknown> | undefined
-    if (!data) continue
-    add(data['nodeId'], diagnostic)
-    if (Array.isArray(data['nodeIds'])) {
-      for (const id of data['nodeIds']) add(id, diagnostic)
+    for (const nodeId of nodeIdsOf(diagnostic)) {
+      byNode.set(nodeId, [...(byNode.get(nodeId) ?? []), diagnostic])
     }
   }
   return byNode

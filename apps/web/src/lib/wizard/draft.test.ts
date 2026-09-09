@@ -2,13 +2,13 @@ import { blueprintSchema, validateBlueprint } from '@agent-blueprint/core'
 import { templatesForKind } from '@agent-blueprint/templates/artifacts'
 import { describe, expect, it } from 'vitest'
 
+import { enabledTargetIds } from '@/lib/targets'
 import {
   addBlank,
   addFromTemplate,
   blockingReason,
   DRAFT_PLACEHOLDER_NAME,
   emptyDraft,
-  enabledTargetIds,
   primaryAgent,
   removeArtifact,
   setAgent,

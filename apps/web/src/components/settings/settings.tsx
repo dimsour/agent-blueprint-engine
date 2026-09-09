@@ -18,19 +18,13 @@ import { ThemeToggle } from '@/components/theme'
 import { Button } from '@/components/ui/button'
 import { Badge, Card } from '@/components/ui/primitives'
 import { useClientValue } from '@/lib/client-value'
+import { formatBytes } from '@/lib/utils'
 import {
   clearDraft,
   fileSystemAccessSupported,
   indexedDbStore,
   type ProjectSummary,
 } from '@/lib/storage'
-
-/** Bytes as a short human string. */
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} kB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
 
 function Pending({
   icon,

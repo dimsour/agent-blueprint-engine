@@ -32,15 +32,25 @@ import { PanelSection } from '@/components/layout/ide-shell'
 import { Badge } from '@/components/ui/primitives'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { diagnosticsFor, useWorkspace } from '@/lib/state/workspace-store'
+import {
+  diagnosticsFor,
+  REPORT_VIEWS,
+  type ReportView,
+  useWorkspace,
+} from '@/lib/state/workspace-store'
 
-/** The sections that are about the Blueprint rather than about one artifact. */
-const REPORTS = [
-  { id: 'overview' as const, label: 'Overview', icon: LayoutGridIcon },
-  { id: 'evaluation' as const, label: 'Evaluation', icon: GaugeIcon },
-  { id: 'compatibility' as const, label: 'Compatibility', icon: LayersIcon },
-  { id: 'export' as const, label: 'Export', icon: DownloadIcon },
-]
+/**
+ * The sections that are about the Blueprint rather than about one artifact.
+ *
+ * Keyed by `ReportView` and listed in `REPORT_VIEWS` order, so adding a report the tree does
+ * not name is a type error rather than a section nobody can reach.
+ */
+const REPORT_INFO: Record<ReportView, { label: string; icon: typeof LayoutGridIcon }> = {
+  overview: { label: 'Overview', icon: LayoutGridIcon },
+  evaluation: { label: 'Evaluation', icon: GaugeIcon },
+  compatibility: { label: 'Compatibility', icon: LayersIcon },
+  export: { label: 'Export', icon: DownloadIcon },
+}
 
 export function ProjectTree() {
   const blueprint = useWorkspace((state) => state.blueprint)
@@ -81,7 +91,8 @@ export function ProjectTree() {
   return (
     <PanelSection title="Project">
       <nav aria-label="Blueprint artifacts" className="py-1">
-        {REPORTS.map(({ id, label, icon: Icon }) => {
+        {REPORT_VIEWS.map((id) => {
+          const { label, icon: Icon } = REPORT_INFO[id]
           const active = !selection && view === id
           return (
             <button

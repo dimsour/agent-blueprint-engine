@@ -403,7 +403,7 @@ function KindFields({ kind, entity, blueprint, update }: KindFieldProps) {
           />
           <Field
             label="Steps"
-            help="The graph editor arrives in roadmap P4. Until then, steps are edited in the project file."
+            help="Steps are drawn on the Graph tab. This is only what is there now."
           >
             <p className="text-muted-foreground text-sm">
               {(entity['nodes'] as unknown[] | undefined)?.length ?? 0} steps,{' '}

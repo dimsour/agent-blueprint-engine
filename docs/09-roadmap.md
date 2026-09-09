@@ -26,8 +26,8 @@ The backlog for building Agent Blueprint. Phases follow the plan; tasks inside a
 | P1 Core semantics | done  | P1-01 to P1-09 implemented and tested, including 29 artifact templates and 10 starter blueprints.                                                                                                                                         |
 | P2 Compiler       | done  | P2-01 to P2-09 implemented: adapter interface, registry, shared emitters, pipeline, build manifest, Claude Code and Codex in full, Copilot/OpenCode/Pi minimal, portability, golden tests.                                                |
 | P3 Web shell      | done  | P3-01 to P3-11 implemented and then reviewed end to end: the review found eight defects (undo across projects, non-deterministic export, a hydration failure and five more), and the gaps it found against docs/07 were built. See P3-12. |
-| P4 Graphs         | done  | P4-01 to P4-04: the overview graph, the workflow editor with all sixteen step types and eight connection kinds, tidy and template insertion, and the delete-impact dialog.                                                                |
-| P5 Trust surfaces | done  | P5-01 to P5-05: the health bar opens its findings, the evaluation and compatibility views, the export view with compiled output, and the rename dialog with a slug preview.                                                               |
+| P4 Graphs         | done  | P4-01 to P4-04: the overview graph, the workflow editor with all sixteen step types and eight connection kinds, tidy and template insertion, and the delete-impact dialog. Reviewed with P5; see P5-06.                                   |
+| P5 Trust surfaces | done  | P5-01 to P5-05: the health bar opens its findings, the evaluation and compatibility views, the export view with compiled output, and the rename dialog with a slug preview. P5-06 reviewed P4 and P5 end to end and fixed what it found.  |
 | P6 onward         | to do | P6 (AI), P7 (GitHub) and P8 (hardening) are specified below and not started.                                                                                                                                                              |
 
 ## P0 — Foundation (done)
@@ -368,6 +368,15 @@ Verification: `pnpm check` green; `pnpm --filter @agent-blueprint/core test` sho
 - Description: Rename dialog with slug preview, collision detection, "references updated: n" toast.
 - Acceptance: unit test.
 - Verify: `pnpm --filter web test`
+
+### P5-06 Review of P4 and P5 (done)
+
+- Package: `apps/web`
+- Description: A full review of the graphs and the trust surfaces before starting P6. Fixed: three surfaces each deciding for themselves what an enabled compile target is, one of which appended a duplicate row and turned a `BP-TARGET-002` error on by clicking a harness twice — now one rule in `lib/targets.ts`; the health bar computing its counts from one report and its score from another, so it showed three zeroes beside a score of 97, and scoring 100 for portability with no target at all; the export view's badge counting 38 files while the tree listed 28, because shared files were listed under every harness that reads them; two uncaught `ZodError`s in the workflow editor, one of which took the editor down with it; a template inserted twice landing on top of itself; and a `Tidy` whose result could overwrite anything edited while it was being laid out.
+- Also: the step palette can be used from the keyboard, and the step panel is the keyboard path to a connection and the only place its kind is chosen while connecting, which closes the edge-kind gap P4-02 specified; the two verification controls agreed to disagree about their default and now read one function; ELK is imported lazily, so the step names no longer pull the layout engine into the first load.
+- Removed: the export dialog, which was a strict subset of the export view and wrote the same file name; a dead URL helper; a hand-written report list in the tree, now derived from `REPORT_VIEWS`, so a report the tree cannot reach is a type error.
+- Acceptance: the export archive holds `blueprint/` and `.claude/`; a dragged step keeps its position across a reload; a connection made from the panel appears with the kind that was chosen; the health bar's counts open exactly that many findings.
+- Verify: `pnpm check` and `pnpm --filter web test:e2e`
 
 ## P6 — AI
 

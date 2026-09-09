@@ -4,15 +4,14 @@
  * The workspace: loads a project from local storage into the store and renders the IDE.
  *
  * The three regions are independent: the tree selects, the canvas edits, the inspector
- * explains. The graph editors (roadmap P4) replace the canvas in place without touching
- * either of the others.
+ * explains. The graph editors sit in the canvas as one more tab, so adding them touched
+ * neither of the others.
  */
 import { ENTITY_KIND_INFO, ENTITY_KINDS, getCollection } from '@agent-blueprint/core'
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 
 import { CommandPalette } from '@/components/command-palette/command-palette'
-import { ExportDialog } from '@/components/export/export-dialog'
 import { OverviewGraph } from '@/components/graph/overview/overview-graph'
 import { CompatibilityView } from '@/components/views/compatibility-view'
 import { EvaluationView } from '@/components/views/evaluation-view'
@@ -37,14 +36,20 @@ export function Workspace({ projectId }: { projectId: string }) {
   const loadedId = useWorkspace((state) => state.projectId)
   const [error, setError] = useState<string | undefined>()
   const [paletteOpen, setPaletteOpen] = useState(false)
-  const [exportOpen, setExportOpen] = useState(false)
+
+  /** Export is a section of the workspace, so every route to it lands in the same place. */
+  const showExport = () => {
+    const state = useWorkspace.getState()
+    state.select(undefined)
+    state.setView('export')
+  }
 
   // `?view=` and `&id=` make an artifact linkable; the sync runs once the project is in.
   useUrlState(projectId, blueprint !== undefined && loadedId === projectId)
 
   useShortcuts({
     palette: () => setPaletteOpen((current) => !current),
-    export: () => setExportOpen(true),
+    export: () => showExport(),
     save: () => void useWorkspace.getState().save(),
     undo: workspaceHistory.undo,
     redo: workspaceHistory.redo,
@@ -98,7 +103,7 @@ export function Workspace({ projectId }: { projectId: string }) {
         topBar={
           <TopBar
             onOpenPalette={() => setPaletteOpen(true)}
-            onExport={() => setExportOpen(true)}
+            onExport={showExport}
             onValidate={() => void validateNow()}
           />
         }
@@ -108,12 +113,7 @@ export function Workspace({ projectId }: { projectId: string }) {
       >
         <Canvas />
       </IdeShell>
-      <CommandPalette
-        open={paletteOpen}
-        onOpenChange={setPaletteOpen}
-        onExport={() => setExportOpen(true)}
-      />
-      <ExportDialog open={exportOpen} onOpenChange={setExportOpen} />
+      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
     </>
   )
 }

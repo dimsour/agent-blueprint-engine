@@ -8,22 +8,20 @@
  * satisfied it. A number without its reasons would be worse than no number.
  */
 import {
-  type Diagnostic,
   evaluateBlueprint,
   type EntityRef,
   ENTITY_KIND_INFO,
   type RequirementResult,
-  validateBlueprint,
 } from '@agent-blueprint/core'
 import { portabilityProvider } from '@agent-blueprint/exporters'
 import { CheckIcon, CircleAlertIcon, MinusIcon, RefreshCwIcon, XIcon } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 
+import { validateNow } from '@/lib/actions'
 import { DiagnosticRow } from '@/components/views/diagnostic-row'
 import { Button } from '@/components/ui/button'
 import { Badge, Card } from '@/components/ui/primitives'
 import { cn } from '@/lib/utils'
-import { enabledTargetIds } from '@/lib/wizard/draft'
 import { useWorkspace } from '@/lib/state/workspace-store'
 
 function scoreTone(score: number): string {
@@ -42,20 +40,19 @@ const STATUS_ICON: Record<RequirementResult['status'], React.ReactNode> = {
 
 export function EvaluationView() {
   const blueprint = useWorkspace((state) => state.blueprint)
-  const stored = useWorkspace((state) => state.diagnostics)
+  const diagnostics = useWorkspace((state) => state.diagnostics)
+  const validating = useWorkspace((state) => state.validating)
   const select = useWorkspace((state) => state.select)
-  // Bumped by "Run again", so a report can be recomputed without changing the Blueprint.
-  const [run, setRun] = useState(0)
 
-  const report = useMemo(() => {
-    if (!blueprint) return undefined
-    const diagnostics: Diagnostic[] = run === 0 ? stored : validateBlueprint(blueprint)
-    return evaluateBlueprint(blueprint, {
-      diagnostics,
-      portability: portabilityProvider({ targets: enabledTargetIds(blueprint) }),
-    })
-    // `run` is a dependency on purpose: it is what makes this recompute on demand.
-  }, [blueprint, stored, run])
+  // Always the store's diagnostics. "Run again" refreshes those rather than computing a
+  // second, private set, so this view and the health bar can never describe different runs.
+  const report = useMemo(
+    () =>
+      blueprint
+        ? evaluateBlueprint(blueprint, { diagnostics, portability: portabilityProvider() })
+        : undefined,
+    [blueprint, diagnostics],
+  )
 
   if (!blueprint || !report) return null
 
@@ -72,8 +69,13 @@ export function EvaluationView() {
         <span className="text-muted-foreground flex-1 text-sm">
           A weighted mean of the dimensions below. Every point lost has a finding behind it.
         </span>
-        <Button variant="outline" size="sm" onClick={() => setRun((current) => current + 1)}>
-          <RefreshCwIcon className="size-3" />
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={validating}
+          onClick={() => void validateNow()}
+        >
+          <RefreshCwIcon className={cn('size-3', validating && 'animate-spin')} />
           Run again
         </Button>
       </div>

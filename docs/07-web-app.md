@@ -1,14 +1,16 @@
 # Web App
 
-This document specifies `apps/web`: routes, layout, state model, persistence, the creation wizard, the ChangeSet review experience, keyboard interaction and the design language. Phase P3 is built: the dashboard, the workspace, the editors, the inspector, the command palette, the wizard, and ZIP import and export. What is described here for P4 (graphs), P5 (trust surfaces), P6 (AI) and P7 (GitHub) is still specification; each such section says which phase owns it.
+This document specifies `apps/web`: routes, layout, state model, persistence, the creation wizard, the ChangeSet review experience, keyboard interaction and the design language. Phases P3, P4 and P5 are built: the dashboard, the workspace, the editors, the inspector, the command palette, the wizard, ZIP import and export, the overview graph and the workflow editor, and the trust surfaces (health bar, diagnostics, evaluation, compatibility, export). What is described here for P6 (AI) and P7 (GitHub) is still specification; each such section says which phase owns it.
 
 ## Status
 
 | Area                                                                            | Status                           |
 | ------------------------------------------------------------------------------- | -------------------------------- |
 | Next.js App Router, Tailwind v4 tokens, shadcn `components.json`, `cn()` helper | present                          |
-| Placeholder dashboard page                                                      | present                          |
-| Everything below                                                                | planned; phase noted per section |
+| Dashboard, workspace, editors, inspector, palette, wizard, import and export    | present (P3)                     |
+| Overview graph, workflow editor, delete-impact dialog                           | present (P4)                     |
+| Health bar, diagnostics, evaluation, compatibility and export views             | present (P5)                     |
+| AI and GitHub                                                                   | planned; phase noted per section |
 
 ## Routes
 
@@ -113,12 +115,12 @@ interface ProjectStore {
 
 A store moves `Record<path, content>` and never has to understand the model, which is what lets one code path serve IndexedDB and a real folder. ZIP is not a store: it has no list and no identity, so it is a pair of functions. `VirtualFs` stays inside `core`; the app hands file maps to `readProject` and takes them from `renderProjectFiles`.
 
-| Tier    | Backend                           | Behaviour                                                                                                                                   |
-| ------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| Draft   | IndexedDB (`idb`)                 | Work with no project behind it yet, such as the creation wizard. Written on a timer and offered again on the next visit                     |
-| Project | IndexedDB                         | Autosaved through `renderProjectFiles` about a second after the last edit, and on Save. Leaving a project writes its pending edit first     |
-| Folder  | File System Access API (Chromium) | Open a real directory. Its contents are read into a project; writing back to the directory is not built yet, see the note below             |
-| Archive | ZIP (`jszip`)                     | Export writes the source project (compiled output is added with the export view, P5-04); import accepts a ZIP, a folder, or a lone manifest |
+| Tier    | Backend                           | Behaviour                                                                                                                               |
+| ------- | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Draft   | IndexedDB (`idb`)                 | Work with no project behind it yet, such as the creation wizard. Written on a timer and offered again on the next visit                 |
+| Project | IndexedDB                         | Autosaved through `renderProjectFiles` about a second after the last edit, and on Save. Leaving a project writes its pending edit first |
+| Folder  | File System Access API (Chromium) | Open a real directory. Its contents are read into a project; writing back to the directory is not built yet, see the note below         |
+| Archive | ZIP (`jszip`)                     | Export writes the source project and the compiled output together; import accepts a ZIP, a folder, or a lone manifest                   |
 
 Autosave writes the project itself rather than a separate draft, so nothing is lost when a tab closes, and Save is a way to hurry that rather than the thing that makes an edit durable. Import never trusts anything but the files.
 
@@ -128,7 +130,7 @@ Opening a folder currently copies it into the browser and edits the copy: the st
 
 Import is a two-step flow, because a Blueprint can arrive from a colleague, an archive or a git clone. `readUpload` turns the file into a file map (a ZIP, or a `.yaml`/`.yml`/`.json` manifest placed at `<sourceDir>/blueprint.yaml`), `previewImport` parses it with the same reader the workspace uses, and a dialog reports what was found and every diagnostic **before** anything is stored. Errors do not block opening: a project with problems is the project a person needs to open in order to fix it. A starter chosen on the dashboard skips the dialog, since it is the app's own file.
 
-Export downloads `<blueprint id>.zip` holding `<sourceDir>/` only, rendered from the Blueprint in the store, so an unsaved edit is included. The dialog lists every file and its size first: the archive is the one thing that leaves the browser. `⌘E` opens it, and so does the palette.
+Export is the export view (P5-04), not a dialog: `⌘E` and the palette open it, it lists every file the compiler would write beside the source project, and Download packs both into `<blueprint id>.zip`. The files are rendered from the Blueprint in the store, so an unsaved edit is included, and the screen shows each one before the archive leaves the browser. Two files claiming one path abort the download rather than let the archive disagree with the screen.
 
 The round trip is the contract: for every starter, export then import produces a Blueprint whose `diffBlueprints` against the original has no ops.
 
@@ -145,11 +147,11 @@ The round trip is the contract: for every starter, export then import produces a
 | 7    | How should it remember? | `MemoryDefinition` with scope and categories; links `agent.memoryIds`                  |
 | 8    | Where should it run?    | `targets[]` with a harness compatibility preview                                       |
 | 9    | Evaluate                | runs `validateBlueprint` and the evaluation report on the draft                        |
-| 10   | Finish                  | shows the overview graph; Create writes the project                                    |
+| 10   | Finish                  | summary of the draft; Create writes the project                                        |
 
 The draft is a real Blueprint from the first keystroke: every step is a pure function in `lib/wizard/draft` that goes through the same schemas and the same `upsertEntity` as the workspace, so the wizard cannot produce something the editor would refuse. Artifacts added in steps 3 to 7 are linked to the primary agent as they are created.
 
-Only steps 1 and 2 block: a Blueprint needs a name, and the system needs the agent it is built around. Everything after that is optional, so the wizard can be finished early and the rest added in the workspace. Step 8 records only the chosen harnesses as targets, which is how the starters read on disk; step 9 scores the draft with `evaluateBlueprint` and the exporters' portability provider; step 10 is a summary, since the overview graph is P4.
+Only steps 1 and 2 block: a Blueprint needs a name, and the system needs the agent it is built around. Everything after that is optional, so the wizard can be finished early and the rest added in the workspace. Step 8 records only the chosen harnesses as targets, which is how the starters read on disk; step 9 scores the draft with `evaluateBlueprint` and the exporters' portability provider; step 10 is a summary rather than the overview graph, which is a view of a stored project.
 
 Step 1 will offer _Generate first draft with AI_ when an endpoint is configured (P6). That draft is a ChangeSet reviewed before the project is created.
 
@@ -171,10 +173,10 @@ Actions, grouped:
 | ------------- | --------------------------------------------------------------------------------------------------------- | ----- |
 | Create        | one per entity kind; `createEntity` seeds a valid artifact, which is then selected with its form open     | done  |
 | This artifact | Show the form, Show the project file, Show the preview (only for artifacts stored as Markdown)            | done  |
-| Verify        | Validate (flushes the debounce and reports the counts); Show health and Show compatibility arrive with P5 | P5    |
+| Verify        | Validate (flushes the debounce and reports the counts), Show health, Show compatibility                   | done  |
 | Blueprint     | Save, Undo, Redo                                                                                          | done  |
 | Targets       | enable or disable each compile target                                                                     | done  |
-| Deliver       | Export ZIP (P3-11), Browse generated files (P5), Push to GitHub (P7)                                      | P3-11 |
+| Deliver       | Export (opens the export view, where the files are browsed and the ZIP is built); Push to GitHub (P7)     | P7    |
 | AI            | one disabled entry until an endpoint is configured; P6 replaces it with the fifteen operations in docs/06 | P6    |
 | Go to         | every artifact, matched on name or id                                                                     | done  |
 
@@ -197,12 +199,12 @@ AI actions will be context-aware: with an artifact selected they target it; with
 
 Either modifier fires the shortcut, so the same key works on any keyboard; menus print `⌘` on Apple hardware and `Ctrl+` elsewhere. While the focus is in a text field or the code editor only the palette and Save fire, because `⌘Z` there belongs to the field. `Esc` is handled by the dialogs themselves.
 
-`⌘E`, `⌘/` and `⌘⏎` are reserved: they are unbound until export (P3-11), the AI assistant (P6) and the ChangeSet review (P6) exist, so the key does whatever the browser would rather than nothing.
+`⌘/` and `⌘⏎` are reserved: they stay unbound until the AI assistant (P6) and the ChangeSet review (P6) exist, so the key does whatever the browser would rather than nothing.
 
-## Views (P4, P5)
+## Views
 
 - **Overview graph** (P4): derived from `collectRefs`; nodes coloured by kind; clicking selects; no positions stored.
-- **Workflow editor** (P4): `@xyflow/react`; node palette for all `WORKFLOW_NODE_TYPES`; edge kind picker for all `WORKFLOW_EDGE_KINDS`; inline badges for `BP-WF-*` diagnostics; delete shows `impactOf`.
+- **Workflow editor** (P4): `@xyflow/react`; node palette for all `WORKFLOW_NODE_TYPES`, draggable onto the canvas or clickable to place a step below what is drawn; positions are part of the workflow and are written to the project file, so a drag is an edit like any other and `Tidy` re-lays the graph deterministically. Connections are drawn by dragging between two steps, which always makes a `sequential` edge; the step panel is the keyboard path and the only place the kind is chosen while connecting, and it lists all `WORKFLOW_EDGE_KINDS`. Steps carry inline badges for `BP-WF-*` diagnostics, and deleting an artifact shows `impactOf`.
 - **Diagnostics**: opened from the health bar, grouped by the severity that was clicked, each row navigating to its `ref`.
 - **Evaluation view**: per-dimension score with its findings and weight, requirement results with each check and the artifacts that satisfied it, and a button to recompute. Every finding navigates.
 - **Compatibility view**: concept by harness matrix from the adapters' own capability matrices, filtered to the concepts the Blueprint uses, each cell carrying the adapter's explanation. Targets are toggled from here.

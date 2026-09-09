@@ -34,6 +34,7 @@ import { type ReactNode, useMemo } from 'react'
 
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/overlays'
 import { validateNow } from '@/lib/actions'
+import { withTarget } from '@/lib/targets'
 import { hasPreview } from '@/lib/artifact-source'
 import { useModifierLabel } from '@/lib/shortcuts'
 import {
@@ -95,10 +96,9 @@ function Item({
 export interface CommandPaletteProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onExport: () => void
 }
 
-export function CommandPalette({ open, onOpenChange, onExport }: CommandPaletteProps) {
+export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const blueprint = useWorkspace((state) => state.blueprint)
   const selection = useWorkspace((state) => state.selection)
   const dirty = useWorkspace((state) => state.dirty)
@@ -241,11 +241,7 @@ export function CommandPalette({ open, onOpenChange, onExport }: CommandPaletteP
                   keywords={['harness', 'target', 'switch']}
                   onSelect={run(() => {
                     updateBlueprint({
-                      targets: blueprint.targets.map((candidate) =>
-                        candidate.harnessId === target.harnessId
-                          ? { ...candidate, enabled: !candidate.enabled }
-                          : candidate,
-                      ),
+                      targets: withTarget(blueprint, target.harnessId, !target.enabled),
                     })
                   })}
                 />
@@ -255,15 +251,9 @@ export function CommandPalette({ open, onOpenChange, onExport }: CommandPaletteP
             <Group heading="Deliver">
               <Item
                 icon={<DownloadIcon />}
-                label="Export ZIP"
+                label="Export"
                 hint={`${mod}E`}
-                keywords={['download', 'archive', 'save as']}
-                onSelect={run(onExport)}
-              />
-              <Item
-                icon={<FileCodeIcon />}
-                label="Browse generated files"
-                keywords={['compiled', 'output', 'preview']}
+                keywords={['download', 'archive', 'zip', 'compiled', 'generated files']}
                 onSelect={run(() => goToReport('export'))}
               />
               <Item

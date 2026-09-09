@@ -19,17 +19,14 @@ async function load() {
   return blueprint
 }
 
-const onExport = vi.fn()
-
 function open() {
   const onOpenChange = vi.fn()
-  render(<CommandPalette open onOpenChange={onOpenChange} onExport={onExport} />)
+  render(<CommandPalette open onOpenChange={onOpenChange} />)
   return onOpenChange
 }
 
 describe('CommandPalette', () => {
   beforeEach(() => {
-    onExport.mockReset()
     useWorkspace.getState().close()
   })
 
@@ -96,21 +93,18 @@ describe('CommandPalette', () => {
     expect(screen.queryByRole('option', { name: /Show the preview/ })).not.toBeInTheDocument()
   })
 
-  it('turns a compile target off and on', async () => {
+  it('turns a compile target off, without listing it twice', async () => {
     const blueprint = await load()
-    const first = blueprint.targets[0]
+    const first = blueprint.targets[0]!
     const user = userEvent.setup()
     open()
 
-    await user.click(
-      screen.getByRole('option', { name: new RegExp(`Disable ${first?.harnessId}`) }),
-    )
+    await user.click(screen.getByRole('option', { name: new RegExp(`Disable ${first.harnessId}`) }))
 
-    expect(
-      useWorkspace
-        .getState()
-        .blueprint?.targets.find((target) => target.harnessId === first?.harnessId)?.enabled,
-    ).toBe(false)
+    const targets = useWorkspace.getState().blueprint?.targets ?? []
+    expect(targets.map((target) => target.harnessId)).not.toContain(first.harnessId)
+    // A harness listed twice is a validation error that blocks export.
+    expect(new Set(targets.map((t) => t.harnessId)).size).toBe(targets.length)
   })
 
   it('disables Save until there is something to save', async () => {
@@ -155,13 +149,13 @@ describe('CommandPalette', () => {
     expect(within(ai).getByText('needs an AI endpoint')).toBeInTheDocument()
   })
 
-  it('hands the export over to the workspace, which owns the dialog', async () => {
+  it('opens the export view, which is the one place an archive is built', async () => {
     await load()
     const user = userEvent.setup()
     open()
 
-    await user.click(screen.getByRole('option', { name: /Export ZIP/ }))
-    expect(onExport).toHaveBeenCalledTimes(1)
+    await user.click(screen.getByRole('option', { name: /^Export/ }))
+    expect(useWorkspace.getState().view).toBe('export')
   })
 
   it('says so when nothing matches', async () => {

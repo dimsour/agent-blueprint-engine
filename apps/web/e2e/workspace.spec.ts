@@ -1,4 +1,14 @@
+import { readFile } from 'node:fs/promises'
+
 import { expect, type Page, test } from '@playwright/test'
+import JSZip from 'jszip'
+
+/** What a downloaded archive actually holds, which is the only proof the screen was honest. */
+async function pathsInZip(path: string | null): Promise<string[]> {
+  if (!path) throw new Error('The download has no file behind it.')
+  const zip = await JSZip.loadAsync(await readFile(path))
+  return Object.keys(zip.files).filter((name) => !zip.files[name]?.dir)
+}
 
 /** Opens the React Expert starter and waits for the workspace to finish loading. */
 async function openStarter(page: Page, label = 'React Expert') {
@@ -144,6 +154,21 @@ test.describe('workspace layout', () => {
     await expect(artifact(page, 'React testing')).toHaveCount(0)
   })
 
+  test('the delete dialog names every artifact that would be affected', async ({ page }) => {
+    await openStarter(page)
+    // Both workflows delegate to the agent, so both have to be listed: an impact list that
+    // stopped at the first one would be worse than none, because it reads as complete.
+    await artifact(page, 'React Expert').click()
+    await page.getByRole('button', { name: 'Delete', exact: true }).click()
+
+    const affected = page.getByRole('dialog').getByRole('list', { name: 'Affected artifacts' })
+    await expect(affected).toContainText('Build a Component')
+    await expect(affected).toContainText('Review UI Changes')
+
+    await page.getByRole('dialog').getByRole('button', { name: 'Cancel' }).click()
+    await expect(artifact(page, 'React Expert')).toBeVisible()
+  })
+
   test('adding from a template shows the change before applying it', async ({ page }) => {
     await openStarter(page)
     await artifact(page, 'React testing').click()
@@ -161,9 +186,30 @@ test.describe('workspace layout', () => {
     await openStarter(page)
 
     await expect(page.getByText(/\d+ artifacts/)).toBeVisible()
-    await expect(page.getByText('claude-code')).toBeVisible()
-    await expect(page.getByText('codex')).toBeVisible()
+    // Each target says its status in words, not only in the colour of a dot, and the status
+    // comes from the same report the score does.
+    await expect(page.getByRole('button', { name: /^claude-code: / })).toBeVisible()
+    await expect(page.getByRole('button', { name: /^codex: / })).toBeVisible()
     await expect(page.getByText(/Health\s*\d+/)).toBeVisible()
+  })
+
+  test('the health bar counts agree with the findings behind them', async ({ page }) => {
+    await openStarter(page)
+
+    // Three zeroes beside a score of 97 was the bug: the counts and the score have to be
+    // read off one report, so a count that is not zero must open findings, and a count that
+    // is zero must have none to open.
+    const warnings = page.getByRole('button', { name: /^\d+ warnings$/ })
+    const count = Number((await warnings.getAttribute('aria-label'))?.split(' ')[0] ?? '0')
+    if (count === 0) {
+      await expect(warnings).toBeDisabled()
+      return
+    }
+
+    await warnings.click()
+    await expect(
+      page.getByRole('list', { name: 'warning findings' }).getByRole('listitem'),
+    ).toHaveCount(count)
   })
 
   test('editing an artifact saves it and survives a reload', async ({ page }) => {
@@ -305,16 +351,79 @@ test.describe('workflow editor', () => {
     await artifact(page, 'Build a Component').click()
     const before = await page.locator('.react-flow__node').count()
 
-    for (const _ of [1, 2]) {
-      await page.getByRole('button', { name: 'Insert a shape' }).click()
-      await page.getByRole('menuitem', { name: 'Code review' }).click()
-    }
-
+    await page.getByRole('button', { name: 'Insert a shape' }).click()
+    await page.getByRole('menuitem', { name: 'Code review' }).click()
     await expect(page.getByText(/Inserted Code review/).first()).toBeVisible()
-    const after = await page.locator('.react-flow__node').count()
-    expect(after).toBeGreaterThan(before)
-    // Two whole copies, not one shared one.
-    expect(after - before).toBe((after - before) / 2 + (after - before) / 2)
+    const once = await page.locator('.react-flow__node').count()
+    expect(once).toBeGreaterThan(before)
+
+    await page.getByRole('button', { name: 'Insert a shape' }).click()
+    await page.getByRole('menuitem', { name: 'Code review' }).click()
+    const twice = await page.locator('.react-flow__node').count()
+
+    // Two whole copies: the second insert adds exactly as many steps as the first, rather
+    // than reusing ids that already exist.
+    expect(twice - once).toBe(once - before)
+
+    // And beside the first copy rather than on top of it. Superimposed steps look like one
+    // step, which is how an insert that did nothing and an insert that worked look the same.
+    const transforms = await page
+      .locator('.react-flow__node')
+      .evaluateAll((nodes) => nodes.map((node) => (node as HTMLElement).style.transform))
+    expect(new Set(transforms).size).toBe(transforms.length)
+  })
+
+  test('a step keeps where it was dragged to, across a reload', async ({ page }) => {
+    await openStarter(page)
+    await artifact(page, 'Build a Component').click()
+
+    const step = page.locator('.react-flow__node').first()
+    const box = await step.boundingBox()
+    if (!box) throw new Error('The first step has no box to drag.')
+    const before = await step.evaluate((node) => (node as HTMLElement).style.transform)
+
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+    await page.mouse.down()
+    // In steps, because React Flow starts a drag from movement rather than from the press.
+    await page.mouse.move(box.x + box.width / 2 + 60, box.y + box.height / 2 + 90, { steps: 12 })
+    await page.mouse.up()
+
+    await expect
+      .poll(() => step.evaluate((node) => (node as HTMLElement).style.transform))
+      .not.toBe(before)
+    const moved = await step.evaluate((node) => (node as HTMLElement).style.transform)
+
+    // Positions are part of the workflow file, so a drag is an edit and has to be saved.
+    await expect(page.getByText('Saved', { exact: true })).toBeVisible({ timeout: 10_000 })
+    await page.reload()
+    await expect(page.locator('.react-flow__node').first()).toHaveAttribute(
+      'style',
+      new RegExp(moved.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
+    )
+  })
+
+  test('two steps are connected from the panel, with the kind chosen', async ({ page }) => {
+    await openStarter(page)
+    await artifact(page, 'Build a Component').click()
+    const connections = page.getByText(/^\d+ connections$/)
+    const before = Number((await connections.innerText()).split(' ')[0])
+
+    // Dragging between handles is the mouse gesture and always draws a sequential edge. The
+    // panel is the keyboard path, and the only place the kind is chosen while connecting.
+    await page.locator('.react-flow__node', { hasText: 'Report the outcome' }).click()
+    const panel = page.getByRole('complementary', { name: 'Step settings' })
+    await panel.getByLabel('Kind of the next connection').click()
+    await page.getByRole('option', { name: 'fallback' }).click()
+
+    await panel.getByRole('button', { name: 'Verify', exact: true }).click()
+
+    await expect(connections).toHaveText(`${before + 1} connections`)
+    const leadsTo = panel.getByRole('list', { name: 'Leads to' })
+    await expect(leadsTo).toContainText('Verify')
+    await expect(leadsTo).toContainText('fallback')
+
+    // And the same step is not offered a second time, since the connection now exists.
+    await expect(panel.getByRole('button', { name: 'Verify', exact: true })).toHaveCount(0)
   })
 
   test('the form is still there behind the graph', async ({ page }) => {
@@ -458,18 +567,25 @@ test.describe('export and import', () => {
     await artifact(page, 'React testing').click()
     await page.getByLabel('Description').fill('Round tripped through a ZIP.')
 
-    // The top bar's Export, not the tree's Export view.
+    // The top bar's Export opens the export view, which is the one place files leave.
     await page.locator('header').getByRole('button', { name: 'Export', exact: true }).click()
-    const dialog = page.getByRole('dialog')
-    await expect(dialog.getByRole('list', { name: 'Files in the archive' })).toContainText(
+    await expect(page).toHaveURL(/view=export/)
+    await expect(page.getByRole('list', { name: 'Source files' })).toContainText(
       'blueprint/blueprint.yaml',
     )
 
     const downloading = page.waitForEvent('download')
-    await dialog.getByRole('button', { name: /Download ZIP/ }).click()
+    await page.getByRole('button', { name: 'Download', exact: true }).click()
     const download = await downloading
     expect(download.suggestedFilename()).toBe('react-expert.zip')
     const archive = await download.path()
+
+    // The archive holds the source project and the compiled output, which is the whole
+    // claim the screen makes.
+    const paths = await pathsInZip(archive)
+    expect(paths.some((path) => path.startsWith('blueprint/'))).toBe(true)
+    expect(paths.some((path) => path.startsWith('.claude/'))).toBe(true)
+    expect(paths).toContain('CLAUDE.md')
 
     // Import it back. The dialog reports what it found before anything is stored.
     await page.goto('/')
@@ -488,13 +604,12 @@ test.describe('export and import', () => {
     await expect(page.getByLabel('Description')).toHaveValue('Round tripped through a ZIP.')
   })
 
-  test('the export shortcut opens the same dialog', async ({ page }) => {
+  test('the export shortcut opens the same view', async ({ page }) => {
     await openStarter(page)
     await page.keyboard.press('ControlOrMeta+e')
 
-    await expect(
-      page.getByRole('dialog').getByRole('button', { name: /Download ZIP/ }),
-    ).toBeVisible()
+    await expect(page).toHaveURL(/view=export/)
+    await expect(page.getByRole('button', { name: 'Download', exact: true })).toBeVisible()
   })
 
   test('a file that is not a project says so instead of opening', async ({ page }) => {

@@ -32,11 +32,11 @@ import { SelectField, StringListField, TextAreaField, TextField } from '@/compon
 import { PermissionsGrid } from '@/components/editors/permissions-grid'
 import { Button } from '@/components/ui/button'
 import { Badge, Card, Input, Label } from '@/components/ui/primitives'
+import { enabledTargetIds } from '@/lib/targets'
 import {
   addBlank,
   addFromTemplate,
   DRAFT_PLACEHOLDER_NAME,
-  enabledTargetIds,
   primaryAgent,
   removeArtifact,
   setAgent,

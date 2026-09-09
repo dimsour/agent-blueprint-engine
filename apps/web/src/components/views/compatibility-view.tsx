@@ -9,17 +9,21 @@
  * harness does instead.
  */
 import { HARNESS_IDS, HARNESS_LABELS, type HarnessId } from '@agent-blueprint/core'
-import { adapterFor, portabilityOf } from '@agent-blueprint/exporters'
+import {
+  adapterFor,
+  CONCEPT_LABELS,
+  portabilityOf,
+  type SupportLevel,
+} from '@agent-blueprint/exporters'
 import { CheckIcon, CircleSlashIcon, TriangleAlertIcon, WrenchIcon } from 'lucide-react'
 import { useMemo } from 'react'
 
 import { Badge, Card } from '@/components/ui/primitives'
 import { cn } from '@/lib/utils'
+import { enabledTargetIds, withTarget } from '@/lib/targets'
 import { useWorkspace } from '@/lib/state/workspace-store'
 
-type Support = 'native' | 'adapted' | 'limited' | 'unsupported'
-
-const SUPPORT: Record<Support, { icon: React.ReactNode; label: string; tone: string }> = {
+const SUPPORT: Record<SupportLevel, { icon: React.ReactNode; label: string; tone: string }> = {
   native: {
     icon: <CheckIcon className="size-3.5" />,
     label: 'Native',
@@ -42,21 +46,11 @@ const SUPPORT: Record<Support, { icon: React.ReactNode; label: string; tone: str
   },
 }
 
-/** Concept names read better as sentences than as identifiers. */
-function conceptLabel(concept: string): string {
-  return concept
-    .replace(/([a-z])([A-Z])/g, '$1 $2')
-    .replace(/^./, (character) => character.toUpperCase())
-}
-
 export function CompatibilityView() {
   const blueprint = useWorkspace((state) => state.blueprint)
   const updateBlueprint = useWorkspace((state) => state.updateBlueprint)
 
-  const enabled = useMemo(
-    () => (blueprint ? blueprint.targets.filter((t) => t.enabled).map((t) => t.harnessId) : []),
-    [blueprint],
-  )
+  const enabled = useMemo(() => (blueprint ? enabledTargetIds(blueprint) : []), [blueprint])
 
   const result = useMemo(() => (blueprint ? portabilityOf(blueprint) : undefined), [blueprint])
 
@@ -65,35 +59,34 @@ export function CompatibilityView() {
   const used = result.matrix.filter((row) => row.used)
 
   const toggle = (harnessId: HarnessId) => {
-    const on = enabled.includes(harnessId)
-    const next = on
-      ? blueprint.targets.filter((target) => target.harnessId !== harnessId)
-      : [...blueprint.targets, { harnessId, enabled: true, options: {} }]
-    // Kept in the model's order, so the manifest reads the same whatever order they were
-    // clicked in.
-    updateBlueprint({
-      targets: HARNESS_IDS.flatMap((id) => next.filter((target) => target.harnessId === id)),
-    })
+    updateBlueprint({ targets: withTarget(blueprint, harnessId, !enabled.includes(harnessId)) })
   }
 
   return (
     <div className="flex flex-col gap-6 p-4">
       <div className="flex items-center gap-4">
+        {/*
+          With no target chosen the score function returns 100 as a sentinel for "cannot be
+          assessed"; showing that as a perfect score would be the opposite of the truth.
+        */}
         <span
           className={cn(
             'text-4xl font-semibold tabular-nums',
-            result.score >= 85
-              ? 'text-success'
-              : result.score >= 70
-                ? 'text-warning'
-                : 'text-danger',
+            enabled.length === 0
+              ? 'text-muted-foreground'
+              : result.score >= 85
+                ? 'text-success'
+                : result.score >= 70
+                  ? 'text-warning'
+                  : 'text-danger',
           )}
         >
-          {result.score}
+          {enabled.length === 0 ? '—' : result.score}
         </span>
         <p className="text-muted-foreground flex-1 text-sm">
-          How much of what this Blueprint uses each chosen harness supports natively. Adapted still
-          works; it is simply expressed as instructions rather than as a feature.
+          {enabled.length === 0
+            ? 'Portability is a question about chosen harnesses, and none is chosen.'
+            : 'How much of what this Blueprint uses each chosen harness supports natively. Adapted still works; it is simply expressed as instructions rather than as a feature.'}
         </p>
       </div>
 
@@ -151,10 +144,10 @@ export function CompatibilityView() {
                 {used.map((row) => (
                   <tr key={row.concept} className="border-b last:border-b-0">
                     <th scope="row" className="px-3 py-2 text-left font-normal">
-                      {conceptLabel(row.concept)}
+                      {CONCEPT_LABELS[row.concept]}
                     </th>
                     {enabled.map((id) => {
-                      const support = (row.byTarget[id] ?? 'unsupported') as Support
+                      const support = row.byTarget[id] ?? 'unsupported'
                       const explanation = adapterFor(id).capabilities[row.concept].explanation
                       return (
                         <td key={id} className="px-3 py-2">

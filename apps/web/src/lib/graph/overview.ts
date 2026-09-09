@@ -11,12 +11,13 @@ import {
   buildDependencyGraph,
   type Diagnostic,
   ENTITY_KIND_INFO,
+  ENTITY_KINDS,
   type EntityKind,
   type EntityRef,
   findEntity,
   findOrphans,
+  getCollection,
   refKey,
-  type RefRelation,
 } from '@agent-blueprint/core'
 
 /**
@@ -39,8 +40,13 @@ export const KIND_HUE: Record<EntityKind, number> = {
   scenario: 60,
 }
 
+/** One formula, so the same hue looks the same wherever it is drawn. */
+export function hueColor(hue: number): string {
+  return `oklch(0.62 0.15 ${hue})`
+}
+
 export function kindColor(kind: EntityKind): string {
-  return `oklch(0.62 0.15 ${KIND_HUE[kind]})`
+  return hueColor(KIND_HUE[kind])
 }
 
 export interface OverviewNode {
@@ -60,7 +66,6 @@ export interface OverviewEdge {
   id: string
   source: string
   target: string
-  relation: RefRelation
 }
 
 export interface OverviewGraph {
@@ -68,17 +73,22 @@ export interface OverviewGraph {
   edges: OverviewEdge[]
 }
 
-function worstSeverity(
-  diagnostics: readonly Diagnostic[],
-  ref: EntityRef,
-): 'error' | 'warning' | undefined {
-  let seen: 'error' | 'warning' | undefined
+/**
+ * The worst severity attached to each artifact, in one pass.
+ *
+ * Scanning the whole diagnostic list per node was quadratic, and a Blueprint with a hundred
+ * artifacts and a hundred findings is not unusual.
+ */
+function severityByRef(diagnostics: readonly Diagnostic[]): Map<string, 'error' | 'warning'> {
+  const worst = new Map<string, 'error' | 'warning'>()
   for (const diagnostic of diagnostics) {
-    if (diagnostic.ref?.kind !== ref.kind || diagnostic.ref.id !== ref.id) continue
-    if (diagnostic.severity === 'error') return 'error'
-    if (diagnostic.severity === 'warning') seen = 'warning'
+    if (!diagnostic.ref) continue
+    if (diagnostic.severity !== 'error' && diagnostic.severity !== 'warning') continue
+    const key = refKey(diagnostic.ref)
+    if (worst.get(key) === 'error') continue
+    worst.set(key, diagnostic.severity)
   }
-  return seen
+  return worst
 }
 
 /**
@@ -95,11 +105,12 @@ export function overviewGraph(
   const diagnostics = options.diagnostics ?? []
   const wanted = options.kinds ? new Set(options.kinds) : undefined
   const orphans = new Set(findOrphans(graph).map(refKey))
+  const worst = severityByRef(diagnostics)
 
   const nodes = graph.nodes
     .filter((ref) => !wanted || wanted.has(ref.kind))
     .map((ref) => {
-      const severity = worstSeverity(diagnostics, ref)
+      const severity = worst.get(refKey(ref))
       return {
         id: refKey(ref),
         ref,
@@ -123,7 +134,7 @@ export function overviewGraph(
     const id = `${source}->${target}`
     if (seen.has(id)) continue
     seen.add(id)
-    edges.push({ id, source, target, relation: edge.relation })
+    edges.push({ id, source, target })
   }
 
   return { nodes, edges }
@@ -131,3 +142,8 @@ export function overviewGraph(
 
 /** Node box used for layout, and matched by the CSS so edges meet the boxes they connect. */
 export const OVERVIEW_NODE_SIZE = { width: 168, height: 44 } as const
+
+/** Which kinds this Blueprint has anything of, for the filter row. */
+export function kindsPresent(blueprint: Blueprint): EntityKind[] {
+  return ENTITY_KINDS.filter((kind) => getCollection(blueprint, kind).length > 0)
+}

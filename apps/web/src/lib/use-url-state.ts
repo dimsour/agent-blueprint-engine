@@ -13,18 +13,6 @@ import { useEffect } from 'react'
 
 import { isReportView, useWorkspace, viewFromParam, viewParam } from '@/lib/state/workspace-store'
 
-/** The address the current selection and view describe. */
-export function workspaceHref(
-  projectId: string,
-  view: ReturnType<typeof viewFromParam> | 'overview',
-  id: string | undefined,
-): string {
-  const params = new URLSearchParams()
-  params.set('view', viewParam(view ?? 'overview'))
-  if (id) params.set('id', id)
-  return `/p/${projectId}?${params.toString()}`
-}
-
 export function useUrlState(projectId: string, ready: boolean): void {
   const router = useRouter()
   const search = useSearchParams()

@@ -99,15 +99,20 @@ function unwrapSingleRoot(files: ProjectFiles): ProjectFiles {
   return Object.fromEntries(paths.map((path) => [path.slice(root.length + 1), files[path] ?? '']))
 }
 
-/** Triggers a browser download of the archive. */
-export function downloadZip(blob: Blob, filename: string): void {
+/** Hands a blob to the browser as a download. */
+export function downloadBlob(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob)
   const anchor = document.createElement('a')
   anchor.href = url
-  anchor.download = filename.endsWith('.zip') ? filename : `${filename}.zip`
+  anchor.download = filename
   document.body.append(anchor)
   anchor.click()
   anchor.remove()
   // Revoking in the same task cancels the download in some browsers; let it start first.
   setTimeout(() => URL.revokeObjectURL(url), 0)
+}
+
+/** Triggers a browser download of an archive, named so it ends in .zip. */
+export function downloadZip(blob: Blob, filename: string): void {
+  downloadBlob(blob, filename.endsWith('.zip') ? filename : `${filename}.zip`)
 }

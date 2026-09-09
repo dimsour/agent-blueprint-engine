@@ -19,28 +19,9 @@ import { toast } from 'sonner'
 import { DiagnosticRow } from '@/components/views/diagnostic-row'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/primitives'
-import { downloadZip, filesToZip, projectFilesOf } from '@/lib/storage'
-import { cn } from '@/lib/utils'
+import { downloadBlob, downloadZip, filesToZip, projectFilesOf } from '@/lib/storage'
+import { cn, formatBytes } from '@/lib/utils'
 import { useWorkspace } from '@/lib/state/workspace-store'
-
-/** Bytes as a short human string. */
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  return `${(bytes / 1024).toFixed(1)} kB`
-}
-
-/** Downloads one file on its own, for anyone who wants to paste it somewhere by hand. */
-function downloadOne(path: string, content: string): void {
-  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const anchor = document.createElement('a')
-  anchor.href = url
-  anchor.download = path.split('/').at(-1) ?? 'file.txt'
-  document.body.append(anchor)
-  anchor.click()
-  anchor.remove()
-  setTimeout(() => URL.revokeObjectURL(url), 0)
-}
 
 export function ExportView() {
   const blueprint = useWorkspace((state) => state.blueprint)
@@ -79,14 +60,20 @@ export function ExportView() {
       sourceRefs: [],
     }))
 
+  const byPath = (a: GeneratedFile, b: GeneratedFile) => (a.path < b.path ? -1 : 1)
+  const shared = compiled.files.filter((file) => file.owner === 'shared').sort(byPath)
+
+  // A file appears under exactly one heading. "Shared" is a real category, because several
+  // harnesses read the same AGENTS.md; listing it under each of them instead credited
+  // Claude Code with writing files it never writes, on the one screen whose job is to say
+  // which artifact produced which file.
   const groups: { title: string; files: GeneratedFile[] }[] = [
     { title: 'Source', files: sourceFiles },
     ...compiled.targets.map((target) => ({
       title: HARNESS_LABELS[target],
-      files: compiled.files
-        .filter((file) => file.owner === target || file.owner === 'shared')
-        .sort((a, b) => (a.path < b.path ? -1 : 1)),
+      files: compiled.files.filter((file) => file.owner === target).sort(byPath),
     })),
+    ...(shared.length > 0 ? [{ title: 'Read by several harnesses', files: shared }] : []),
   ]
 
   const open = groups.flatMap((group) => group.files).find((file) => file.path === openPath)
@@ -95,7 +82,14 @@ export function ExportView() {
     setBusy(true)
     try {
       const everything: Record<string, string> = { ...source }
-      for (const file of compiled.files) everything[file.path] = file.content
+      for (const file of compiled.files) {
+        // A compiled file quietly replacing a source file is the one way this archive could
+        // ship something other than what the screen showed.
+        if (file.path in everything && everything[file.path] !== file.content) {
+          throw new Error(`Two different files want the path ${file.path}.`)
+        }
+        everything[file.path] = file.content
+      }
       downloadZip(await filesToZip(everything), `${blueprint.id}.zip`)
       toast.success(`Exported ${Object.keys(everything).length} files`, {
         description: 'Source and compiled output, ready to drop into a repository.',
@@ -113,7 +107,9 @@ export function ExportView() {
     <div className="flex h-full min-h-0">
       <div className="flex w-72 shrink-0 flex-col border-r">
         <div className="flex shrink-0 items-center gap-2 border-b px-3 py-2">
-          <Badge variant="outline">{compiled.files.length + sourceFiles.length} files</Badge>
+          <Badge variant="outline">
+            {groups.reduce((total, group) => total + group.files.length, 0)} files
+          </Badge>
           <Button
             variant="outline"
             size="sm"
@@ -191,8 +187,16 @@ export function ExportView() {
                 variant="ghost"
                 size="sm"
                 onClick={() => {
+                  // The clipboard API is unavailable on any non-secure origin; showing the
+                  // path beats a button that silently does nothing.
+                  if (!navigator.clipboard) {
+                    toast.error('This browser will not let the page copy', {
+                      description: open.path,
+                    })
+                    return
+                  }
                   void navigator.clipboard
-                    ?.writeText(open.path)
+                    .writeText(open.path)
                     .then(() => toast.success('Copied the path'))
                     .catch(() => toast.error('Could not copy the path'))
                 }}
@@ -203,7 +207,13 @@ export function ExportView() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => downloadOne(open.path, open.content)}
+                disabled={errors.length > 0}
+                onClick={() =>
+                  downloadBlob(
+                    new Blob([open.content], { type: 'text/plain;charset=utf-8' }),
+                    open.path.split('/').at(-1) ?? 'file.txt',
+                  )
+                }
               >
                 <DownloadIcon className="size-3" />
                 Save

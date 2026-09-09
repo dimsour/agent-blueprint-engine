@@ -49,19 +49,21 @@ import {
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/primitives'
 import {
-  addNode,
-  connect,
-  diagnosticsByNode,
   EDGE_KIND_INFO,
-  insertSubgraph,
-  moveNode,
   nodeColor,
   type NodeType,
   NODE_TYPE_INFO,
+  WORKFLOW_NODE_SIZE,
+} from '@/lib/graph/steps'
+import {
+  addNode,
+  connect,
+  diagnosticsByNode,
+  insertSubgraph,
+  moveNode,
   removeEdge,
   removeNode,
   tidy,
-  WORKFLOW_NODE_SIZE,
 } from '@/lib/graph/workflow'
 import { cn } from '@/lib/utils'
 import { useWorkspace } from '@/lib/state/workspace-store'
@@ -113,6 +115,19 @@ function StepNodeView({ data, selected }: NodeProps<StepNode>) {
 }
 
 const NODE_TYPES = { step: StepNodeView }
+
+/** Below everything already drawn, so a step added without dragging is visible and alone. */
+function nextFreeSpot(workflow: Workflow): { x: number; y: number } {
+  if (workflow.nodes.length === 0) return { x: 0, y: 0 }
+  const bottom = workflow.nodes.reduce((edge, node) => Math.max(edge, node.position.y), 0)
+  return { x: 0, y: bottom + WORKFLOW_NODE_SIZE.height + 48 }
+}
+
+/** Schema errors are several lines long; the first one says what is wrong. */
+function firstLine(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error)
+  return message.split(String.fromCharCode(10))[0] ?? message
+}
 
 /**
  * The steps a workflow template is made of.
@@ -214,12 +229,16 @@ function Canvas({
       onPaneClick={() => onSelect(undefined)}
       // Committed on drag stop: a change per frame would be a hundred autosaves per gesture.
       onNodeDragStop={(_event, node) => onChange(moveNode(workflow, node.id, node.position))}
-      onNodesDelete={(deleted) => {
-        onChange(deleted.reduce((current, node) => removeNode(current, node.id), workflow))
-        onSelect(undefined)
-      }}
-      onEdgesDelete={(deleted) => {
-        onChange(deleted.reduce((current, edge) => removeEdge(current, edge.id), workflow))
+      // One handler, so deleting a step and the edges that reached it is a single change:
+      // React Flow calls the edge and node handlers separately for the same gesture, and two
+      // commits would cost two presses of undo to put back.
+      onDelete={({ nodes: goneNodes, edges: goneEdges }) => {
+        if (goneNodes.length === 0 && goneEdges.length === 0) return
+        const withoutEdges = goneEdges.reduce(
+          (current, edge) => removeEdge(current, edge.id),
+          workflow,
+        )
+        onChange(goneNodes.reduce((current, node) => removeNode(current, node.id), withoutEdges))
         onSelect(undefined)
       }}
       onDrop={(event) => {
@@ -249,17 +268,38 @@ function Canvas({
 export function WorkflowEditor({ workflowId }: { workflowId: string }) {
   const blueprint = useWorkspace((state) => state.blueprint)
   const upsert = useWorkspace((state) => state.upsert)
-  // Navigating from a finding names the step it is about, so the editor opens on it.
+  // Navigating from a finding names the step it is about, so the editor opens on it. Read
+  // as state rather than only as an initial value: the second such navigation would
+  // otherwise do nothing, because the editor is already mounted.
   const focusNodeId = useWorkspace((state) => state.focusNodeId)
   const [selected, setSelected] = useState<{ kind: 'node' | 'edge'; id: string } | undefined>(
     focusNodeId ? { kind: 'node', id: focusNodeId } : undefined,
   )
+  const [lastFocus, setLastFocus] = useState(focusNodeId)
+  if (focusNodeId !== lastFocus) {
+    setLastFocus(focusNodeId)
+    setSelected(focusNodeId ? { kind: 'node', id: focusNodeId } : undefined)
+  }
   const [tidying, setTidying] = useState(false)
+  const [rejected, setRejected] = useState<string | undefined>()
 
   const workflow = blueprint?.workflows.find((candidate) => candidate.id === workflowId)
   if (!blueprint || !workflow) return null
 
-  const onChange = (next: Workflow) => upsert('workflow', next)
+  /**
+   * Every edit re-parses the whole workflow, and the schema rejects the moment between
+   * clearing a label and retyping it, or an attempt count on its way past twenty. The forms
+   * have always reported that rather than throwing; a change handler that throws takes the
+   * editor down with it, and there is no boundary to catch it.
+   */
+  const onChange = (next: Workflow) => {
+    try {
+      upsert('workflow', next)
+      setRejected(undefined)
+    } catch (error) {
+      setRejected(firstLine(error))
+    }
+  }
 
   const selectedNode =
     selected?.kind === 'node' ? workflow.nodes.find((node) => node.id === selected.id) : undefined
@@ -285,10 +325,11 @@ export function WorkflowEditor({ workflowId }: { workflowId: string }) {
               event.dataTransfer.setData('application/agent-blueprint-node', type)
               event.dataTransfer.effectAllowed = 'move'
             }}
-            // Dragging is the natural gesture; clicking drops it in the middle for anyone
-            // who cannot drag, which includes every keyboard user.
+            // Dragging is the natural gesture; clicking adds it below what is already drawn,
+            // for anyone who cannot drag, which includes every keyboard user. The origin
+            // would stack every click on the same spot, possibly off screen.
             onClick={() => {
-              const { workflow: next, nodeId } = addNode(workflow, type, { x: 0, y: 0 })
+              const { workflow: next, nodeId } = addNode(workflow, type, nextFreeSpot(workflow))
               onChange(next)
               setSelected({ kind: 'node', id: nodeId })
             }}
@@ -306,6 +347,15 @@ export function WorkflowEditor({ workflowId }: { workflowId: string }) {
       </div>
 
       <div className="panel min-w-0 flex-1">
+        {rejected ? (
+          <p
+            role="alert"
+            className="border-danger text-danger bg-danger-muted shrink-0 border-b px-3 py-1.5 text-xs"
+          >
+            Not applied: {rejected}
+          </p>
+        ) : null}
+
         <div className="flex h-9 shrink-0 items-center gap-2 border-b px-3">
           <Badge variant="outline">{workflow.nodes.length} steps</Badge>
           <Badge variant="outline">{workflow.edges.length} connections</Badge>
@@ -345,10 +395,24 @@ export function WorkflowEditor({ workflowId }: { workflowId: string }) {
               setTidying(true)
               void tidy(workflow)
                 .then((next) => {
+                  // Laying out takes a moment, and anything edited meanwhile would be
+                  // silently discarded by writing the version we started from.
+                  const current = useWorkspace
+                    .getState()
+                    .blueprint?.workflows.find((candidate) => candidate.id === workflowId)
+                  if (!current || current !== workflow) {
+                    toast.info('Tidy was skipped', {
+                      description: 'The workflow changed while it was being laid out.',
+                    })
+                    return
+                  }
                   onChange(next)
                   toast.success('Tidied the graph', {
                     description: 'The same layout every time, so the file does not churn.',
                   })
+                })
+                .catch((error: unknown) => {
+                  toast.error('Could not lay the graph out', { description: firstLine(error) })
                 })
                 .finally(() => setTidying(false))
             }}

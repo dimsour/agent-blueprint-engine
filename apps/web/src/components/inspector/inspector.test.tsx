@@ -199,7 +199,7 @@ describe('Inspector', () => {
 
     expect(within(dialog).getByRole('list', { name: 'Affected artifacts' })).toBeInTheDocument()
     // And the compiled output it would change.
-    expect(within(dialog).getByText(/Compiled output changes for/)).toHaveTextContent('claude-code')
+    expect(within(dialog).getByText(/Compiled output changes for/)).toHaveTextContent('Claude Code')
   })
 
   it('deletes on confirmation and clears the selection', async () => {

@@ -11,12 +11,11 @@
  */
 import {
   type Blueprint,
-  buildDependencyGraph,
   ENTITY_KIND_INFO,
   type EntityKind,
   type EntityRef,
-  impactOf,
   getCollection,
+  HARNESS_LABELS,
   slugify,
   uniqueSlug,
 } from '@agent-blueprint/core'
@@ -137,17 +136,14 @@ export function RenameDialog({ selection, open, onOpenChange }: DialogProps) {
               if (event.key === 'Enter') submit()
             }}
           />
-          {problem ? (
+          {/* An error the model raised outranks the hint: it is the reason nothing happened. */}
+          {(problem ?? error) ? (
             <p role="alert" className="text-danger text-xs">
-              {problem}
+              {problem ?? error}
             </p>
           ) : suggestion !== trimmed ? (
             <p className="text-muted-foreground text-xs">
               Saved as <span className="font-mono">{suggestion}</span>: an id is kebab-case.
-            </p>
-          ) : error ? (
-            <p role="alert" className="text-danger text-xs">
-              {error}
             </p>
           ) : null}
         </div>
@@ -173,15 +169,13 @@ export function DeleteDialog({ selection, open, onOpenChange }: DialogProps) {
   const blueprint = useWorkspace((state) => state.blueprint)
   const remove = useWorkspace((state) => state.remove)
   const select = useWorkspace((state) => state.select)
+  const impactOf = useWorkspace((state) => state.impact)
 
-  const relations = useMemo(
-    () => (blueprint ? relationsOf(blueprint, selection) : undefined),
-    [blueprint, selection],
-  )
   // The graph's own impact report, which reaches past the artifacts that point at this one
   // to the artifacts that point at those. A delete propagates that far.
-  const impact = useMemo(
-    () => (blueprint ? impactOf(buildDependencyGraph(blueprint), selection) : undefined),
+  const impact = useMemo(() => impactOf(selection), [impactOf, selection])
+  const relations = useMemo(
+    () => (blueprint ? relationsOf(blueprint, selection) : undefined),
     [blueprint, selection],
   )
   const entity = blueprint ? entityOf(blueprint, selection) : undefined
@@ -208,7 +202,7 @@ export function DeleteDialog({ selection, open, onOpenChange }: DialogProps) {
           </DialogDescription>
         </DialogHeader>
 
-        {relations.isPrimaryAgent ? (
+        {impact.isPrimaryAgent ? (
           <p role="alert" className="border-danger text-danger rounded-md border px-3 py-2 text-xs">
             This is the Blueprint&rsquo;s primary agent. Without one, nothing compiles to a root
             instruction file until another agent is made primary.
@@ -251,7 +245,8 @@ export function DeleteDialog({ selection, open, onOpenChange }: DialogProps) {
 
         {targets.length > 0 ? (
           <p className="text-muted-foreground text-xs">
-            Compiled output changes for {targets.map((target) => target.harnessId).join(' and ')}.
+            Compiled output changes for{' '}
+            {targets.map((target) => HARNESS_LABELS[target.harnessId]).join(' and ')}.
           </p>
         ) : null}
 
