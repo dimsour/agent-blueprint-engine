@@ -27,6 +27,7 @@ import {
   findMissing,
   generateArtifact,
   generateBlueprint,
+  assembleChangeSet,
   improveArtifact,
   judgeRequirements,
   type OperationDeps,
@@ -319,5 +320,93 @@ describe('judgeRequirements', () => {
     const result = await judgeRequirements({ client }, { blueprint: fixture })
     expect(sent).toEqual([])
     expect(result).toMatchObject({ diagnostics: [], verdicts: [] })
+  })
+})
+
+describe('permissions a model invented', () => {
+  /** The agent a local model wrote, with the two operations it made up. */
+  function agentWithInventedPermissions() {
+    return {
+      id: 'reviewer-agent',
+      name: 'Reviewer',
+      role: 'reviewer',
+      body: 'You review pull requests.',
+      permissions: {
+        operations: {
+          'fs.read': 'allow',
+          'git.fetch': 'allow',
+          'git.checkout': 'allow',
+          'git.push': 'deny',
+        },
+        patterns: [
+          { operation: 'git.fetch', pattern: 'origin *', decision: 'allow' },
+          { operation: 'fs.write', pattern: 'src/**', decision: 'ask' },
+        ],
+      },
+    }
+  }
+
+  it('keeps the agent and drops only the operations that do not exist', () => {
+    const empty = createEmptyBlueprint({ id: 'pr-review', name: 'Untitled' })
+    const { changeSet, notes } = assembleChangeSet({
+      blueprint: empty,
+      source: 'ai',
+      id: 'ai:test',
+      summary: 'One agent.',
+      drafts: [{ kind: 'agent', value: agentWithInventedPermissions() }],
+    })
+
+    // The whole agent used to be dropped for this, taking the draft down with it.
+    expect(changeSet.ops.map((op) => op.id)).toEqual(['create:agent:reviewer-agent'])
+    const agent = applyChangeSet(empty, changeSet).blueprint.agents[0]!
+    expect(agent.permissions.operations).toEqual({ 'fs.read': 'allow', 'git.push': 'deny' })
+    expect(agent.permissions.patterns.map((entry) => entry.operation)).toEqual(['fs.write'])
+
+    expect(notes).toContain(
+      'Removed the permission "git.checkout", which is not an operation this model has.',
+    )
+    expect(notes).toContain(
+      'Removed the permission "git.fetch", which is not an operation this model has.',
+    )
+  })
+
+  it('does not let one invented permission take the whole draft with it', () => {
+    // The cascade that produced "fifteen changes describing a system with nobody in it":
+    // the agent was dropped, then the workflow's reference to it, then the primary agent.
+    const empty = createEmptyBlueprint({ id: 'pr-review', name: 'Untitled' })
+    const { changeSet } = assembleChangeSet({
+      blueprint: empty,
+      source: 'ai',
+      id: 'ai:test',
+      summary: 'An agent and a workflow that needs it.',
+      drafts: [
+        { kind: 'agent', value: agentWithInventedPermissions() },
+        {
+          kind: 'workflow',
+          value: {
+            id: 'pr-review-workflow',
+            name: 'Review a pull request',
+            entryNodeId: 'start',
+            nodes: [
+              { id: 'start', type: 'start', label: 'Start' },
+              { id: 'read', type: 'agent', label: 'Read', config: { agentId: 'reviewer-agent' } },
+              { id: 'done', type: 'end', label: 'Done' },
+            ],
+            edges: [
+              { id: 'e1', from: 'start', to: 'read' },
+              { id: 'e2', from: 'read', to: 'done' },
+            ],
+          },
+        },
+      ],
+      header: { settings: { ...empty.settings, primaryAgentId: 'reviewer-agent' } },
+    })
+
+    const applied = applyChangeSet(empty, changeSet).blueprint
+    expect(applied.agents).toHaveLength(1)
+    expect(applied.settings.primaryAgentId).toBe('reviewer-agent')
+    // The workflow still points at the agent, because the agent still exists.
+    const step = applied.workflows[0]!.nodes.find((node) => node.id === 'read')!
+    expect(step.config.agentId).toBe('reviewer-agent')
   })
 })

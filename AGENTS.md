@@ -83,7 +83,7 @@ pnpm format                  # prettier
 
 ## 7. Status
 
-Phases P0 to P6 are complete: the model, the compiler, the templates, the web IDE, the graphs, the trust surfaces and the AI layer. P6-09 checked the AI layer against four local models and found four bugs, all fixed (docs/06). P7 (GitHub) is next.
+Phases P0 to P6 are complete: the model, the compiler, the templates, the web IDE, the graphs, the trust surfaces and the AI layer. P6-09 checked the AI layer against four local models and found five bugs, all fixed (docs/06). P7 (GitHub) is next.
 
 - `@agent-blueprint/core`: model, project format, validation (structural, semantic, orphans, contradictions, requirements), dependency graph, evaluation and health, change-sets, migrations.
 - `@agent-blueprint/exporters`: the compiler. Claude Code and Codex map every concept; Copilot, OpenCode and Pi emit the portable artifacts and report what they cannot represent.

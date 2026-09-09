@@ -386,9 +386,14 @@ filter can remove them.
 
 ## Live model check (roadmap P6-09)
 
-Run against a self-hosted OpenAI-compatible server on 2026-09-09. One row per model; "passes" means all three
-contract tests, including a whole Blueprint that applies with zero rejected ops and no dangling
-references.
+Run against a self-hosted OpenAI-compatible server on 2026-09-09 and 2026-09-10. One row per model; "passes"
+means all three contract tests, including a whole Blueprint that applies with zero rejected ops
+and no dangling references.
+
+A caveat about the failures below: LM Studio loads and unloads models on demand, so asking it
+for a different model evicts the last one. Several runs failed with `Model unloaded by user or
+API request`, `Model is unloaded`, or a dropped connection, none of which say anything about
+this code. Only failures reproduced with the model loaded are treated as findings.
 
 | Endpoint  | Model                           | Date       | JSON schema | Outcome                                                                             |
 | --------- | ------------------------------- | ---------- | ----------- | ----------------------------------------------------------------------------------- |
@@ -400,7 +405,7 @@ references.
 
 ### What it found
 
-Four bugs, none of which a fake `fetch` could have produced. Each has a regression test named
+Five bugs, none of which a fake `fetch` could have produced. Each has a regression test named
 after the model that caused it.
 
 1. **The probe was blind to reasoning models.** `max_tokens: 20` was spent on reasoning before
@@ -418,6 +423,13 @@ after the model that caused it.
 4. **A context overflow arrived as a shrug.** LM Studio says "exceeds the available context
    size", which matched none of the phrasings mapped to `context-too-large`, so the most
    actionable failure a local endpoint produces was reported as a generic 400.
+5. **One invented permission destroyed the whole draft.** `permissions.operations` is a map
+   keyed by a closed enum, so `a local model` asking for `git.fetch` and `git.checkout` failed
+   the entire agent — and then the workflow's reference to it was removed as dangling and the
+   primary agent ignored for not existing. The result was nineteen changes describing a system
+   with nobody in it, and the whole cascade came from two map keys. The assembler now drops the
+   operations it cannot express and keeps the agent, exactly as it already does for a reference
+   that points at nothing, and says so in the notes.
 
 Two things that are not bugs but are worth knowing. The 120 000 ms default timeout is right for
 a hosted API and short for a local model drafting a whole Blueprint (roadmap P6-10). And

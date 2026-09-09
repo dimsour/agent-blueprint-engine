@@ -23,6 +23,7 @@ import {
   entitySchemaFor,
   findEntity,
   getCollection,
+  PERMISSION_OPERATIONS,
   slugify,
   stableJson,
   uniqueSlug,
@@ -111,7 +112,7 @@ export function assembleChangeSet(options: AssembleOptions): Assembly {
   const accepted: Accepted[] = []
 
   for (const draft of options.drafts) {
-    const prepared = prepare(draft.kind, draft.value)
+    const prepared = prepare(draft.kind, draft.value, notes)
     const parsed = aiEntitySchemaFor(draft.kind).safeParse(prepared)
     if (!parsed.success) {
       notes.push(
@@ -219,13 +220,14 @@ export function assembleChangeSet(options: AssembleOptions): Assembly {
  * whose edges have no ids, is a well-formed proposal expressed sloppily; rejecting it would
  * cost a round trip to be told something we can work out.
  */
-function prepare(kind: EntityKind, value: unknown): unknown {
+function prepare(kind: EntityKind, value: unknown, notes: string[]): unknown {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return value
   const source = { ...(value as Record<string, unknown>) }
   if (typeof source.id !== 'string' || source.id === '') {
     const name = typeof source.name === 'string' ? source.name : ''
     if (name) source.id = slugify(name)
   }
+  if (kind === 'agent') source.permissions = prunePermissions(source.permissions, notes)
   if (kind !== 'workflow') return source
 
   const nodes: unknown[] = Array.isArray(source.nodes) ? (source.nodes as unknown[]) : []
@@ -250,6 +252,51 @@ function prepare(kind: EntityKind, value: unknown): unknown {
     if (first) source.entryNodeId = first.id
   }
   return source
+}
+
+/**
+ * Remove permission operations that do not exist, and keep the agent.
+ *
+ * `permissions.operations` is a map keyed by a closed enum, so one invented key fails the whole
+ * artifact — and an agent is the one artifact nothing survives losing. A live model asked for
+ * `git.fetch` and `git.checkout`, which are not in `PERMISSION_OPERATIONS`; the agent was
+ * dropped, the workflow's reference to it was then removed as dangling, the primary agent was
+ * ignored for not existing, and the draft arrived as fifteen changes describing a system with
+ * nobody in it.
+ *
+ * Dropping the key it could not express is the same repair the assembler already makes for a
+ * reference that points at nothing, and for the same reason: the model's intent for the rest of
+ * the artifact is perfectly clear. What was dropped goes in the notes, so the review says it.
+ */
+function prunePermissions(value: unknown, notes: string[]): unknown {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return value
+  const permissions = { ...(value as Record<string, unknown>) }
+  const known = new Set<string>(PERMISSION_OPERATIONS)
+  const unknown: string[] = []
+
+  const operations = permissions.operations
+  if (operations !== null && typeof operations === 'object' && !Array.isArray(operations)) {
+    const kept: Record<string, unknown> = {}
+    for (const [operation, decision] of Object.entries(operations as Record<string, unknown>)) {
+      if (known.has(operation)) kept[operation] = decision
+      else unknown.push(operation)
+    }
+    permissions.operations = kept
+  }
+
+  if (Array.isArray(permissions.patterns)) {
+    permissions.patterns = (permissions.patterns as unknown[]).filter((pattern) => {
+      const operation = (pattern as { operation?: unknown } | null)?.operation
+      if (typeof operation !== 'string' || known.has(operation)) return true
+      unknown.push(operation)
+      return false
+    })
+  }
+
+  for (const operation of [...new Set(unknown)].sort()) {
+    notes.push(`Removed the permission "${operation}", which is not an operation this model has.`)
+  }
+  return permissions
 }
 
 function positioned(fields: Record<string, unknown>): unknown {

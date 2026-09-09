@@ -453,7 +453,7 @@ Verification: `pnpm check` green; `pnpm --filter @agent-blueprint/core test` sho
 - Description: Manual verification against OpenAI and a local Ollama model, recorded in `docs/06-ai-layer.md` (model, date, outcome).
 - Acceptance: both generate a blueprint from the brief in docs/00 §end-to-end with zero rejected ops.
 - Verify: `AI_TEST_BASE_URL=… AI_TEST_MODEL=… pnpm --filter @agent-blueprint/ai test:live`
-- Run 2026-09-09 against a self-hosted OpenAI-compatible server, four models. `a local model` and `a local model` pass all three checks; the second drafted a nineteen-op Blueprint with nothing dropped and no dangling references. `a local model` passes everything but the whole-Blueprint draft, which does not finish inside ten minutes on that hardware, and `a local model` was loaded with a 3328-token context, smaller than the request. Results and the four bugs it found are in docs/06. OpenAI has not been run.
+- Run 2026-09-09 against a self-hosted OpenAI-compatible server, four models. `a local model` and `a local model` pass all three checks; the second drafted a nineteen-op Blueprint with nothing dropped and no dangling references. `a local model` passes everything but the whole-Blueprint draft, which does not finish inside ten minutes on that hardware, and `a local model` was loaded with a 3328-token context, smaller than the request. Results and the five bugs it found are in docs/06. OpenAI has not been run.
 
 ### P6-10 A configurable request timeout
 
