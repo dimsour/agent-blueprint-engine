@@ -6,18 +6,36 @@
  * The score is not an opinion the app is offering: every point comes off for a finding that
  * is named right next to it, and every requirement result comes with the artifacts that
  * satisfied it. A number without its reasons would be worse than no number.
+ *
+ * A model can be asked for a second opinion, and it lands beside the rules rather than inside
+ * them: its findings are marked, and they do not move the score. A number that changes because
+ * a model was in a mood is a number nobody can act on.
  */
 import {
+  type Diagnostic,
   evaluateBlueprint,
   type EntityRef,
   ENTITY_KIND_INFO,
   type RequirementResult,
 } from '@agent-blueprint/core'
 import { portabilityProvider } from '@agent-blueprint/exporters'
-import { CheckIcon, CircleAlertIcon, MinusIcon, RefreshCwIcon, XIcon } from 'lucide-react'
-import { useMemo } from 'react'
+import {
+  CheckIcon,
+  CircleAlertIcon,
+  Loader2Icon,
+  MinusIcon,
+  RefreshCwIcon,
+  SparklesIcon,
+  XIcon,
+} from 'lucide-react'
+import { useMemo, useState } from 'react'
+
+import { AIError, findContradictions, judgeRequirements } from '@agent-blueprint/ai'
 
 import { validateNow } from '@/lib/actions'
+import { withAiFindings, withoutDuplicates } from '@/lib/ai/merge'
+import { configuredClient } from '@/lib/ai/settings'
+import { useClientValue } from '@/lib/client-value'
 import { DiagnosticRow } from '@/components/views/diagnostic-row'
 import { Button } from '@/components/ui/button'
 import { Badge, Card } from '@/components/ui/primitives'
@@ -44,15 +62,55 @@ export function EvaluationView() {
   const validating = useWorkspace((state) => state.validating)
   const select = useWorkspace((state) => state.select)
 
+  const [aiFindings, setAiFindings] = useState<Diagnostic[]>([])
+  const [asking, setAsking] = useState(false)
+  const [aiError, setAiError] = useState<string | undefined>()
+  const canAsk = useClientValue(() => configuredClient() !== undefined, false)
+
   // Always the store's diagnostics. "Run again" refreshes those rather than computing a
   // second, private set, so this view and the health bar can never describe different runs.
-  const report = useMemo(
+  const scored = useMemo(
     () =>
       blueprint
         ? evaluateBlueprint(blueprint, { diagnostics, portability: portabilityProvider() })
         : undefined,
     [blueprint, diagnostics],
   )
+  const report = useMemo(
+    () => (scored ? withAiFindings(scored, aiFindings) : undefined),
+    [scored, aiFindings],
+  )
+
+  const runAiAnalysis = async () => {
+    const configured = configuredClient()
+    if (!configured || !blueprint) return
+    setAsking(true)
+    setAiError(undefined)
+    try {
+      const deps = { client: configured.client }
+      const ctx = { blueprint, diagnostics }
+      const [contradictions, requirements] = await Promise.all([
+        findContradictions(deps, ctx),
+        judgeRequirements(deps, ctx),
+      ])
+      // The deterministic checker has already reported what it can see; a model repeating it
+      // would double every finding the user has read once.
+      setAiFindings(
+        withoutDuplicates(
+          [...contradictions.diagnostics, ...requirements.diagnostics],
+          diagnostics,
+        ),
+      )
+    } catch (error) {
+      setAiError(
+        error instanceof AIError || error instanceof Error
+          ? error.message
+          : 'The endpoint could not be reached.',
+      )
+    } finally {
+      setAsking(false)
+    }
+  }
 
   if (!blueprint || !report) return null
 
@@ -78,7 +136,33 @@ export function EvaluationView() {
           <RefreshCwIcon className={cn('size-3', validating && 'animate-spin')} />
           Run again
         </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={!canAsk || asking}
+          title={canAsk ? undefined : 'Configure an AI endpoint in Settings'}
+          onClick={() => void runAiAnalysis()}
+        >
+          {asking ? (
+            <Loader2Icon className="size-3 animate-spin" />
+          ) : (
+            <SparklesIcon className="size-3" />
+          )}
+          Run AI analysis
+        </Button>
       </div>
+
+      {aiError ? (
+        <p role="alert" className="text-sm">
+          {aiError}
+        </p>
+      ) : null}
+      {aiFindings.length > 0 ? (
+        <p className="text-muted-foreground text-sm">
+          {aiFindings.length} {aiFindings.length === 1 ? 'finding' : 'findings'} from the model are
+          listed below, marked <Badge variant="outline">AI</Badge>. They do not change the score.
+        </p>
+      ) : null}
 
       <section className="flex flex-col gap-3">
         <h2 className="text-sm font-semibold">Dimensions</h2>

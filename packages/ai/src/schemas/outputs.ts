@@ -191,3 +191,19 @@ export const compoundOutputSchema = z.object({
   summary: z.string().min(1),
   proposals: z.array(proposalUnion(COMPOUND_PROPOSAL_KINDS)).default([]),
 })
+
+export const REQUIREMENT_VERDICT_STATUSES = ['pass', 'fail', 'unclear'] as const
+
+export const requirementVerdictSchema = z.object({
+  /** The check's id, exactly as it was given. */
+  id: z.string(),
+  status: z.enum(REQUIREMENT_VERDICT_STATUSES),
+  /** One sentence, naming the artifact that decided it where one did. */
+  rationale: z.string().min(1),
+})
+
+export type RequirementVerdict = z.infer<typeof requirementVerdictSchema>
+
+export const judgeRequirementsOutputSchema = z.object({
+  verdicts: z.array(requirementVerdictSchema).default([]),
+})

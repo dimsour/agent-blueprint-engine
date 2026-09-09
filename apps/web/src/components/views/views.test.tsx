@@ -25,8 +25,44 @@ async function load() {
   return blueprint
 }
 
+/** An AI endpoint this browser believes in, and an answer for it. */
+function configureEndpoint() {
+  localStorage.setItem(
+    'ab:settings:ai',
+    JSON.stringify({
+      presetId: 'custom',
+      baseUrl: 'https://stub.test/v1',
+      model: 'stub',
+      jsonSchema: true,
+      viaProxy: false,
+      extraHeaders: {},
+    }),
+  )
+  sessionStorage.setItem('ab:credentials:ai', 'sk-stub-abcdefghijklmnop')
+}
+
+function stubAnswer(content: unknown) {
+  globalThis.fetch = (() =>
+    Promise.resolve(
+      new Response(
+        JSON.stringify({
+          model: 'stub',
+          choices: [{ message: { role: 'assistant', content: JSON.stringify(content) } }],
+        }),
+        { status: 200 },
+      ),
+    )) as unknown as typeof globalThis.fetch
+}
+
+const realFetch = globalThis.fetch
+
 describe('EvaluationView', () => {
-  beforeEach(() => useWorkspace.getState().close())
+  beforeEach(() => {
+    useWorkspace.getState().close()
+    localStorage.clear()
+    sessionStorage.clear()
+    globalThis.fetch = realFetch
+  })
 
   it('shows the same score the evaluator computes', async () => {
     const blueprint = await load()
@@ -75,6 +111,46 @@ describe('EvaluationView', () => {
     render(<EvaluationView />)
 
     expect(screen.getByText(/No requirements yet/)).toBeInTheDocument()
+  })
+
+  it('offers the AI analysis only when there is an endpoint to ask', async () => {
+    await load()
+    render(<EvaluationView />)
+
+    const button = screen.getByRole('button', { name: 'Run AI analysis' })
+    expect(button).toBeDisabled()
+    expect(button).toHaveAttribute('title', 'Configure an AI endpoint in Settings')
+  })
+
+  it('lists a model’s findings beside the rules’, marked, and leaves the score alone', async () => {
+    const blueprint = await load()
+    configureEndpoint()
+    stubAnswer({
+      contradictions: [
+        {
+          first: { kind: 'iron-law', id: 'no-implementation-details' },
+          second: { kind: 'skill', id: 'test-design' },
+          conflict: 'The law forbids asserting on mocks; the skill asks for it.',
+          severity: 'high',
+        },
+      ],
+    })
+    const expected = evaluateBlueprint(blueprint, { diagnostics: validateBlueprint(blueprint) })
+    const user = userEvent.setup()
+    render(<EvaluationView />)
+
+    await user.click(screen.getByRole('button', { name: 'Run AI analysis' }))
+
+    const consistency = await screen.findByRole('list', { name: /Consistency findings/ })
+    expect(consistency).toHaveTextContent('BP-AI-CONTRA-001')
+    // The badge is what keeps "a rule computed this" and "a model thought this" apart.
+    expect(within(consistency).getByText('AI')).toBeInTheDocument()
+
+    const dimension = expected.dimensions.find((entry) => entry.id === 'consistency')!
+    expect(screen.getByText(/do not change the score/)).toBeInTheDocument()
+    expect(screen.getByLabelText(/Consistency findings/).closest('div')).toHaveTextContent(
+      String(dimension.score),
+    )
   })
 })
 

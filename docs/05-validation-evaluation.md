@@ -142,10 +142,11 @@ A finding whose `ref` names an artifact that does not exist is dropped before it
 with a note. A finding in this product is something you click to get to the artifact, and one
 that goes nowhere teaches the user that the list is not to be trusted.
 
-| Code                | Severity                         | Meaning                                                                                                         |
-| ------------------- | -------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `BP-AI-CONTRA-001`  | warning                          | Two instructions that cannot both be followed. `ref` is the first artifact, `related` the second.               |
-| `BP-AI-MISSING-001` | warning (critical, high) or info | Something the Blueprint implies but does not specify. `ref` is the artifact that implies it, when there is one. |
+| Code                | Severity                             | Meaning                                                                                                                                                                |
+| ------------------- | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `BP-AI-CONTRA-001`  | warning                              | Two instructions that cannot both be followed. `ref` is the first artifact, `related` the second.                                                                      |
+| `BP-AI-MISSING-001` | warning (critical, high) or info     | Something the Blueprint implies but does not specify. `ref` is the artifact that implies it, when there is one.                                                        |
+| `BP-AI-REQ-001`     | warning on `fail`, info on `unclear` | An `ai-judged` requirement check the model would not pass. `ref` is the requirement; `data.checkIndex` says which check. A check the model passes produces no finding. |
 
 The catalogue lives in code in `packages/ai/src/operations/codes.ts`; `packages/ai/tests/docs.test.ts` fails when a code there is missing from this document.
 
@@ -177,7 +178,7 @@ Evaluation semantics for each `RequirementCheck` (`packages/core/src/schema/qual
 | `gate-exists`            | Some gate exists; when `criterionKind` is given it must have a criterion of that kind.                                                                                                                                                   |
 | `agent-has-skill-tag`    | `agentId` given: that agent's `skillIds` include a skill whose `tags` contain `tag` (case-insensitive). Not given: any agent.                                                                                                            |
 | `text-mentions`          | Regex (case-insensitive) matches the concatenated text fields (`name`, `description`, `body`, plus `rule`, `guidance`, `whenToUse`, `statement`, `input` where present) of at least one entity of the given `kinds` (empty = all kinds). |
-| `ai-judged`              | Not evaluated here. Result `skipped`; `BP-REQ-004` when it is the only kind of check. With AI configured, the AI evaluator returns pass/fail with a rationale (`data.rationale`).                                                        |
+| `ai-judged`              | Not evaluated here. Result `skipped`; `BP-REQ-004` when it is the only kind of check. With AI configured, `judgeRequirements` (docs/06) returns `pass`, `fail` or `unclear` with a rationale, and the last two become `BP-AI-REQ-001`.   |
 
 Result per requirement: `satisfied` (all non-skipped checks pass, at least one evaluated), `partial` (some pass), `unsatisfied` (none pass), `unverifiable` (no checks or only skipped). Mapped to `BP-REQ-001/002/003/004` as in §2.3. A `RequirementResult { ref, status, checks: { check, status: 'pass' | 'fail' | 'skipped', evidence?: EntityRef[] }[] }` type is returned alongside the diagnostics so the UI can render the ✓ / ⚠ / ✕ list with links to the evidence.
 

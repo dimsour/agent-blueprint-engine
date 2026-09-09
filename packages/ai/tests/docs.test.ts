@@ -44,6 +44,7 @@ describe('documentation', () => {
       'find-missing': 'findMissing',
       evaluate: 'evaluate',
       compound: 'compound',
+      'judge-requirements': 'judgeRequirements',
     }
     for (const id of Object.keys(PROMPTS) as PromptId[]) {
       expect(doc, id).toContain(`\`${named[id]}\``)

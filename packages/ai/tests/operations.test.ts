@@ -11,7 +11,9 @@ import {
   applyChangeSet,
   type Blueprint,
   createEmptyBlueprint,
+  createEntity,
   findEntity,
+  upsertEntity,
   validateBlueprint,
 } from '@agent-blueprint/core'
 import { beforeAll, describe, expect, it } from 'vitest'
@@ -26,6 +28,7 @@ import {
   generateArtifact,
   generateBlueprint,
   improveArtifact,
+  judgeRequirements,
   type OperationDeps,
 } from '../src/index'
 import { loadFixture, recording, replayClient } from './helpers'
@@ -276,5 +279,45 @@ describe('compound', () => {
     const applied = applyChangeSet(fixture, result.changeSet)
     expect(applied.rejected).toEqual([])
     expect(validateBlueprint(applied.blueprint).filter((d) => d.severity === 'error')).toEqual([])
+  })
+})
+
+describe('judgeRequirements', () => {
+  /** The fixture has no `ai-judged` checks, so the test brings one that has two. */
+  function withJudgedChecks(): Blueprint {
+    return upsertEntity(fixture, 'requirement', {
+      ...createEntity(fixture, 'requirement', { name: 'Explains itself', id: 'explains-itself' }),
+      statement: 'The agent explains its reasoning before it acts.',
+      checks: [
+        { type: 'ai-judged', prompt: 'Does anything ask the agent to say why before acting?' },
+        { type: 'ai-judged', prompt: 'Is the agent required to read what it claims?' },
+      ],
+    })
+  }
+
+  it('answers the checks the validator has to skip, and marks them as a model’s', async () => {
+    const blueprint = withJudgedChecks()
+    const result = await judgeRequirements(depsFor('judge-requirements'), { blueprint })
+
+    // A check that passed is not news; only the failure becomes a finding.
+    expect(result.diagnostics).toHaveLength(1)
+    expect(result.diagnostics[0]).toMatchObject({
+      code: 'BP-AI-REQ-001',
+      severity: 'warning',
+      ref: { kind: 'requirement', id: 'explains-itself' },
+      data: { source: 'ai', status: 'fail', checkIndex: 0 },
+    })
+    expect(result.diagnostics[0]!.message).toContain('explains its reasoning')
+
+    // Both verdicts are kept, for a view that shows checks rather than findings.
+    expect(result.verdicts.map((entry) => entry.verdict.status)).toEqual(['fail', 'pass'])
+    expect(result.notes[0]).toContain('a-requirement-that-is-not-there')
+  })
+
+  it('asks nothing when there is nothing only a model could answer', async () => {
+    const { client, sent } = replayClient([])
+    const result = await judgeRequirements({ client }, { blueprint: fixture })
+    expect(sent).toEqual([])
+    expect(result).toMatchObject({ diagnostics: [], verdicts: [] })
   })
 })

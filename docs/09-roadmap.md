@@ -439,12 +439,13 @@ Verification: `pnpm check` green; `pnpm --filter @agent-blueprint/core test` sho
 - Verify: `pnpm --filter web test:e2e`
 - Built: the assistant is a dialog on ⌘/, the top bar and every palette AI entry, offering the nine operations grouped by what they act on. Every ChangeSet — assistant, wizard draft, Compound — goes through one review that diffs per field, states what the operation could not honour, and lets a proposal be edited as the file it would become before it is applied. Step 1 of the wizard gained _Draft this with AI_. Playwright covers the compound flow (accept two of three), improve-skill, generate-blueprint in the wizard, finding navigation, and the no-endpoint path.
 
-### P6-08 AI-assisted evaluation and contradictions
+### P6-08 AI-assisted evaluation and contradictions (done)
 
 - Depends on: P6-04, P5-02
 - Description: Evaluation view gains "Run AI analysis": contradictions and `ai-judged` requirement checks merged as diagnostics with `data.source: 'ai'`.
 - Acceptance: unit test merging; UI badge distinguishes AI findings.
 - Verify: `pnpm --filter web test`
+- Built: a new `judgeRequirements` operation answers the `ai-judged` checks core reports as skipped, emitting `BP-AI-REQ-001` for the ones it will not pass. The evaluation view's **Run AI analysis** merges those and the contradictions into the dimensions they belong beside, deduplicated against the validator's own findings, badged `AI` by `DiagnosticRow`, and deliberately excluded from the score.
 
 ### P6-09 Live model check
 

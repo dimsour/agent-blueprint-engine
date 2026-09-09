@@ -24,7 +24,7 @@ import {
 const ids = Object.keys(PROMPTS) as PromptId[]
 
 describe('every prompt', () => {
-  it('covers the nine operations, each named once', () => {
+  it('covers every operation, each named once', () => {
     expect(ids).toEqual([
       'generate-blueprint',
       'generate-artifact',
@@ -35,6 +35,7 @@ describe('every prompt', () => {
       'find-missing',
       'evaluate',
       'compound',
+      'judge-requirements',
     ])
     for (const id of ids) expect(PROMPTS[id].id).toBe(id)
     expect(new Set(ids.map((id) => PROMPTS[id].version)).size).toBeGreaterThan(0)

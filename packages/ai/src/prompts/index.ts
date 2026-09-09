@@ -16,6 +16,7 @@ export * from './find-missing.v1'
 export * from './generate-artifact.v1'
 export * from './generate-blueprint.v1'
 export * from './improve-artifact.v1'
+export * from './judge-requirements.v1'
 
 import { compoundV1 } from './compound.v1'
 import { createIronLawsV1 } from './create-iron-laws.v1'
@@ -26,6 +27,7 @@ import { findMissingV1 } from './find-missing.v1'
 import { generateArtifactV1 } from './generate-artifact.v1'
 import { generateBlueprintV1 } from './generate-blueprint.v1'
 import { improveArtifactV1 } from './improve-artifact.v1'
+import { judgeRequirementsV1 } from './judge-requirements.v1'
 
 export const PROMPTS = {
   'generate-blueprint': generateBlueprintV1,
@@ -37,6 +39,7 @@ export const PROMPTS = {
   'find-missing': findMissingV1,
   evaluate: evaluateV1,
   compound: compoundV1,
+  'judge-requirements': judgeRequirementsV1,
 } as const
 
 export type PromptId = keyof typeof PROMPTS

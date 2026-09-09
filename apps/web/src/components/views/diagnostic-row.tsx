@@ -7,11 +7,16 @@
  * what clicking one should do. This is that decision, made once: the code, the severity, the
  * message, and a jump to the artifact it is about, including the step inside a workflow when
  * the finding names one.
+ *
+ * A finding a model produced is badged as one. It sits in the same lists as the rules', which
+ * is where it is useful, and the badge is what keeps "a rule computed this" and "a model
+ * thought this" from reading as the same claim.
  */
 import type { Diagnostic, EntityRef } from '@agent-blueprint/core'
 import { AlertTriangleIcon, CircleAlertIcon, InfoIcon } from 'lucide-react'
 
 import { Badge } from '@/components/ui/primitives'
+import { isAiFinding } from '@/lib/ai/merge'
 import { nodeIdsOf } from '@/lib/graph/workflow'
 import { cn } from '@/lib/utils'
 
@@ -42,6 +47,11 @@ export function DiagnosticRow({
       <Badge variant="outline" className="shrink-0 font-mono">
         {diagnostic.code}
       </Badge>
+      {isAiFinding(diagnostic) ? (
+        <Badge variant="outline" className="shrink-0">
+          AI
+        </Badge>
+      ) : null}
       <span className="min-w-0 flex-1 text-left text-xs">{diagnostic.message}</span>
     </>
   )

@@ -1,0 +1,25 @@
+{
+  "note": "Two ai-judged checks and a verdict for a third that does not exist, which is what a model does when it half-remembers the list it was given.",
+  "recordedAgainst": { "operation": "judge-requirements", "promptVersion": 1 },
+  "answers": [
+    {
+      "verdicts": [
+        {
+          "id": "explains-itself#0",
+          "status": "fail",
+          "rationale": "Nothing in the agent's persona or its skills asks it to say why before it acts."
+        },
+        {
+          "id": "explains-itself#1",
+          "status": "pass",
+          "rationale": "The never-fake-verification law requires the output to be read before it is reported."
+        },
+        {
+          "id": "a-requirement-that-is-not-there#0",
+          "status": "fail",
+          "rationale": "Invented."
+        }
+      ]
+    }
+  ]
+}

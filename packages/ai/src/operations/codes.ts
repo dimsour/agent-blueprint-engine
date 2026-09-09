@@ -28,10 +28,16 @@ export const AI_DIAGNOSTIC_CODES: readonly AIDiagnosticCode[] = [
     severity: 'varies',
     summary: 'A model found something the Blueprint implies but does not specify.',
   },
+  {
+    code: 'BP-AI-REQ-001',
+    severity: 'varies',
+    summary: 'A model judged an `ai-judged` requirement check as failing or unclear.',
+  },
 ]
 
 export const AI_CONTRADICTION_CODE = 'BP-AI-CONTRA-001'
 export const AI_MISSING_CODE = 'BP-AI-MISSING-001'
+export const AI_REQUIREMENT_CODE = 'BP-AI-REQ-001'
 
 /** Severity for a finding, mapped from what the model claimed. */
 export function severityFor(claimed: 'critical' | 'high' | 'medium' | 'low'): DiagnosticSeverity {
