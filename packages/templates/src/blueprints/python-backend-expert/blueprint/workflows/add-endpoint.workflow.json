@@ -1,0 +1,160 @@
+{
+  "entryNodeId": "start",
+  "nodes": [
+    {
+      "id": "end",
+      "type": "end",
+      "label": "Report the outcome",
+      "position": {
+        "x": 0,
+        "y": 960
+      }
+    },
+    {
+      "id": "gate",
+      "type": "gate",
+      "label": "Ready to report",
+      "description": "Assign a gate that must hold before this is reported as complete.",
+      "position": {
+        "x": 0,
+        "y": 840
+      },
+      "config": {
+        "gateId": "tests-pass"
+      }
+    },
+    {
+      "id": "implement",
+      "type": "agent",
+      "label": "Implement",
+      "description": "Work the plan. Keep each step small enough to verify.",
+      "position": {
+        "x": 0,
+        "y": 480
+      },
+      "config": {
+        "agentId": "python-backend-expert"
+      }
+    },
+    {
+      "id": "plan",
+      "type": "agent",
+      "label": "Plan the change",
+      "description": "Write the steps, in order, with the smallest first change that can be verified.",
+      "position": {
+        "x": 0,
+        "y": 360
+      },
+      "config": {
+        "agentId": "python-backend-expert",
+        "outputSpec": "an ordered plan whose steps can each be checked"
+      }
+    },
+    {
+      "id": "review",
+      "type": "review",
+      "label": "Review the change",
+      "description": "Read the diff as a reviewer: does it meet the acceptance criteria, does it match the conventions, does it leave anything half-done?",
+      "position": {
+        "x": 0,
+        "y": 720
+      }
+    },
+    {
+      "id": "start",
+      "type": "start",
+      "label": "Start",
+      "position": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": "survey",
+      "type": "agent",
+      "label": "Read the surrounding code",
+      "description": "Find the existing patterns this change must match: naming, layering, error handling, tests.",
+      "position": {
+        "x": 0,
+        "y": 240
+      },
+      "config": {
+        "agentId": "python-backend-expert",
+        "outputSpec": "the files that will change and the conventions to follow"
+      }
+    },
+    {
+      "id": "understand",
+      "type": "agent",
+      "label": "Understand the request",
+      "description": "Restate the request, list what is in scope and what is not, and name the acceptance criteria.",
+      "position": {
+        "x": 0,
+        "y": 120
+      },
+      "config": {
+        "agentId": "python-backend-expert",
+        "outputSpec": "a restatement, the scope boundary and the acceptance criteria"
+      }
+    },
+    {
+      "id": "verify",
+      "type": "verification",
+      "label": "Verify",
+      "description": "Run the project checks and read the output.",
+      "position": {
+        "x": 0,
+        "y": 600
+      },
+      "config": {
+        "verification": {
+          "method": "tests",
+          "command": "pytest -q"
+        },
+        "onFailure": "retry"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "start",
+      "to": "understand"
+    },
+    {
+      "id": "e2",
+      "from": "understand",
+      "to": "survey"
+    },
+    {
+      "id": "e3",
+      "from": "survey",
+      "to": "plan"
+    },
+    {
+      "id": "e4",
+      "from": "plan",
+      "to": "implement"
+    },
+    {
+      "id": "e5",
+      "from": "implement",
+      "to": "verify"
+    },
+    {
+      "id": "e6",
+      "from": "verify",
+      "to": "review"
+    },
+    {
+      "id": "e7",
+      "from": "review",
+      "to": "gate"
+    },
+    {
+      "id": "e8",
+      "from": "gate",
+      "to": "end"
+    }
+  ]
+}

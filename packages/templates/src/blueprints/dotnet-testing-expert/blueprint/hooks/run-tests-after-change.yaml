@@ -1,0 +1,11 @@
+name: Run tests after change
+description: Runs the affected test project whenever a C# file is edited and returns failures to the agent.
+trigger: after-file-change
+conditions:
+  filePatterns:
+    - "**/*.cs"
+action:
+  type: run-tests
+  command: dotnet test --no-restore
+  timeoutSec: 600
+onFailure: return-to-agent

@@ -1,0 +1,7 @@
+name: Shell
+description: The Shell command line, for building, testing and formatting.
+kind: shell
+operations:
+  - build
+  - test
+  - format

@@ -59,6 +59,75 @@ export interface Graph {
 }
 
 /**
+ * Lay out a workflow that fans out into parallel branches and merges again.
+ *
+ * `before` runs in sequence and must end with the `parallel` node that opens the group;
+ * each branch runs on its own column; every branch tail feeds the merge node with an
+ * `aggregation` edge; `after` continues in sequence below it.
+ */
+export function fanOut(spec: {
+  before: StepSpec[]
+  branches: StepSpec[][]
+  merge: StepSpec
+  after: StepSpec[]
+}): Graph {
+  const entry = spec.before[0]
+  const split = spec.before[spec.before.length - 1]
+  if (!entry || !split) throw new Error('fanOut() needs at least one step before the branches')
+  if (spec.branches.length < 2) throw new Error('fanOut() needs at least two branches')
+
+  const nodes: WorkflowNodeInput[] = []
+  const edges: WorkflowEdgeInput[] = []
+  const COLUMN = 280
+  const ROW = 120
+
+  spec.before.forEach((step, index) => {
+    nodes.push({ ...step, position: { x: 0, y: index * ROW } })
+    const previous = spec.before[index - 1]
+    if (previous) edges.push({ id: `e-before-${index}`, from: previous.id, to: step.id })
+  })
+
+  const branchTop = spec.before.length * ROW
+  const centre = (spec.branches.length - 1) / 2
+  let branchDepth = 0
+
+  spec.branches.forEach((branch, branchIndex) => {
+    const x = Math.round((branchIndex - centre) * COLUMN)
+    branch.forEach((step, stepIndex) => {
+      nodes.push({ ...step, position: { x, y: branchTop + stepIndex * ROW } })
+      const previous = branch[stepIndex - 1]
+      if (previous) {
+        edges.push({ id: `e-b${branchIndex}-${stepIndex}`, from: previous.id, to: step.id })
+      }
+    })
+    const head = branch[0]
+    const tail = branch[branch.length - 1]
+    if (head)
+      edges.push({ id: `e-split-${branchIndex}`, from: split.id, to: head.id, kind: 'parallel' })
+    if (tail) {
+      edges.push({
+        id: `e-join-${branchIndex}`,
+        from: tail.id,
+        to: spec.merge.id,
+        kind: 'aggregation',
+      })
+    }
+    branchDepth = Math.max(branchDepth, branch.length)
+  })
+
+  const mergeY = branchTop + branchDepth * ROW
+  nodes.push({ ...spec.merge, position: { x: 0, y: mergeY } })
+
+  spec.after.forEach((step, index) => {
+    nodes.push({ ...step, position: { x: 0, y: mergeY + (index + 1) * ROW } })
+    const previous = index === 0 ? spec.merge : spec.after[index - 1]
+    if (previous) edges.push({ id: `e-after-${index}`, from: previous.id, to: step.id })
+  })
+
+  return { entryNodeId: entry.id, nodes, edges }
+}
+
+/**
  * Lay out a linear workflow: one column, 120px apart, one sequential edge between
  * consecutive steps. Positions and edge ids are derived from the order, so the graph is
  * deterministic and a later edit produces a minimal diff.

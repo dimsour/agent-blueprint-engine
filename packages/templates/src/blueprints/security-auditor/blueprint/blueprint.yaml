@@ -1,0 +1,33 @@
+schemaVersion: "1.0"
+id: security-auditor
+name: Security Auditor
+version: 1.0.0
+description: Audits code for security weaknesses and reports each one with evidence, the consequence and the smallest fix.
+targets:
+  - harnessId: claude-code
+  - harnessId: codex
+artifacts:
+  agents:
+    - security-auditor
+  skills:
+    - threat-modelling
+    - input-handling
+    - authz-review
+    - vulnerability-research
+  workflows:
+    - audit
+  ironLaws:
+    - never-expose-secrets
+    - never-write-exploits
+    - never-claim-secure
+  rules:
+    - evidence-for-findings
+  tools:
+    - filesystem
+    - scanner
+  references:
+    - weakness-checklist
+  memories:
+    - audit-history
+  requirements:
+    - no-exploit-code

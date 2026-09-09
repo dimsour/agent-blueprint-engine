@@ -1,0 +1,194 @@
+{
+  "entryNodeId": "start",
+  "nodes": [
+    {
+      "id": "correctness",
+      "type": "review",
+      "label": "Correctness",
+      "description": "Look for logic that is wrong for some input: boundaries, empty cases, error paths, concurrency, and assumptions the code makes without checking.",
+      "position": {
+        "x": -420,
+        "y": 360
+      },
+      "config": {
+        "skillId": "failure-modes"
+      }
+    },
+    {
+      "id": "design",
+      "type": "review",
+      "label": "Design",
+      "description": "Does the change fit the existing structure, or does it work around it? Is there a simpler shape with the same behaviour?",
+      "position": {
+        "x": 420,
+        "y": 360
+      },
+      "config": {
+        "skillId": "review-craft"
+      }
+    },
+    {
+      "id": "end",
+      "type": "end",
+      "label": "Report the outcome",
+      "position": {
+        "x": 0,
+        "y": 720
+      }
+    },
+    {
+      "id": "read",
+      "type": "agent",
+      "label": "Read the change",
+      "description": "Read the diff and enough of the surrounding code to judge it. Note what the change is trying to do.",
+      "position": {
+        "x": 0,
+        "y": 120
+      },
+      "config": {
+        "agentId": "code-reviewer",
+        "outputSpec": "the intent of the change and the files it touches"
+      }
+    },
+    {
+      "id": "report",
+      "type": "output",
+      "label": "Report",
+      "description": "One report, each finding with file and line, what is wrong, and what to do.",
+      "position": {
+        "x": 0,
+        "y": 600
+      },
+      "config": {
+        "outputSpec": "findings grouped by severity, each with file:line and a suggested fix"
+      }
+    },
+    {
+      "id": "security",
+      "type": "review",
+      "label": "Security",
+      "description": "Look for untrusted input reaching a dangerous sink, missing authorisation, secrets in code or logs, and dependencies added without review.",
+      "position": {
+        "x": -140,
+        "y": 360
+      },
+      "config": {
+        "skillId": "security-review"
+      }
+    },
+    {
+      "id": "split",
+      "type": "parallel",
+      "label": "Review in parallel",
+      "position": {
+        "x": 0,
+        "y": 240
+      }
+    },
+    {
+      "id": "start",
+      "type": "start",
+      "label": "Start",
+      "position": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": "synthesis",
+      "type": "synthesis",
+      "label": "Combine the findings",
+      "description": "Merge the four reviews into one list, remove duplicates, and order by severity: correctness and security first.",
+      "position": {
+        "x": 0,
+        "y": 480
+      },
+      "config": {
+        "mergeStrategy": "synthesize"
+      }
+    },
+    {
+      "id": "tests",
+      "type": "review",
+      "label": "Tests",
+      "description": "Do the tests cover the behaviour that changed, including the failure paths? Would they fail if the change were wrong?",
+      "position": {
+        "x": 140,
+        "y": 360
+      },
+      "config": {
+        "skillId": "test-review"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-after-0",
+      "from": "synthesis",
+      "to": "report"
+    },
+    {
+      "id": "e-after-1",
+      "from": "report",
+      "to": "end"
+    },
+    {
+      "id": "e-before-1",
+      "from": "start",
+      "to": "read"
+    },
+    {
+      "id": "e-before-2",
+      "from": "read",
+      "to": "split"
+    },
+    {
+      "id": "e-join-0",
+      "from": "correctness",
+      "to": "synthesis",
+      "kind": "aggregation"
+    },
+    {
+      "id": "e-join-1",
+      "from": "security",
+      "to": "synthesis",
+      "kind": "aggregation"
+    },
+    {
+      "id": "e-join-2",
+      "from": "tests",
+      "to": "synthesis",
+      "kind": "aggregation"
+    },
+    {
+      "id": "e-join-3",
+      "from": "design",
+      "to": "synthesis",
+      "kind": "aggregation"
+    },
+    {
+      "id": "e-split-0",
+      "from": "split",
+      "to": "correctness",
+      "kind": "parallel"
+    },
+    {
+      "id": "e-split-1",
+      "from": "split",
+      "to": "security",
+      "kind": "parallel"
+    },
+    {
+      "id": "e-split-2",
+      "from": "split",
+      "to": "tests",
+      "kind": "parallel"
+    },
+    {
+      "id": "e-split-3",
+      "from": "split",
+      "to": "design",
+      "kind": "parallel"
+    }
+  ]
+}

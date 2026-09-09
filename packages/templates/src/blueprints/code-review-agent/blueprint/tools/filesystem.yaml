@@ -1,0 +1,5 @@
+name: File system
+description: Reading the files around a change.
+kind: filesystem
+operations:
+  - read

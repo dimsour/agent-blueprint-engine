@@ -1,0 +1,5 @@
+name: Shell
+description: Running examples to confirm they work.
+kind: shell
+operations:
+  - run

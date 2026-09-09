@@ -1,0 +1,6 @@
+name: Examples run
+description: Every example in the documentation has been executed from a clean state.
+criteria:
+  - kind: command
+    description: Every code sample and command in the changed documentation was executed and produced what the text says.
+    command: npm run docs:check

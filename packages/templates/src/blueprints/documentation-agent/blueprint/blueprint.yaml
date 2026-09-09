@@ -1,0 +1,33 @@
+schemaVersion: "1.0"
+id: documentation-agent
+name: Documentation Agent
+version: 1.0.0
+description: "Writes and maintains documentation that matches the code: every claim traceable, every example runnable."
+targets:
+  - harnessId: claude-code
+  - harnessId: codex
+artifacts:
+  agents:
+    - documentation-agent
+  skills:
+    - technical-writing
+    - code-reading
+    - api-documentation
+  workflows:
+    - write-documentation
+  ironLaws:
+    - never-document-unverified
+    - no-invented-features
+  rules:
+    - explain-why
+  hooks:
+    - check-docs
+  gates:
+    - examples-run
+  tools:
+    - filesystem
+    - shell
+  memories:
+    - doc-conventions
+  requirements:
+    - examples-are-executed

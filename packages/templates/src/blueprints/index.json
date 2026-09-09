@@ -1,0 +1,52 @@
+[
+  {
+    "id": "dotnet-testing-expert",
+    "label": ".NET Testing Expert",
+    "description": "Writes and reviews high-quality xUnit unit tests."
+  },
+  {
+    "id": "react-expert",
+    "label": "React Expert",
+    "description": "Builds and reviews React components with an eye on state, effects and accessibility."
+  },
+  {
+    "id": "python-backend-expert",
+    "label": "Python Backend Expert",
+    "description": "Builds Python services with typed boundaries, real error handling and fast tests."
+  },
+  {
+    "id": "code-review-agent",
+    "label": "Code Review Agent",
+    "description": "Reviews changes along four dimensions in parallel and reports findings by severity."
+  },
+  {
+    "id": "security-auditor",
+    "label": "Security Auditor",
+    "description": "Audits a codebase for weaknesses with evidence, severity and a fix for each finding."
+  },
+  {
+    "id": "devops-agent",
+    "label": "DevOps Agent",
+    "description": "Changes infrastructure and pipelines with a plan, a review and a way back."
+  },
+  {
+    "id": "documentation-agent",
+    "label": "Documentation Agent",
+    "description": "Writes documentation from the code as the source of truth, never from assumption."
+  },
+  {
+    "id": "software-architect",
+    "label": "Software Architect",
+    "description": "Designs systems, writes the decision record, and says what the design costs."
+  },
+  {
+    "id": "qa-engineer",
+    "label": "QA Engineer",
+    "description": "Finds what breaks: exploratory testing, edge cases and regression coverage."
+  },
+  {
+    "id": "software-engineering-team",
+    "label": "Full Software Engineering Team",
+    "description": "Five agents: an orchestrator that delegates to an architect, a developer, a test engineer and a security reviewer, reviewing in parallel."
+  }
+]

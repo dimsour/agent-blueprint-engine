@@ -1,0 +1,8 @@
+name: Reviews complete
+description: "Never Skip A Required Review: both reviews are done and their findings resolved."
+criteria:
+  - kind: review
+    description: The test engineer and the security reviewer have both reported, and every finding is fixed or explicitly accepted.
+  - kind: tests-pass
+    description: The suite is green.
+    command: npm test

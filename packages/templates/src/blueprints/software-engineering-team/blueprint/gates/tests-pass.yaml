@@ -1,0 +1,6 @@
+name: Tests must pass
+description: The task is not complete until the suite runs green and the output has been read.
+criteria:
+  - kind: tests-pass
+    description: Every test in the affected projects passes.
+    command: npm test

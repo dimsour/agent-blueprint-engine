@@ -1,0 +1,5 @@
+name: File system
+description: Reading source, configuration and dependency manifests.
+kind: filesystem
+operations:
+  - read

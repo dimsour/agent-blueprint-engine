@@ -1,0 +1,34 @@
+schemaVersion: "1.0"
+id: software-architect
+name: Software Architect
+version: 1.0.0
+description: "Designs systems and records the decisions: the constraints, the options, the choice, and what it will cost later."
+targets:
+  - harnessId: claude-code
+  - harnessId: codex
+artifacts:
+  agents:
+    - software-architect
+  skills:
+    - system-design
+    - decision-records
+    - option-analysis
+    - architecture-review
+  workflows:
+    - design-system
+    - review-design
+  ironLaws:
+    - respect-existing-structure
+    - state-the-cost
+    - never-assert-unverified
+  rules:
+    - confirm-constraints
+  tools:
+    - filesystem
+    - documentation
+  references:
+    - decision-log
+  memories:
+    - architecture-decisions
+  requirements:
+    - decisions-are-recorded

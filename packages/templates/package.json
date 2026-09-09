@@ -15,7 +15,8 @@
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "starters:seed": "tsx scripts/seed-starters.ts"
   },
   "dependencies": {
     "@agent-blueprint/core": "workspace:*"
@@ -25,6 +26,7 @@
     "@agent-blueprint/tsconfig": "workspace:*",
     "@types/node": "26.5.0",
     "eslint": "9.39.5",
+    "tsx": "4.23.13",
     "typescript": "5.9.3",
     "vitest": "5.0.0"
   }

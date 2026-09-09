@@ -1,0 +1,133 @@
+{
+  "entryNodeId": "start",
+  "nodes": [
+    {
+      "id": "design",
+      "type": "skill",
+      "label": "Design tests",
+      "position": {
+        "x": 0,
+        "y": 240
+      },
+      "config": {
+        "skillId": "test-design"
+      }
+    },
+    {
+      "id": "end",
+      "type": "end",
+      "label": "Done",
+      "position": {
+        "x": 0,
+        "y": 720
+      }
+    },
+    {
+      "id": "gate",
+      "type": "gate",
+      "label": "Tests must pass",
+      "position": {
+        "x": 0,
+        "y": 600
+      },
+      "config": {
+        "gateId": "tests-pass"
+      }
+    },
+    {
+      "id": "implement",
+      "type": "skill",
+      "label": "Implement tests",
+      "position": {
+        "x": 0,
+        "y": 360
+      },
+      "config": {
+        "skillId": "xunit"
+      }
+    },
+    {
+      "id": "run-tests",
+      "type": "verification",
+      "label": "Run tests",
+      "position": {
+        "x": 0,
+        "y": 480
+      },
+      "config": {
+        "verification": {
+          "method": "tests",
+          "command": "dotnet test"
+        },
+        "onFailure": "retry"
+      }
+    },
+    {
+      "id": "start",
+      "type": "start",
+      "label": "Start",
+      "position": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": "understand",
+      "type": "agent",
+      "label": "Understand the unit",
+      "position": {
+        "x": 0,
+        "y": 120
+      },
+      "config": {
+        "agentId": "testing-expert",
+        "contextInputs": [
+          "the class under test",
+          "existing tests"
+        ],
+        "outputSpec": "list of behaviours to test"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "start",
+      "to": "understand"
+    },
+    {
+      "id": "e2",
+      "from": "understand",
+      "to": "design"
+    },
+    {
+      "id": "e3",
+      "from": "design",
+      "to": "implement"
+    },
+    {
+      "id": "e4",
+      "from": "implement",
+      "to": "run-tests"
+    },
+    {
+      "id": "e5",
+      "from": "run-tests",
+      "to": "gate"
+    },
+    {
+      "id": "e6",
+      "from": "run-tests",
+      "to": "implement",
+      "kind": "retry",
+      "required": false,
+      "condition": "tests fail",
+      "label": "fix and retry"
+    },
+    {
+      "id": "e7",
+      "from": "gate",
+      "to": "end"
+    }
+  ]
+}

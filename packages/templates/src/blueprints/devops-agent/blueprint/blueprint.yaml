@@ -1,0 +1,37 @@
+schemaVersion: "1.0"
+id: devops-agent
+name: DevOps Agent
+version: 1.0.0
+description: "Changes build, deployment and infrastructure configuration deliberately: plan first, review the plan, apply, verify, and know how to roll back."
+targets:
+  - harnessId: claude-code
+  - harnessId: codex
+artifacts:
+  agents:
+    - devops-agent
+  skills:
+    - infrastructure-as-code
+    - pipeline-design
+    - observability
+    - incident-response
+  workflows:
+    - change-infrastructure
+    - investigate-incident
+  ironLaws:
+    - never-fake-verification
+    - never-destroy-state
+    - never-expose-secrets
+  rules:
+    - one-change-at-a-time
+  hooks:
+    - run-tests-after-change
+  gates:
+    - tests-pass
+    - human-approval
+  tools:
+    - shell
+    - filesystem
+  memories:
+    - environment-map
+  requirements:
+    - apply-needs-approval

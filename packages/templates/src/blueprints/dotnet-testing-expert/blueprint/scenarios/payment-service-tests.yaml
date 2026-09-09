@@ -1,0 +1,12 @@
+name: Payment service tests
+description: A typical request to test a service with failure paths.
+agentId: testing-expert
+input: Write unit tests for this payment service.
+expectedBehaviors:
+  - description: Uses the project's testing framework
+  - description: Tests failure cases such as declined cards and timeouts
+  - description: Tests observable behaviour, not private implementation details
+  - description: Runs the tests before claiming success
+    check:
+      type: workflow-has-node-type
+      nodeType: verification

@@ -1,0 +1,6 @@
+name: Human approval before apply
+description: A person confirms the plan before anything is applied to a live environment.
+criteria:
+  - kind: human-approval
+    description: A person has read the plan output and confirmed the resources it would change or destroy.
+onFail: request-approval

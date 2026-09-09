@@ -1,0 +1,143 @@
+{
+  "entryNodeId": "start",
+  "nodes": [
+    {
+      "id": "behaviours",
+      "type": "agent",
+      "label": "List the behaviours",
+      "description": "List what the unit promises through its public surface, including failure modes and boundaries.",
+      "position": {
+        "x": 0,
+        "y": 120
+      },
+      "config": {
+        "agentId": "qa-engineer",
+        "skillId": "test-design",
+        "outputSpec": "a list of behaviours, each one testable"
+      }
+    },
+    {
+      "id": "conventions",
+      "type": "agent",
+      "label": "Match the project",
+      "description": "Find the test framework, assertion library and naming the project already uses, and follow them.",
+      "position": {
+        "x": 0,
+        "y": 240
+      },
+      "config": {
+        "agentId": "qa-engineer",
+        "outputSpec": "the framework, assertion style and file layout to use"
+      }
+    },
+    {
+      "id": "end",
+      "type": "end",
+      "label": "Report the outcome",
+      "position": {
+        "x": 0,
+        "y": 840
+      }
+    },
+    {
+      "id": "gate",
+      "type": "gate",
+      "label": "All tests pass",
+      "description": "Assign a gate that requires a green suite.",
+      "position": {
+        "x": 0,
+        "y": 720
+      },
+      "config": {
+        "gateId": "tests-pass"
+      }
+    },
+    {
+      "id": "mutate",
+      "type": "review",
+      "label": "Check they can fail",
+      "description": "Break the code under test on purpose and confirm the new tests fail. A test that passes against broken code is not a test.",
+      "position": {
+        "x": 0,
+        "y": 600
+      }
+    },
+    {
+      "id": "run",
+      "type": "verification",
+      "label": "Run them",
+      "description": "Run the suite and read the output.",
+      "position": {
+        "x": 0,
+        "y": 480
+      },
+      "config": {
+        "verification": {
+          "method": "tests",
+          "command": "npm test"
+        },
+        "onFailure": "retry"
+      }
+    },
+    {
+      "id": "start",
+      "type": "start",
+      "label": "Start",
+      "position": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": "write",
+      "type": "agent",
+      "label": "Write the tests",
+      "description": "One test per behaviour: arrange, act, assert, in that order.",
+      "position": {
+        "x": 0,
+        "y": 360
+      },
+      "config": {
+        "agentId": "qa-engineer",
+        "skillId": "edge-cases"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "start",
+      "to": "behaviours"
+    },
+    {
+      "id": "e2",
+      "from": "behaviours",
+      "to": "conventions"
+    },
+    {
+      "id": "e3",
+      "from": "conventions",
+      "to": "write"
+    },
+    {
+      "id": "e4",
+      "from": "write",
+      "to": "run"
+    },
+    {
+      "id": "e5",
+      "from": "run",
+      "to": "mutate"
+    },
+    {
+      "id": "e6",
+      "from": "mutate",
+      "to": "gate"
+    },
+    {
+      "id": "e7",
+      "from": "gate",
+      "to": "end"
+    }
+  ]
+}

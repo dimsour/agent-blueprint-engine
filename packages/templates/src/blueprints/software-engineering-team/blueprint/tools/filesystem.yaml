@@ -1,0 +1,6 @@
+name: File system
+description: Reading and writing files in the repository.
+kind: filesystem
+operations:
+  - read
+  - write

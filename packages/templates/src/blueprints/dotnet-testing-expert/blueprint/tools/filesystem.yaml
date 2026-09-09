@@ -1,0 +1,5 @@
+name: File system
+kind: filesystem
+operations:
+  - read
+  - write

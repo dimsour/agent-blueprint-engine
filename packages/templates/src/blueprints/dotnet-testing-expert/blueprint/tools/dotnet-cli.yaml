@@ -1,0 +1,7 @@
+name: .NET CLI
+description: The dotnet command line for building and testing.
+kind: shell
+operations:
+  - build
+  - test
+  - format

@@ -1,0 +1,101 @@
+{
+  "entryNodeId": "start",
+  "nodes": [
+    {
+      "id": "assess",
+      "type": "skill",
+      "label": "Assess design",
+      "position": {
+        "x": 0,
+        "y": 240
+      },
+      "config": {
+        "skillId": "test-design"
+      }
+    },
+    {
+      "id": "end",
+      "type": "end",
+      "label": "Done",
+      "position": {
+        "x": 0,
+        "y": 600
+      }
+    },
+    {
+      "id": "read",
+      "type": "agent",
+      "label": "Read tests and unit",
+      "position": {
+        "x": 0,
+        "y": 120
+      },
+      "config": {
+        "agentId": "testing-expert"
+      }
+    },
+    {
+      "id": "report",
+      "type": "output",
+      "label": "Findings report",
+      "position": {
+        "x": 0,
+        "y": 480
+      },
+      "config": {
+        "outputSpec": "findings grouped by severity with file:line"
+      }
+    },
+    {
+      "id": "run",
+      "type": "verification",
+      "label": "Run tests",
+      "position": {
+        "x": 0,
+        "y": 360
+      },
+      "config": {
+        "verification": {
+          "method": "tests",
+          "command": "dotnet test"
+        }
+      }
+    },
+    {
+      "id": "start",
+      "type": "start",
+      "label": "Start",
+      "position": {
+        "x": 0,
+        "y": 0
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "start",
+      "to": "read"
+    },
+    {
+      "id": "e2",
+      "from": "read",
+      "to": "assess"
+    },
+    {
+      "id": "e3",
+      "from": "assess",
+      "to": "run"
+    },
+    {
+      "id": "e4",
+      "from": "run",
+      "to": "report"
+    },
+    {
+      "id": "e5",
+      "from": "report",
+      "to": "end"
+    }
+  ]
+}

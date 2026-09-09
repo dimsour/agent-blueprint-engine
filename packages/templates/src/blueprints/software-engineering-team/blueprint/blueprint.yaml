@@ -1,0 +1,45 @@
+schemaVersion: "1.0"
+id: software-engineering-team
+name: Software Engineering Team
+version: 1.0.0
+description: "A team of specialised agents: the orchestrator plans and delegates, the architect designs, the developer implements, and the test engineer and security reviewer review in parallel before anything is called done."
+settings:
+  primaryAgentId: orchestrator
+targets:
+  - harnessId: claude-code
+  - harnessId: codex
+artifacts:
+  agents:
+    - orchestrator
+    - architect
+    - developer
+    - test-engineer
+    - security-reviewer
+  skills:
+    - system-design
+    - implementation
+    - test-design
+    - security-review
+    - review-craft
+  workflows:
+    - deliver-feature
+  ironLaws:
+    - never-fake-verification
+    - never-expose-secrets
+    - respect-existing-structure
+    - never-skip-review
+  rules:
+    - small-changes
+  hooks:
+    - run-tests-after-change
+  gates:
+    - tests-pass
+    - reviews-complete
+  tools:
+    - npm
+    - filesystem
+  memories:
+    - team-conventions
+  requirements:
+    - both-reviews-happen
+    - verified-before-done

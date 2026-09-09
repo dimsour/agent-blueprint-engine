@@ -1,0 +1,31 @@
+schemaVersion: "1.0"
+id: code-review-agent
+name: Code Review Agent
+version: 1.0.0
+description: Reviews a change for correctness, security, tests and design, and reports findings ordered by what actually matters.
+targets:
+  - harnessId: claude-code
+  - harnessId: codex
+artifacts:
+  agents:
+    - code-reviewer
+  skills:
+    - review-craft
+    - failure-modes
+    - security-review
+    - test-review
+  workflows:
+    - review-change
+  ironLaws:
+    - never-fake-verification
+    - every-finding-is-actionable
+    - never-approve-unverified
+  rules:
+    - explain-findings
+  tools:
+    - git
+    - filesystem
+  memories:
+    - review-conventions
+  requirements:
+    - review-covers-security

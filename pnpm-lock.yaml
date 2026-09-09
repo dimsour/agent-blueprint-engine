@@ -168,6 +168,9 @@ importers:
       '@agent-blueprint/fixtures':
         specifier: workspace:*
         version: link:../fixtures
+      '@agent-blueprint/templates':
+        specifier: workspace:*
+        version: link:../templates
       '@agent-blueprint/tsconfig':
         specifier: workspace:*
         version: link:../../tooling/tsconfig
@@ -226,6 +229,9 @@ importers:
       eslint:
         specifier: 9.39.5
         version: 9.39.5(jiti@2.7.0)
+      tsx:
+        specifier: 4.23.13
+        version: 4.23.13
       typescript:
         specifier: 5.9.3
         version: 5.9.3

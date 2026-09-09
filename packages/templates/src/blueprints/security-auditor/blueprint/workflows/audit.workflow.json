@@ -1,0 +1,166 @@
+{
+  "entryNodeId": "start",
+  "nodes": [
+    {
+      "id": "authz",
+      "type": "agent",
+      "label": "Check authentication and authorisation",
+      "description": "Who may call this, and where is that enforced? Look for checks that are missing, done in the wrong place, or bypassable.",
+      "position": {
+        "x": 0,
+        "y": 360
+      },
+      "config": {
+        "agentId": "security-auditor",
+        "skillId": "authz-review"
+      }
+    },
+    {
+      "id": "data-flow",
+      "type": "agent",
+      "label": "Follow untrusted input",
+      "description": "For each entry point, follow the input to where it is used: queries, commands, file paths, templates, redirects.",
+      "position": {
+        "x": 0,
+        "y": 240
+      },
+      "config": {
+        "agentId": "security-auditor",
+        "skillId": "input-handling",
+        "outputSpec": "paths from untrusted input to a dangerous sink"
+      }
+    },
+    {
+      "id": "dependencies",
+      "type": "agent",
+      "label": "Check dependencies",
+      "description": "Look for known-vulnerable and unmaintained packages, and for anything added recently without review.",
+      "position": {
+        "x": 0,
+        "y": 600
+      },
+      "config": {
+        "agentId": "security-auditor",
+        "skillId": "vulnerability-research"
+      }
+    },
+    {
+      "id": "end",
+      "type": "end",
+      "label": "Report the outcome",
+      "position": {
+        "x": 0,
+        "y": 960
+      }
+    },
+    {
+      "id": "report",
+      "type": "output",
+      "label": "Report",
+      "description": "Each finding: what an attacker can do, how you know, how likely, and the smallest fix.",
+      "position": {
+        "x": 0,
+        "y": 840
+      },
+      "config": {
+        "outputSpec": "findings ordered by severity, each with evidence and a fix"
+      }
+    },
+    {
+      "id": "scan",
+      "type": "verification",
+      "label": "Run the scanners",
+      "description": "Run the project security tooling and read the output; treat it as a floor, not a verdict.",
+      "position": {
+        "x": 0,
+        "y": 720
+      },
+      "config": {
+        "verification": {
+          "method": "command",
+          "command": "npm audit"
+        },
+        "onFailure": "retry"
+      }
+    },
+    {
+      "id": "secrets",
+      "type": "agent",
+      "label": "Check secrets and logging",
+      "description": "Look for credentials in code, config or logs, and for error messages that leak internals.",
+      "position": {
+        "x": 0,
+        "y": 480
+      },
+      "config": {
+        "agentId": "security-auditor"
+      }
+    },
+    {
+      "id": "start",
+      "type": "start",
+      "label": "Start",
+      "position": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": "surface",
+      "type": "agent",
+      "label": "Map the attack surface",
+      "description": "List the entry points: routes, message handlers, CLI arguments, file and network input, and anything that deserialises data.",
+      "position": {
+        "x": 0,
+        "y": 120
+      },
+      "config": {
+        "agentId": "security-auditor",
+        "skillId": "threat-modelling",
+        "outputSpec": "the entry points and what each one trusts"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "start",
+      "to": "surface"
+    },
+    {
+      "id": "e2",
+      "from": "surface",
+      "to": "data-flow"
+    },
+    {
+      "id": "e3",
+      "from": "data-flow",
+      "to": "authz"
+    },
+    {
+      "id": "e4",
+      "from": "authz",
+      "to": "secrets"
+    },
+    {
+      "id": "e5",
+      "from": "secrets",
+      "to": "dependencies"
+    },
+    {
+      "id": "e6",
+      "from": "dependencies",
+      "to": "scan"
+    },
+    {
+      "id": "e7",
+      "from": "scan",
+      "to": "report"
+    },
+    {
+      "id": "e8",
+      "from": "report",
+      "to": "end"
+    }
+  ]
+}

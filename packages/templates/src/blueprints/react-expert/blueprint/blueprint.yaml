@@ -1,0 +1,39 @@
+schemaVersion: "1.0"
+id: react-expert
+name: React Expert
+version: 1.0.0
+description: A senior React engineer that builds accessible components, keeps state where it belongs, and tests behaviour rather than implementation.
+targets:
+  - harnessId: claude-code
+  - harnessId: codex
+artifacts:
+  agents:
+    - react-expert
+  skills:
+    - react-rendering
+    - component-design
+    - react-testing
+    - accessibility
+  workflows:
+    - build-component
+    - review-ui
+  ironLaws:
+    - never-fake-verification
+    - follow-the-component-model
+    - no-implementation-detail-tests
+  rules:
+    - follow-project-conventions
+  hooks:
+    - run-tests-after-change
+  gates:
+    - tests-pass
+  tools:
+    - npm
+    - filesystem
+  references:
+    - component-patterns
+  memories:
+    - project-conventions
+  requirements:
+    - accessible-by-default
+    - verify-before-done

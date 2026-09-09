@@ -1,0 +1,169 @@
+{
+  "entryNodeId": "start",
+  "nodes": [
+    {
+      "id": "confirm-failure",
+      "type": "verification",
+      "label": "Confirm it fails",
+      "description": "Run the new test and confirm it fails for the stated reason, not for a different one.",
+      "position": {
+        "x": 0,
+        "y": 600
+      },
+      "config": {
+        "verification": {
+          "method": "manual"
+        },
+        "onFailure": "continue"
+      }
+    },
+    {
+      "id": "confirm-fix",
+      "type": "verification",
+      "label": "Confirm it passes",
+      "description": "Run the whole suite, not just the new test.",
+      "position": {
+        "x": 0,
+        "y": 840
+      },
+      "config": {
+        "verification": {
+          "method": "command",
+          "command": "make verify"
+        },
+        "onFailure": "retry"
+      }
+    },
+    {
+      "id": "end",
+      "type": "end",
+      "label": "Report the outcome",
+      "position": {
+        "x": 0,
+        "y": 960
+      }
+    },
+    {
+      "id": "explain",
+      "type": "agent",
+      "label": "Explain the cause",
+      "description": "State the mechanism: what the code does, what it should do, and why the difference produces this symptom.",
+      "position": {
+        "x": 0,
+        "y": 360
+      },
+      "config": {
+        "agentId": "devops-agent",
+        "outputSpec": "a causal explanation, not a suspicion"
+      }
+    },
+    {
+      "id": "fix",
+      "type": "agent",
+      "label": "Fix the cause",
+      "description": "Change the cause, not the symptom.",
+      "position": {
+        "x": 0,
+        "y": 720
+      },
+      "config": {
+        "agentId": "devops-agent"
+      }
+    },
+    {
+      "id": "isolate",
+      "type": "agent",
+      "label": "Isolate",
+      "description": "Narrow the failure to the smallest input, code path or commit that still shows it.",
+      "position": {
+        "x": 0,
+        "y": 240
+      },
+      "config": {
+        "agentId": "devops-agent",
+        "outputSpec": "the narrowest case that still fails"
+      }
+    },
+    {
+      "id": "regression-test",
+      "type": "agent",
+      "label": "Write a failing test",
+      "description": "Add a test that fails for this reason and would pass once the cause is removed.",
+      "position": {
+        "x": 0,
+        "y": 480
+      },
+      "config": {
+        "agentId": "devops-agent",
+        "skillId": "observability",
+        "outputSpec": "the alert or check that would have caught this"
+      }
+    },
+    {
+      "id": "reproduce",
+      "type": "agent",
+      "label": "Reproduce",
+      "description": "Get the failure to happen on demand and write down the exact steps and output.",
+      "position": {
+        "x": 0,
+        "y": 120
+      },
+      "config": {
+        "agentId": "devops-agent",
+        "skillId": "incident-response",
+        "outputSpec": "a reliable reproduction and the observed error"
+      }
+    },
+    {
+      "id": "start",
+      "type": "start",
+      "label": "Start",
+      "position": {
+        "x": 0,
+        "y": 0
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "start",
+      "to": "reproduce"
+    },
+    {
+      "id": "e2",
+      "from": "reproduce",
+      "to": "isolate"
+    },
+    {
+      "id": "e3",
+      "from": "isolate",
+      "to": "explain"
+    },
+    {
+      "id": "e4",
+      "from": "explain",
+      "to": "regression-test"
+    },
+    {
+      "id": "e5",
+      "from": "regression-test",
+      "to": "confirm-failure"
+    },
+    {
+      "id": "e6",
+      "from": "confirm-failure",
+      "to": "fix"
+    },
+    {
+      "id": "e7",
+      "from": "fix",
+      "to": "confirm-fix"
+    },
+    {
+      "id": "e8",
+      "from": "confirm-fix",
+      "to": "end"
+    }
+  ]
+}

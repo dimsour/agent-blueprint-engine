@@ -53,6 +53,7 @@ pnpm check                   # lint + typecheck + test for every package (what C
 pnpm lint | typecheck | test | build
 pnpm --filter @agent-blueprint/core test          # one package
 pnpm --filter @agent-blueprint/core fixtures:canonicalize   # rewrite fixtures in canonical form after editing them by hand
+pnpm --filter @agent-blueprint/templates starters:seed       # regenerate the starter blueprints from the templates
 pnpm dev                     # Next.js dev server for apps/web
 pnpm format                  # prettier
 ```
@@ -81,10 +82,11 @@ pnpm format                  # prettier
 
 ## 7. Status
 
-Phases P0 and P2 are complete, and P1 apart from the templates package.
+Phases P0, P1 and P2 are complete. P3 (the web IDE) has not started.
 
 - `@agent-blueprint/core`: model, project format, validation (structural, semantic, orphans, contradictions, requirements), dependency graph, evaluation and health, change-sets, migrations.
 - `@agent-blueprint/exporters`: the compiler. Claude Code and Codex map every concept; Copilot, OpenCode and Pi emit the portable artifacts and report what they cannot represent.
-- `@agent-blueprint/templates` is still a placeholder (roadmap P1-07 and P1-08), and `@agent-blueprint/ai` and the web IDE have not been started (P3 onward).
+- `@agent-blueprint/templates`: 29 artifact templates that produce reviewable change-sets, and 10 starter blueprints stored as real source projects.
+- `@agent-blueprint/ai` and the web IDE have not been started (P3 onward).
 
 See `docs/09-roadmap.md` for what comes next.

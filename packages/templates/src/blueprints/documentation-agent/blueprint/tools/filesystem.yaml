@@ -1,0 +1,6 @@
+name: File system
+description: Reading source and writing documentation.
+kind: filesystem
+operations:
+  - read
+  - write

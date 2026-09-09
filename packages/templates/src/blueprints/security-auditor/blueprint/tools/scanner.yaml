@@ -1,0 +1,6 @@
+name: Security scanners
+description: Dependency and static analysis scanners available in the project.
+kind: shell
+operations:
+  - audit
+  - scan

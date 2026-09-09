@@ -1,0 +1,11 @@
+name: Check documentation examples
+description: Runs the documentation checks whenever a Markdown file changes.
+trigger: after-file-change
+conditions:
+  filePatterns:
+    - "**/*.md"
+action:
+  type: command
+  command: npm run docs:check
+  timeoutSec: 300
+onFailure: return-to-agent

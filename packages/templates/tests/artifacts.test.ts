@@ -7,7 +7,16 @@ import {
 } from '@agent-blueprint/core'
 import { describe, expect, it } from 'vitest'
 
-import { agentTemplates, artifactTemplates, skillTemplates, templatesForKind } from '../src/index'
+import {
+  agentTemplates,
+  artifactTemplates,
+  gateTemplates,
+  hookTemplates,
+  ironLawTemplates,
+  skillTemplates,
+  templatesForKind,
+  workflowTemplates,
+} from '../src/index'
 
 const blank = () => createEmptyBlueprint({ id: 'scratch', name: 'Scratch' })
 
@@ -58,6 +67,50 @@ describe('artifact templates', () => {
       const second = template.build({ id: 'a', name: 'A' })
       expect(second).toEqual(first)
     }
+  })
+
+  it.each(workflowTemplates.map((template) => [template.id, template] as const))(
+    'gives %s a graph that starts, verifies and ends',
+    (_id, template) => {
+      const { blueprint } = applyChangeSet(blank(), template.build({ id: 'flow', name: 'Flow' }))
+      const workflow = blueprint.workflows[0]
+      expect(workflow).toBeDefined()
+
+      const entry = workflow?.nodes.find((node) => node.id === workflow.entryNodeId)
+      expect(entry?.type).toBe('start')
+      expect(workflow?.nodes.some((node) => node.type === 'end')).toBe(true)
+      expect(workflow?.triggers.intents.length).toBeGreaterThan(0)
+
+      // Nothing unreachable, no dead end, and something checks the work before the end.
+      const codes = validateBlueprint(blueprint).map((diagnostic) => diagnostic.code)
+      expect(codes).not.toContain('BP-WF-010')
+      expect(codes).not.toContain('BP-WF-011')
+      expect(codes).not.toContain('BP-WF-012')
+      expect(codes).not.toContain('BP-WF-013')
+    },
+  )
+
+  it.each(ironLawTemplates.map((template) => [template.id, template] as const))(
+    'gives %s a rationale, an escape hatch and examples',
+    (_id, template) => {
+      const { blueprint } = applyChangeSet(blank(), template.build({ id: 'law', name: 'Law' }))
+      const law = blueprint.ironLaws[0]
+      expect(law?.rule.length).toBeGreaterThan(40)
+      expect(law?.rationale?.length ?? 0).toBeGreaterThan(40)
+      expect(law?.violationBehavior?.length ?? 0).toBeGreaterThan(20)
+      expect(law?.examples.length).toBeGreaterThan(0)
+      expect(law?.counterexamples.length).toBeGreaterThan(0)
+    },
+  )
+
+  it('gives every runnable hook and gate an actual command', () => {
+    for (const template of hookTemplates) {
+      const { blueprint } = applyChangeSet(blank(), template.build({ id: 'h', name: 'H' }))
+      const hook = blueprint.hooks[0]
+      expect(hook?.action.command, template.id).toBeTruthy()
+    }
+    const { blueprint } = applyChangeSet(blank(), gateTemplates[0]!.build({ id: 'g', name: 'G' }))
+    expect(blueprint.gates[0]?.criteria[0]?.command).toBeTruthy()
   })
 
   it.each(skillTemplates.map((template) => [template.id, template] as const))(

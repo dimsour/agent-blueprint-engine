@@ -1,0 +1,6 @@
+name: File system
+description: Reading the codebase and writing decision records.
+kind: filesystem
+operations:
+  - read
+  - write

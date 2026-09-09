@@ -1,0 +1,128 @@
+{
+  "entryNodeId": "start",
+  "nodes": [
+    {
+      "id": "compare",
+      "type": "agent",
+      "label": "Compare the options",
+      "description": "Lay the candidates against the constraints. Include what each one costs, not only what it offers.",
+      "position": {
+        "x": 0,
+        "y": 360
+      },
+      "config": {
+        "agentId": "software-architect",
+        "skillId": "system-design",
+        "outputSpec": "a comparison against the stated constraints"
+      }
+    },
+    {
+      "id": "end",
+      "type": "end",
+      "label": "Report the outcome",
+      "position": {
+        "x": 0,
+        "y": 720
+      }
+    },
+    {
+      "id": "question",
+      "type": "agent",
+      "label": "Sharpen the question",
+      "description": "Restate the question so that an answer would be recognisably right or wrong, and state the constraints that matter.",
+      "position": {
+        "x": 0,
+        "y": 120
+      },
+      "config": {
+        "agentId": "software-architect",
+        "outputSpec": "the problem and the constraints that bind it"
+      }
+    },
+    {
+      "id": "recommend",
+      "type": "output",
+      "label": "Recommend",
+      "description": "One recommendation, the reason, what would change it, and what remains uncertain.",
+      "position": {
+        "x": 0,
+        "y": 600
+      },
+      "config": {
+        "outputSpec": "a recommendation with its cost, its consequences and what would change it"
+      }
+    },
+    {
+      "id": "sources",
+      "type": "agent",
+      "label": "Gather sources",
+      "description": "Prefer primary sources: official documentation, the source itself, release notes. Record where each claim came from.",
+      "position": {
+        "x": 0,
+        "y": 240
+      },
+      "config": {
+        "agentId": "software-architect",
+        "skillId": "option-analysis",
+        "outputSpec": "sources with what each one supports"
+      }
+    },
+    {
+      "id": "start",
+      "type": "start",
+      "label": "Start",
+      "position": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": "verify",
+      "type": "verification",
+      "label": "Check the claims",
+      "description": "Confirm the load-bearing claims against a source or a small experiment. Mark anything you could not confirm.",
+      "position": {
+        "x": 0,
+        "y": 480
+      },
+      "config": {
+        "verification": {
+          "method": "manual"
+        },
+        "onFailure": "continue"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "start",
+      "to": "question"
+    },
+    {
+      "id": "e2",
+      "from": "question",
+      "to": "sources"
+    },
+    {
+      "id": "e3",
+      "from": "sources",
+      "to": "compare"
+    },
+    {
+      "id": "e4",
+      "from": "compare",
+      "to": "verify"
+    },
+    {
+      "id": "e5",
+      "from": "verify",
+      "to": "recommend"
+    },
+    {
+      "id": "e6",
+      "from": "recommend",
+      "to": "end"
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+name: Run tests after change
+description: Runs the test suite after every file change so a regression is caught in the same turn that caused it.
+trigger: after-file-change
+conditions:
+  filePatterns:
+    - "**/*"
+action:
+  type: run-tests
+  command: make verify
+  timeoutSec: 600
+onFailure: return-to-agent

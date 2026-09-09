@@ -1,0 +1,7 @@
+name: Git
+description: Reading the diff, the history and the blame for a change.
+kind: git
+operations:
+  - diff
+  - log
+  - show

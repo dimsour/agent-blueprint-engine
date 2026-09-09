@@ -1,0 +1,280 @@
+{
+  "entryNodeId": "start",
+  "nodes": [
+    {
+      "id": "address",
+      "type": "delegate",
+      "label": "Address the findings",
+      "description": "The developer fixes what was found, or the orchestrator records why a finding is accepted.",
+      "position": {
+        "x": 0,
+        "y": 960
+      },
+      "config": {
+        "agentId": "developer",
+        "contextInputs": [
+          "the combined findings"
+        ]
+      }
+    },
+    {
+      "id": "design",
+      "type": "delegate",
+      "label": "Design the change",
+      "description": "The architect decides the boundaries and names the cost of the approach.",
+      "position": {
+        "x": 0,
+        "y": 240
+      },
+      "config": {
+        "agentId": "architect",
+        "skillId": "system-design",
+        "contextInputs": [
+          "the acceptance criteria",
+          "the modules involved"
+        ],
+        "outputSpec": "the approach, the boundaries it respects, and what it costs"
+      }
+    },
+    {
+      "id": "end",
+      "type": "end",
+      "label": "Report the outcome",
+      "position": {
+        "x": 0,
+        "y": 1320
+      }
+    },
+    {
+      "id": "gate",
+      "type": "gate",
+      "label": "Reviews complete",
+      "position": {
+        "x": 0,
+        "y": 1200
+      },
+      "config": {
+        "gateId": "reviews-complete"
+      }
+    },
+    {
+      "id": "implement",
+      "type": "delegate",
+      "label": "Implement",
+      "description": "The developer works the plan in small, verifiable steps.",
+      "position": {
+        "x": 0,
+        "y": 360
+      },
+      "config": {
+        "agentId": "developer",
+        "skillId": "implementation",
+        "contextInputs": [
+          "the agreed approach",
+          "the acceptance criteria"
+        ],
+        "outputSpec": "the change, with the tests it came with"
+      }
+    },
+    {
+      "id": "plan",
+      "type": "agent",
+      "label": "Plan the work",
+      "description": "Restate the request, agree the acceptance criteria, and decide which specialists are needed.",
+      "position": {
+        "x": 0,
+        "y": 120
+      },
+      "config": {
+        "agentId": "orchestrator",
+        "outputSpec": "acceptance criteria and the list of steps to delegate"
+      }
+    },
+    {
+      "id": "reverify",
+      "type": "verification",
+      "label": "Run the suite again",
+      "description": "Confirm the fixes did not break anything else.",
+      "position": {
+        "x": 0,
+        "y": 1080
+      },
+      "config": {
+        "verification": {
+          "method": "tests",
+          "command": "npm test"
+        },
+        "onFailure": "retry"
+      }
+    },
+    {
+      "id": "security-review",
+      "type": "delegate",
+      "label": "Security review",
+      "description": "The security reviewer looks for untrusted input, missing authorisation and leaked secrets.",
+      "position": {
+        "x": 280,
+        "y": 720
+      },
+      "config": {
+        "agentId": "security-reviewer",
+        "skillId": "security-review",
+        "contextInputs": [
+          "the diff",
+          "the entry points it touches"
+        ],
+        "outputSpec": "security findings with evidence and severity"
+      }
+    },
+    {
+      "id": "split",
+      "type": "parallel",
+      "label": "Review in parallel",
+      "position": {
+        "x": 0,
+        "y": 600
+      }
+    },
+    {
+      "id": "start",
+      "type": "start",
+      "label": "Start",
+      "position": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": "synthesis",
+      "type": "synthesis",
+      "label": "Combine the reviews",
+      "description": "Merge both reviews into one ordered list and decide what must be fixed now.",
+      "position": {
+        "x": 0,
+        "y": 840
+      },
+      "config": {
+        "agentId": "orchestrator",
+        "mergeStrategy": "synthesize"
+      }
+    },
+    {
+      "id": "test-review",
+      "type": "delegate",
+      "label": "Test review",
+      "description": "The test engineer judges whether the tests would fail if the change were wrong.",
+      "position": {
+        "x": -280,
+        "y": 720
+      },
+      "config": {
+        "agentId": "test-engineer",
+        "skillId": "test-design",
+        "contextInputs": [
+          "the diff",
+          "the acceptance criteria"
+        ],
+        "outputSpec": "coverage gaps and weak tests, each with a file and a line"
+      }
+    },
+    {
+      "id": "verify",
+      "type": "verification",
+      "label": "Run the suite",
+      "description": "Run the tests and read the output before asking anyone to review.",
+      "position": {
+        "x": 0,
+        "y": 480
+      },
+      "config": {
+        "verification": {
+          "method": "tests",
+          "command": "npm test"
+        },
+        "onFailure": "retry"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "start",
+      "to": "plan"
+    },
+    {
+      "id": "e10",
+      "from": "synthesis",
+      "to": "address"
+    },
+    {
+      "id": "e11",
+      "from": "address",
+      "to": "reverify"
+    },
+    {
+      "id": "e12",
+      "from": "reverify",
+      "to": "gate"
+    },
+    {
+      "id": "e13",
+      "from": "gate",
+      "to": "end"
+    },
+    {
+      "id": "e14",
+      "from": "reverify",
+      "to": "address",
+      "kind": "retry",
+      "required": false,
+      "condition": "the suite is still red",
+      "label": "fix and retry"
+    },
+    {
+      "id": "e2",
+      "from": "plan",
+      "to": "design",
+      "kind": "delegation"
+    },
+    {
+      "id": "e3",
+      "from": "design",
+      "to": "implement",
+      "kind": "delegation"
+    },
+    {
+      "id": "e4",
+      "from": "implement",
+      "to": "verify"
+    },
+    {
+      "id": "e5",
+      "from": "verify",
+      "to": "split"
+    },
+    {
+      "id": "e6",
+      "from": "split",
+      "to": "test-review",
+      "kind": "parallel"
+    },
+    {
+      "id": "e7",
+      "from": "split",
+      "to": "security-review",
+      "kind": "parallel"
+    },
+    {
+      "id": "e8",
+      "from": "test-review",
+      "to": "synthesis",
+      "kind": "aggregation"
+    },
+    {
+      "id": "e9",
+      "from": "security-review",
+      "to": "synthesis",
+      "kind": "aggregation"
+    }
+  ]
+}

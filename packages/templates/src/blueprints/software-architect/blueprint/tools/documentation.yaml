@@ -1,0 +1,5 @@
+name: Documentation
+description: Official documentation for the platforms under consideration.
+kind: documentation
+operations:
+  - fetch

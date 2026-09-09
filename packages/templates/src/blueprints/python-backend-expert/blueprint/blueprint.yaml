@@ -1,0 +1,36 @@
+schemaVersion: "1.0"
+id: python-backend-expert
+name: Python Backend Expert
+version: 1.0.0
+description: A senior Python engineer that builds services with typed boundaries, explicit error handling, and tests that run in seconds.
+targets:
+  - harnessId: claude-code
+  - harnessId: codex
+artifacts:
+  agents:
+    - python-backend-expert
+  skills:
+    - python-typing
+    - api-design
+    - pytest
+    - debugging
+  workflows:
+    - add-endpoint
+    - investigate-failure
+  ironLaws:
+    - never-fake-verification
+    - never-swallow-exceptions
+    - never-expose-secrets
+  rules:
+    - follow-project-conventions
+  hooks:
+    - run-tests-after-change
+  gates:
+    - tests-pass
+  tools:
+    - python
+    - filesystem
+  memories:
+    - service-conventions
+  requirements:
+    - errors-are-actionable

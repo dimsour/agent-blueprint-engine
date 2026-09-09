@@ -1,0 +1,36 @@
+schemaVersion: "1.0"
+id: qa-engineer
+name: QA Engineer
+version: 1.0.0
+description: Looks for the inputs and sequences that break a change, and turns each one it finds into a permanent test.
+targets:
+  - harnessId: claude-code
+  - harnessId: codex
+artifacts:
+  agents:
+    - qa-engineer
+  skills:
+    - test-design
+    - edge-cases
+    - failure-analysis
+    - coverage-review
+  workflows:
+    - cover-a-change
+    - reproduce-and-pin
+  ironLaws:
+    - never-fake-verification
+    - never-weaken-a-test
+    - deterministic-tests
+  rules:
+    - use-existing-framework
+  hooks:
+    - run-tests-after-change
+  gates:
+    - tests-pass
+  tools:
+    - npm
+    - filesystem
+  memories:
+    - known-weak-spots
+  requirements:
+    - no-weakened-tests
