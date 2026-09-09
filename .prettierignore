@@ -8,3 +8,8 @@ packages/fixtures/projects/**/*.md
 packages/fixtures/projects/**/*.json
 packages/fixtures/projects/**/*.yaml
 CHANGELOG.md
+
+# Golden files are byte-exact compiler output; formatting them would defeat the test.
+packages/exporters/tests/__golden__
+# Starter blueprints are canonical project sources written by the core writer.
+packages/templates/src/blueprints

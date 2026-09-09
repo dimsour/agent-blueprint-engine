@@ -1,0 +1,76 @@
+{
+  "permissions": {
+    "allow": [
+      "Read",
+      "Glob",
+      "Grep",
+      "Edit",
+      "Write",
+      "Bash(ls *)",
+      "Bash(cat *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(grep *)",
+      "Bash(find *)",
+      "Bash(wc *)",
+      "Bash(diff *)",
+      "Bash(pwd *)",
+      "Bash(echo *)",
+      "Bash(which *)",
+      "Bash(file *)",
+      "Bash(stat *)",
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git show *)",
+      "Bash(dotnet test *)",
+      "Bash(dotnet build *)"
+    ],
+    "ask": [
+      "Bash(rm *)",
+      "Bash",
+      "Bash(git add *)",
+      "Bash(git commit *)"
+    ],
+    "deny": [
+      "Bash(git push *)",
+      "Bash(git push --force *)",
+      "Bash(git push -f *)",
+      "WebFetch",
+      "WebSearch"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "dotnet test --no-restore",
+            "timeout": 600,
+            "statusMessage": "Run tests after change (returns failures to the agent)"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "dotnet test",
+            "timeout": 600,
+            "statusMessage": "Tests must pass: All tests in the affected projects pass."
+          },
+          {
+            "type": "prompt",
+            "prompt": "Check the work just completed against these Iron Laws:\n\n- Never Fake Verification: Never claim code works, compiles, or passes tests without actually running the verification and reading its output.\n\nIf any law was violated, say which one and correct it before finishing. Never claim a verification you did not run.",
+            "statusMessage": "Checking the Iron Laws"
+          }
+        ]
+      }
+    ]
+  },
+  "autoMemoryEnabled": true
+}

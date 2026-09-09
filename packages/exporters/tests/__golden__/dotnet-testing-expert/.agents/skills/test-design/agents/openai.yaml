@@ -1,0 +1,5 @@
+interface:
+  display_name: Test Design
+  short_description: Choose what to test and how - behaviour over implementation, edge cases, failure paths, and readable arrange-act-assert structure.
+policy:
+  allow_implicit_invocation: true

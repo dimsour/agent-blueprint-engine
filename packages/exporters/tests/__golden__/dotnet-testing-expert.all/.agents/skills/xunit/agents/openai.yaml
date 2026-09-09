@@ -1,0 +1,5 @@
+interface:
+  display_name: xUnit
+  short_description: Write idiomatic xUnit tests - facts, theories, fixtures, collections and async patterns.
+policy:
+  allow_implicit_invocation: true

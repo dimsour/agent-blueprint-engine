@@ -82,6 +82,7 @@ export type GateInput = z.input<typeof gateSchema>
 export type GateCriterion = z.output<typeof gateCriterionSchema>
 
 export type Tool = z.output<typeof toolSchema>
+export type ToolKind = Tool['kind']
 export type ToolInput = z.input<typeof toolSchema>
 export type McpServer = z.output<typeof mcpServerSchema>
 export type Reference = z.output<typeof referenceSchema>

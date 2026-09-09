@@ -23,9 +23,11 @@
   },
   "devDependencies": {
     "@agent-blueprint/eslint-config": "workspace:*",
+    "@agent-blueprint/fixtures": "workspace:*",
     "@agent-blueprint/tsconfig": "workspace:*",
     "@types/node": "26.5.0",
     "eslint": "9.39.5",
+    "smol-toml": "1.8.0",
     "typescript": "5.9.3",
     "vitest": "5.0.0"
   }

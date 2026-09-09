@@ -1,0 +1,5 @@
+interface:
+  display_name: Write Unit Tests
+  short_description: From a request to the finished, verified test file.
+policy:
+  allow_implicit_invocation: true
