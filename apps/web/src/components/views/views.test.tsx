@@ -7,7 +7,7 @@
 import { readFixtureFiles } from '@agent-blueprint/fixtures'
 import { evaluateBlueprint, validateBlueprint } from '@agent-blueprint/core'
 import { compileBlueprint, portabilityOf } from '@agent-blueprint/exporters'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -151,6 +151,93 @@ describe('EvaluationView', () => {
     expect(screen.getByLabelText(/Consistency findings/).closest('div')).toHaveTextContent(
       String(dimension.score),
     )
+  })
+
+  it('drops a model’s findings the moment the Blueprint changes', async () => {
+    const blueprint = await load()
+    configureEndpoint()
+    stubAnswer({
+      contradictions: [
+        {
+          first: { kind: 'iron-law', id: 'no-implementation-details' },
+          second: { kind: 'skill', id: 'test-design' },
+          conflict: 'Something a model believed about an older version of this Blueprint.',
+          severity: 'high',
+        },
+      ],
+    })
+    const user = userEvent.setup()
+    render(<EvaluationView />)
+
+    await user.click(screen.getByRole('button', { name: 'Run AI analysis' }))
+    expect(await screen.findByText(/do not change the score/)).toBeInTheDocument()
+
+    // Edit anything, and the finding is about a Blueprint that no longer exists.
+    useWorkspace.getState().load('test', { ...blueprint, description: 'Changed.' })
+    await waitFor(() =>
+      expect(screen.queryByText(/do not change the score/)).not.toBeInTheDocument(),
+    )
+  })
+
+  it('keeps what one analysis found when the other fails', async () => {
+    const fixture = await load()
+    // Requirement judging only calls the endpoint when there is an `ai-judged` check to judge,
+    // so the fixture needs one for there to be a second call that can fail.
+    useWorkspace.getState().load('test', {
+      ...fixture,
+      requirements: [
+        ...fixture.requirements,
+        {
+          ...fixture.requirements[0]!,
+          id: 'explains-itself',
+          statement: 'The agent explains its reasoning before it acts.',
+          checks: [{ type: 'ai-judged', prompt: 'Does anything ask it to say why?' }],
+        },
+      ],
+    })
+    configureEndpoint()
+    // Contradictions answer; the requirement judging is refused. Losing both would throw away
+    // an answer the user already paid for.
+    let call = 0
+    globalThis.fetch = (() => {
+      call += 1
+      return Promise.resolve(
+        call === 1
+          ? new Response(
+              JSON.stringify({
+                model: 'stub',
+                choices: [
+                  {
+                    message: {
+                      role: 'assistant',
+                      content: JSON.stringify({
+                        contradictions: [
+                          {
+                            first: { kind: 'iron-law', id: 'no-implementation-details' },
+                            second: { kind: 'skill', id: 'test-design' },
+                            conflict: 'A real finding that must survive the other call failing.',
+                            severity: 'high',
+                          },
+                        ],
+                      }),
+                    },
+                  },
+                ],
+              }),
+              { status: 200 },
+            )
+          : new Response('slow down', { status: 429 }),
+      )
+    }) as unknown as typeof globalThis.fetch
+
+    const user = userEvent.setup()
+    render(<EvaluationView />)
+    await user.click(screen.getByRole('button', { name: 'Run AI analysis' }))
+
+    const consistency = await screen.findByRole('list', { name: /Consistency findings/ })
+    expect(consistency).toHaveTextContent('BP-AI-CONTRA-001')
+    // …and the failure is still reported rather than swallowed.
+    expect(await screen.findByRole('alert')).toBeInTheDocument()
   })
 })
 

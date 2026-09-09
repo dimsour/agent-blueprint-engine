@@ -78,8 +78,6 @@ export const generateBlueprintOutputSchema = z.object({
   requirements: z.array(tolerant(AI_ENTITY_SCHEMAS.requirement)).default([]),
 })
 
-export type GenerateBlueprintOutput = z.infer<typeof generateBlueprintOutputSchema>
-
 /** One artifact of a kind the caller already chose. */
 export function artifactOutputSchema<K extends EntityKind>(kind: K) {
   return z.object({
@@ -111,8 +109,6 @@ export const contradictionSchema = z.object({
 export const findContradictionsOutputSchema = z.object({
   contradictions: z.array(contradictionSchema).default([]),
 })
-
-export type Contradiction = z.infer<typeof contradictionSchema>
 
 export const gapSchema = z.object({
   /** What is missing. */
@@ -153,8 +149,6 @@ export const EVALUATION_DIMENSIONS = [
   'safety',
   'complexity',
 ] as const
-
-export type EvaluationDimension = (typeof EVALUATION_DIMENSIONS)[number]
 
 export const aiEvaluationFindingSchema = z.object({
   ref: aiRefSchema.optional(),

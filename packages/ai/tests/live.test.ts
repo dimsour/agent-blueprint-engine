@@ -9,8 +9,7 @@
  * It is skipped unless `AI_TEST_BASE_URL` is set, so CI never makes a network call and the
  * suite stays deterministic. To run it:
  *
- *   AI_TEST_BASE_URL=http://localhost:11434/v1 AI_TEST_MODEL=llama3.1 pnpm --filter @agent-blueprint/ai test:live
- *   AI_TEST_BASE_URL=https://api.openai.com/v1 AI_TEST_MODEL=gpt-5-mini AI_TEST_API_KEY=sk-… pnpm --filter @agent-blueprint/ai test:live
+ *   AI_TEST_BASE_URL=<base-url> AI_TEST_MODEL=<model-id> [AI_TEST_API_KEY=<key>] \n *     pnpm --filter @agent-blueprint/ai test:live
  *
  * Record the outcome in docs/06-ai-layer.md (model, date, result), which is what roadmap P6-09
  * asks for. The assertions are deliberately about substance rather than exact text: a model
@@ -34,8 +33,8 @@ const model = process.env.AI_TEST_MODEL ?? 'gpt-5-mini'
 const apiKey = process.env.AI_TEST_API_KEY
 
 /**
- * Real calls are slow. A hosted model drafts a whole Blueprint in about a minute; a 24B model
- * on a desktop GPU has taken four, so the ceiling here is generous on purpose — a check that
+ * Real calls are slow. A hosted model drafts a whole Blueprint in about a minute; a large
+ * local model has taken several, so the ceiling here is generous on purpose — a check that
  * times out before the model finishes tells you nothing about the model.
  */
 const TIMEOUT = 600_000
@@ -47,7 +46,7 @@ function config(jsonSchema: boolean): AIClientConfig {
     features: { jsonSchema },
     // Well past the 120s default. These tests are about the operations, not about the
     // transport's timeout, and a local model drafting a whole Blueprint genuinely takes
-    // longer than the default allows — a local model needed more than two minutes for it.
+    // longer than the default allows: more than two minutes, in one measured case.
     timeoutMs: 600_000,
     ...(apiKey ? { apiKey } : {}),
   }
@@ -57,7 +56,7 @@ describe.skipIf(!baseUrl)('against a live endpoint', () => {
   /**
    * Probed once and shared, because requests are the scarce resource here. Probing per test
    * spent six of this suite's nine requests discovering the same fact three times, which is
-   * enough on its own to exhaust a hosted free tier — a hosted API's is five a minute.
+   * enough on its own to exhaust a hosted free tier — some allow only five requests a minute.
    */
   let probe: ProbeResult
   let client: AIClient

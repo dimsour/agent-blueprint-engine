@@ -132,8 +132,8 @@ compatibility route would pass this probe by luck and then return prose for real
 is known about the endpoint beats what one short reply appeared to show.
 
 The budget is 512 rather than the 20 this answer needs because a reasoning model spends its
-budget thinking first: a local model burns about forty tokens of reasoning before it writes
-anything, and with a budget of twenty it returns empty content and `finish_reason: "length"` —
+budget thinking first. One reasoning model spent about forty tokens on reasoning before
+writing anything, so a budget of twenty returned empty content with `finish_reason: "length"` —
 indistinguishable from an endpoint that ignored the schema. For the same reason, an answer cut
 off by the budget is read as **yes**, not no. The two wrong guesses are not equally bad: a
 wrong yes costs one rejected request, because `structured()` sees a 400 naming
@@ -183,7 +183,7 @@ That order matters and the reverse is a real bug, found live. Stripping fences f
 up until the JSON _contains_ a fence, and in this product it usually does: a skill body is
 Markdown and Markdown has code examples. The fence inside the `body` string was matched, the
 real object thrown away, and a perfectly good answer reported as "no JSON object" — in three
-answers out of four from a local model.
+answers out of four from one model.
 
 On a validation failure, one repair round-trip: send the raw output plus the Zod issues
 formatted as `path: message` lines and ask for a corrected JSON object. After `repairs`
@@ -210,8 +210,13 @@ malformed object.
 ### Streaming
 
 `stream()` parses server-sent events (`data: {…}` lines, `[DONE]` terminator) and yields
-`{ delta: string, done: boolean }`. Used by the assistant panel for chat replies; structured
-operations do not stream.
+`{ delta: string, done: boolean }`.
+
+Nothing in the product calls it yet. Structured operations cannot stream — the answer is only
+useful once it parses — and the assistant shows a result rather than a running reply, so the
+capability is built and tested but unused. It stays because a streaming reply is the obvious
+next thing the panel wants, and because the transport is the wrong place to discover that SSE
+parsing was never written.
 
 ### Error taxonomy
 
@@ -380,28 +385,29 @@ filter can remove them.
 - Contract tests live in `packages/ai/tests/live.test.ts` and are excluded from `pnpm test`. They run only when `AI_TEST_BASE_URL` is set, and they check the three things a fake `fetch` cannot: that `probe()` reports what the endpoint really does, that `generateBlueprint` produces a draft which applies with zero rejected ops and no dangling references, and that `improveArtifact` edits the selected artifact rather than creating a second one.
 
   ```bash
-  AI_TEST_BASE_URL=http://localhost:11434/v1 AI_TEST_MODEL=llama3.1     pnpm --filter @agent-blueprint/ai test:live
-  AI_TEST_BASE_URL=https://api.openai.com/v1 AI_TEST_MODEL=gpt-5-mini AI_TEST_API_KEY=sk-…     pnpm --filter @agent-blueprint/ai test:live
+  AI_TEST_BASE_URL=<base-url> AI_TEST_MODEL=<model-id> pnpm --filter @agent-blueprint/ai test:live
+  AI_TEST_BASE_URL=<base-url> AI_TEST_MODEL=<model-id> AI_TEST_API_KEY=<key> pnpm --filter @agent-blueprint/ai test:live
   ```
 
 ## Live model check (roadmap P6-09)
 
-Run against a self-hosted OpenAI-compatible server on 2026-09-09 and 2026-09-10. One row per model; "passes"
-means all three contract tests, including a whole Blueprint that applies with zero rejected ops
-and no dangling references.
+Run against four endpoint implementations: a local OpenAI-compatible server, two hosted
+OpenAI-compatible APIs, and the strict-mode dialect of OpenAI's own. Seven models in total,
+across reasoning and non-reasoning families, from 9B to 27B locally and two hosted.
 
-A caveat about the failures below: LM Studio loads and unloads models on demand, so asking it
-for a different model evicts the last one. Several runs failed with `Model unloaded by user or
-API request`, `Model is unloaded`, or a dropped connection, none of which say anything about
-this code. Only failures reproduced with the model loaded are treated as findings.
+"Passes" means all three contract tests, including a whole Blueprint that applies with zero
+rejected ops and no dangling references.
 
-| Endpoint  | Model                           | Date       | JSON schema | Outcome                                                                             |
-| --------- | ------------------------------- | ---------- | ----------- | ----------------------------------------------------------------------------------- |
-| LM Studio | `a local model`                   | 2026-09-09 | yes         | Passes. 70s for all three.                                                          |
-| LM Studio | `a local model` | 2026-09-09 | yes         | Passes. Drafted 19 ops with no notes — nothing dropped, nothing unwired. 289s.      |
-| LM Studio | `a local model`                | 2026-09-09 | yes         | Probe and improve pass; the whole-Blueprint draft did not finish inside 10 minutes. |
-| LM Studio | `a local model`             | 2026-09-09 | yes         | Blocked by its own load settings: a 3328-token context, smaller than the request.   |
-| OpenAI    | —                               | —          | —           | Not run.                                                                            |
+| Endpoint kind                               | Result                                                                                                                                                                          |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Local OpenAI-compatible server              | Passes on three of five models. One could not finish the whole-Blueprint draft inside ten minutes; one was loaded with a context smaller than the request.                      |
+| Hosted OpenAI-compatible API                | Passes. The largest clean draft observed: 27 ops with nothing dropped and nothing unwired.                                                                                      |
+| Hosted API with a restricted schema dialect | Probe and single-artifact operations pass. Its dialect rejects the schema, which the client now recovers from; a five-requests-a-minute free tier stopped the suite completing. |
+| OpenAI                                      | Not run.                                                                                                                                                                        |
+
+Failures caused by the host rather than this code are not counted above. A local server that
+loads and unloads models on demand evicts one when asked for another, and several runs failed
+with "model is unloaded" or a dropped connection; those say nothing about the client.
 
 ### What it found
 
@@ -409,16 +415,17 @@ Seven bugs, none of which a fake `fetch` could have produced. Each has a regress
 after the model that caused it.
 
 1. **The probe was blind to reasoning models.** `max_tokens: 20` was spent on reasoning before
-   any content appeared, so `a local model` returned empty content with `finish_reason: "length"`
-   and the probe read that as "no schema support" — then stored it. Budget raised to 512, and an
+   any content appeared, so a reasoning model returned empty content with
+   `finish_reason: "length"` and the probe read that as "no schema support" — then stored it. Budget raised to 512, and an
    answer cut off by the budget now counts as yes rather than no (see `probe()` above).
 2. **Code fences inside the JSON destroyed the answer.** `extractJson` stripped Markdown fences
    before scanning, so an answer whose `body` contained a ```csharp block had the real object
-   thrown away and was reported as "no JSON object". Three answers in four from `a local model`.
+   thrown away and was reported as "no JSON object". Three answers in four from one model.
    This product writes Markdown bodies, so it would have failed constantly.
 3. **A trailing system message made the fallback path unusable on some models.** The schema
-   contract was appended as a second `system` message after the user's turn; `a local model`
-   rejected it with `Jinja Exception: System message must be at the beginning.` The contract now
+   contract was appended as a second `system` message after the user's turn; a model whose chat
+   template requires system-first rejected it with
+   `Jinja Exception: System message must be at the beginning.` The contract now
    rides on the last user message.
 4. **A context overflow arrived as a shrug.** LM Studio says "exceeds the available context
    size", which matched none of the phrasings mapped to `context-too-large`, so the most
@@ -426,20 +433,20 @@ after the model that caused it.
 5. **The strict dialect was being paid for everywhere, and it does not have to be.** OpenAI's
    strict mode requires every property to be `required`, so an optional field becomes "or
    null" — and the model must then write out every optional field of every artifact. On the
-   whole-Blueprint schema that is thousands of tokens of padding. Measured on `a local model`:
-   2 650 tokens and finished in 86s with the plain schema, still unfinished at 6 000 tokens
-   with the strict one. Only OpenAI's own API requires that dialect; endpoints backed by
+   whole-Blueprint schema that is thousands of tokens of padding. Measured on one local model:
+   about 2 600 tokens and finished with the plain schema, still unfinished at 6 000 with the
+   strict one. Only OpenAI's own API requires that dialect; endpoints backed by
    grammar-constrained decoding (llama.cpp, so LM Studio and Ollama) handle optional properties
    natively. The dialect is now chosen per preset, and correctness is unaffected because both
    paths end at the same Zod parse.
-6. **A rejected schema was never retried without one.** a hosted API's OpenAI layer refuses a schema
+6. **A rejected schema was never retried without one.** One hosted API refuses a schema
    carrying `pattern` or `minLength` — which ours does, from the slug format — and says only
    "Request contains an invalid argument". The fallback to the prompt path was gated on the
    error text naming `response_format`, so a rejection phrased any other way ended the call.
    Having sent a schema and been refused, asking again without one costs a single request, and
    is now what happens for any 400 on a schema request.
 7. **One invented permission destroyed the whole draft.** `permissions.operations` is a map
-   keyed by a closed enum, so `a local model` asking for `git.fetch` and `git.checkout` failed
+   keyed by a closed enum, so a model asking for two git operations that do not exist failed
    the entire agent — and then the workflow's reference to it was removed as dangling and the
    primary agent ignored for not existing. The result was nineteen changes describing a system
    with nobody in it, and the whole cascade came from two map keys. The assembler now drops the
@@ -447,7 +454,7 @@ after the model that caused it.
    that points at nothing, and says so in the notes.
 
 Three things that are not bugs but are worth knowing. A hosted free tier can be too small to
-run this suite at all: a hosted API allows five requests a minute, and the suite needs four at best.
+run this suite at all: some allow five requests a minute, and the suite needs four at best.
 Probing once instead of once per test brought it from nine down to four, which is the difference
 between usable and not.
 
@@ -455,8 +462,8 @@ The 120 000 ms default timeout is right for
 a hosted API and short for a local model drafting a whole Blueprint (roadmap P6-10). And
 `generateBlueprint` is by far the heaviest operation — its schema is the union of eleven entity
 schemas — so it is the one that strains a small local model while every other operation is
-comfortable. How much a model chooses to write for it also varies run to run: `a local model`
-drafted 16 ops in 60s on one attempt and 7 ops in 38s on the next, and a run that writes far
-more than usual is what exhausts a timeout.
+comfortable. How much a model chooses to write for it also varies a great deal run to run —
+one model drafted 16 ops on one attempt and 7 on the next — and a run that writes far more
+than usual is what exhausts a timeout.
 
 - No live network calls in CI; the fake `fetch` is installed globally in the Vitest setup file.

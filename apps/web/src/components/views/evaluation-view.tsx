@@ -65,6 +65,16 @@ export function EvaluationView() {
   const [aiFindings, setAiFindings] = useState<Diagnostic[]>([])
   const [asking, setAsking] = useState(false)
   const [aiError, setAiError] = useState<string | undefined>()
+
+  // A model's findings describe the Blueprint it was shown. Edit anything and they are about a
+  // version that no longer exists, so they go — showing a stale finding badged `AI` next to a
+  // score that has just moved is worse than showing none.
+  const [judged, setJudged] = useState(blueprint)
+  if (blueprint !== judged) {
+    setJudged(blueprint)
+    setAiFindings([])
+    setAiError(undefined)
+  }
   const canAsk = useClientValue(() => configuredClient() !== undefined, false)
 
   // Always the store's diagnostics. "Run again" refreshes those rather than computing a
@@ -89,18 +99,27 @@ export function EvaluationView() {
     try {
       const deps = { client: configured.client }
       const ctx = { blueprint, diagnostics }
-      const [contradictions, requirements] = await Promise.all([
+      // Settled rather than all: these are two independent questions, and one of them failing
+      // is no reason to throw away the answer to the other. A rate-limited endpoint refusing
+      // the second call used to lose the contradictions the first had already found.
+      const [contradictions, requirements] = await Promise.allSettled([
         findContradictions(deps, ctx),
         judgeRequirements(deps, ctx),
       ])
+      const found = [contradictions, requirements].flatMap((outcome) =>
+        outcome.status === 'fulfilled' ? outcome.value.diagnostics : [],
+      )
+      const failed = [contradictions, requirements].find((outcome) => outcome.status === 'rejected')
+
       // The deterministic checker has already reported what it can see; a model repeating it
       // would double every finding the user has read once.
-      setAiFindings(
-        withoutDuplicates(
-          [...contradictions.diagnostics, ...requirements.diagnostics],
-          diagnostics,
-        ),
-      )
+      setAiFindings(withoutDuplicates(found, diagnostics))
+      if (failed?.status === 'rejected') {
+        const reason: unknown = failed.reason
+        setAiError(
+          reason instanceof Error ? reason.message : 'Part of the analysis could not be run.',
+        )
+      }
     } catch (error) {
       setAiError(
         error instanceof AIError || error instanceof Error

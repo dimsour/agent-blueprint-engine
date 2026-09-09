@@ -324,7 +324,7 @@ describe('judgeRequirements', () => {
 })
 
 describe('permissions a model invented', () => {
-  /** The agent a local model wrote, with the two operations it made up. */
+  /** An agent a live model wrote, with the two permission operations it made up. */
   function agentWithInventedPermissions() {
     return {
       id: 'reviewer-agent',

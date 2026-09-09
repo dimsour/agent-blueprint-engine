@@ -259,7 +259,7 @@ function prepare(kind: EntityKind, value: unknown, notes: string[]): unknown {
  *
  * `permissions.operations` is a map keyed by a closed enum, so one invented key fails the whole
  * artifact — and an agent is the one artifact nothing survives losing. A live model asked for
- * `git.fetch` and `git.checkout`, which are not in `PERMISSION_OPERATIONS`; the agent was
+ * two git operations that are not in `PERMISSION_OPERATIONS`; the agent was
  * dropped, the workflow's reference to it was then removed as dangling, the primary agent was
  * ignored for not existing, and the draft arrived as fifteen changes describing a system with
  * nobody in it.

@@ -43,9 +43,9 @@ export interface AIPreset {
    *
    * Only OpenAI's own API does. Everywhere else it is pure cost: the model has to write every
    * optional field of every artifact, mostly as `null`, and on a large schema that is the
-   * difference between finishing and not. Measured on a local model drafting a whole Blueprint —
-   * 2 650 tokens and done in 86s with the plain schema, still unfinished at 6 000 tokens with
-   * the strict one.
+   * difference between finishing and not. Measured against a live local model drafting a whole
+   * Blueprint: it finished in about 2 600 tokens with the plain schema, and was still going at
+   * 6 000 with the strict one.
    */
   strictSchema: boolean
   /** Shown under the picker. Says what the user has to do outside this app, if anything. */

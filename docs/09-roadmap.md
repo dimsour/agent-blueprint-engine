@@ -453,16 +453,34 @@ Verification: `pnpm check` green; `pnpm --filter @agent-blueprint/core test` sho
 - Description: Manual verification against OpenAI and a local Ollama model, recorded in `docs/06-ai-layer.md` (model, date, outcome).
 - Acceptance: both generate a blueprint from the brief in docs/00 §end-to-end with zero rejected ops.
 - Verify: `AI_TEST_BASE_URL=… AI_TEST_MODEL=… pnpm --filter @agent-blueprint/ai test:live`
-- Run 2026-09-09 and 2026-09-10 against a self-hosted OpenAI-compatible server, a hosted API and Google a hosted API. `a local model`, `a local model` and `a local model` pass all three checks; the second drafted a nineteen-op Blueprint with nothing dropped and no dangling references. `a local model` passes everything but the whole-Blueprint draft, which does not finish inside ten minutes on that hardware, and `a local model` was loaded with a 3328-token context, smaller than the request. Results and the seven bugs it found are in docs/06. OpenAI has not been run.
+- Run against four endpoint implementations and seven models, local and hosted. Most pass all three checks, including a whole Blueprint that applies with no rejected ops and no dangling references. The exceptions were a model too slow to finish the largest operation inside ten minutes, one loaded with a context smaller than the request, and a hosted free tier too small to run the suite. Results and the seven bugs it found are in docs/06. OpenAI has not been run.
 
 ### P6-10 A configurable request timeout
 
 - Package: `apps/web/src/lib/ai/settings.ts`, `packages/ai/src/client/*`
 - Depends on: P6-05
-- Description: `AIClientConfig.timeoutMs` defaults to 120 000, which is right for a hosted API and too short for a local model drafting a whole Blueprint — `a local model` on a desktop GPU exceeded it, and the user's only signal is "No answer within 120s". The endpoint form should offer the timeout, and the default should probably follow the preset (local presets longer than hosted ones).
+- Description: `AIClientConfig.timeoutMs` defaults to 120 000, which is right for a hosted API and too short for a local model drafting a whole Blueprint — measured cases exceeded it, and the user's only signal is "No answer within 120s". The endpoint form should offer the timeout, and the default should probably follow the preset (local presets longer than hosted ones).
 - Acceptance: the timeout is part of the stored settings and reaches the client; a local preset defaults higher than a hosted one.
 - Verify: `pnpm --filter web test`
 - Found by: the P6-09 live check.
+
+### P6-11 Cancelling a request in flight
+
+- Package: `apps/web/src/components/ai/*`
+- Depends on: P6-07
+- Description: `AIClient` threads an `AbortSignal` through every call, and nothing in the UI ever passes one. A whole-Blueprint draft against a local model can run for minutes with no way to stop it but closing the panel, which leaves the request running. The assistant and the evaluation view should hold an `AbortController` and offer Stop while a request is in flight.
+- Acceptance: a request in flight can be cancelled; the panel returns to its idle state and reports nothing as an error.
+- Verify: `pnpm --filter web test`
+- Found by: the P6-09 review.
+
+### P6-12 Show what a model decided about an `ai-judged` check
+
+- Package: `apps/web/src/components/views/evaluation-view.tsx`
+- Depends on: P6-08
+- Description: `judgeRequirements` returns a verdict per check, and only the failures become diagnostics. The passes are dropped, so a check a model has judged and passed still displays as `skipped` in the requirements list — the one place a reader looks to see whether a requirement holds. The view should carry the verdicts and show them on the check.
+- Acceptance: a passed `ai-judged` check shows as passed, badged as a model's judgement rather than a rule's.
+- Verify: `pnpm --filter web test`
+- Found by: the P6-09 review.
 
 ## P7 — GitHub
 

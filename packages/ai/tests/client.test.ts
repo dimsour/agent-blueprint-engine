@@ -339,14 +339,14 @@ describe('probe', () => {
   })
 
   it('does not read a cut-off answer as a missing schema mode', async () => {
-    // Found against a real LM Studio: a local model spends about forty tokens reasoning before
+    // Found against a live endpoint: a reasoning model spends tens of tokens thinking before
     // it writes anything, so a small budget returns empty content with finish_reason "length".
     // Concluding "no schema support" there is stored in settings and never revisited, while a
     // wrong "yes" costs one rejected request that structured() recovers from by itself.
     const cutOff = () =>
       new Response(
         JSON.stringify({
-          model: 'a local model',
+          model: 'a-reasoning-model',
           choices: [{ message: { role: 'assistant', content: '' }, finish_reason: 'length' }],
         }),
         { status: 200 },

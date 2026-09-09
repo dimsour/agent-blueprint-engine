@@ -51,10 +51,6 @@ export class AIError extends Error {
   }
 }
 
-export function isAIError(value: unknown): value is AIError {
-  return value instanceof AIError
-}
-
 const SECRET_PATTERNS: RegExp[] = [
   /\bBearer\s+[\w.\-+/=]{8,}/gi,
   /("?(?:api[-_]?key|authorization|x-api-key|api_key)"?\s*[:=]\s*"?)[\w.\-+/=]{8,}/gi,
@@ -69,7 +65,6 @@ const SECRET_PATTERNS: RegExp[] = [
 export function redact(text: string): string {
   let out = text
   for (const pattern of SECRET_PATTERNS) {
-    // A pattern without a capture group hands the callback an offset here, not a prefix.
     // A pattern without a capture group hands the callback an offset here, not a prefix.
     out = out.replace(pattern, (_match: string, prefix: unknown) =>
       typeof prefix === 'string' ? `${prefix}[redacted]` : '[redacted]',

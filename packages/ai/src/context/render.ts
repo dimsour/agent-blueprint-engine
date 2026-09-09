@@ -24,8 +24,6 @@ import {
   type Workflow,
 } from '@agent-blueprint/core'
 
-import { truncateToTokens } from '../tokens'
-
 /** Bodies of neighbouring artifacts are context, not the subject; this is where they stop. */
 export const NEIGHBOUR_BODY_CHARS = 1_500
 
@@ -48,7 +46,7 @@ export function renderEntity(
 }
 
 /** `- id — Name: description` for one artifact. */
-export function renderEntityLine(entity: AnyEntity): string {
+function renderEntityLine(entity: AnyEntity): string {
   const description = (entity as { description?: string }).description
   return `- ${entity.id} — ${entity.name}${description ? `: ${firstLine(description)}` : ''}`
 }
@@ -120,11 +118,6 @@ function orderedNodes(workflow: Workflow): Workflow['nodes'] {
 
 export function renderRef(ref: EntityRef): string {
   return `${ref.kind}:${ref.id}`
-}
-
-/** Cut text to a token count, for callers assembling their own blocks. */
-export function clampToTokens(text: string, tokens: number): string {
-  return truncateToTokens(text, tokens)
 }
 
 function firstLine(text: string): string {

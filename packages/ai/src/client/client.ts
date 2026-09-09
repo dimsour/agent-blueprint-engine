@@ -43,9 +43,10 @@ export function endpointUrl(baseUrl: string, path: string): string {
 
 /**
  * Room for the probe to answer. Far more than `{"ok":true}` needs, because a reasoning model
- * spends its budget thinking before it writes anything: a local model burns about forty tokens
- * of reasoning first, and with a budget of twenty it returns empty content and
- * `finish_reason: "length"`. That looked exactly like "this endpoint ignores schemas".
+ * spends its budget thinking before it writes anything. Observed against a live reasoning
+ * model: roughly forty tokens of reasoning came first, so a budget of twenty returned empty
+ * content and `finish_reason: "length"` — which looks exactly like "this endpoint ignores
+ * schemas".
  */
 const PROBE_MAX_TOKENS = 512
 

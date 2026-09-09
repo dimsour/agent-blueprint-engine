@@ -155,9 +155,9 @@ describe('structured', () => {
   })
 
   it('drops the schema when the endpoint rejects it without saying why', async () => {
-    // a hosted API's OpenAI layer refuses a schema carrying `pattern` or `minLength` with nothing but
-    // "Request contains an invalid argument" — no mention of response_format, so matching on the
-    // wording would never have caught it. Having sent a schema and been refused, asking again
+    // One hosted API refuses a schema carrying `pattern` or `minLength` with nothing but
+    // "Request contains an invalid argument" — no mention of response_format, so matching on
+    // the wording would never have caught it. Having sent a schema and been refused, asking again
     // without one costs a single request and is the only move that can work.
     const { client, sent } = clientWith(
       [
@@ -326,5 +326,27 @@ describe('token budget', () => {
     expect(cut).toContain('[… truncated …]')
     expect(estimateTokens(cut)).toBeLessThanOrEqual(50)
     expect(truncateToTokens('short', 100)).toBe('short')
+  })
+})
+
+describe('the repair budget', () => {
+  it('is not spent switching away from a rejected schema', async () => {
+    // The endpoint refuses the schema, then the model gets the shape wrong once. That is one
+    // path switch and one repair, and the repair must still be available — an endpoint with no
+    // schema enforcement is exactly the one whose first answer is likeliest to miss the shape.
+    const { client, sent } = clientWith(
+      [
+        new Response('{"error":"invalid argument"}', { status: 400 }),
+        'not json at all',
+        '{"id":"xunit","name":"xUnit"}',
+      ],
+      { jsonSchema: true },
+    )
+    const result = await structured(client, skill, [{ role: 'user', content: 'a skill' }])
+
+    expect(result.mode).toBe('prompt')
+    expect(result.repaired).toBe(true)
+    expect(result.value.id).toBe('xunit')
+    expect(sent).toHaveLength(3)
   })
 })

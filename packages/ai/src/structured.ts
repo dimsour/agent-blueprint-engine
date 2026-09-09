@@ -65,8 +65,15 @@ export async function structured<T>(
   let usage: TokenUsage | undefined
   let raw = ''
   let lastIssues = ''
+  /**
+   * Counts repairs only. Dropping the schema is not one: it is the endpoint telling us how to
+   * ask, not the model getting the answer wrong, and charging it against the repair budget left
+   * nothing for the model that most needs it — an endpoint with no schema enforcement is
+   * exactly the one whose first answer is likeliest to miss the shape.
+   */
+  let attempt = 0
 
-  for (let attempt = 0; ; attempt += 1) {
+  for (;;) {
     const answer = await client
       .chat(conversation, {
         ...wire,
@@ -76,9 +83,9 @@ export async function structured<T>(
       })
       .catch((error: unknown) => {
         // We sent a schema and the endpoint rejected the request. Whether it said so in words
-        // we recognise (`unsupported`) or not at all is the endpoint's business — a hosted API
-        // rejects schemas carrying `pattern` or `minLength` with nothing but "Request contains
-        // an invalid argument". Either way the cheapest next move is the same: ask again
+        // we recognise (`unsupported`) or not at all is the endpoint's business — one hosted
+        // API rejects schemas carrying `pattern` or `minLength` with nothing but "Request
+        // contains an invalid argument". Either way the cheapest next move is the same: ask again
         // without the schema. It costs one request, it cannot loop because the retry is on the
         // prompt path, and a 400 for some other reason still surfaces from there.
         const rejected =
@@ -110,6 +117,7 @@ export async function structured<T>(
       throw new AIError('invalid-output', parsed.message, { raw })
     }
     lastIssues = parsed.message
+    attempt += 1
     conversation = [
       ...conversation,
       { role: 'assistant', content: raw },
@@ -129,11 +137,11 @@ export async function structured<T>(
  * offered — but it is also the only place it is *required*, and everywhere else it is pure
  * cost: the model has to write out every optional field of every artifact, mostly as `null`.
  *
- * On a large schema that is the difference between working and not. Drafting a whole Blueprint
- * on a local model: 2 650 tokens and finished in 86 seconds with the plain schema, still going at
- * 6 000 tokens with the strict one, which is why two of the five models checked could not
- * complete that operation at all. Endpoints backed by grammar-constrained decoding — llama.cpp,
- * and so LM Studio and Ollama — handle optional properties natively and need none of it.
+ * On a large schema that is the difference between working and not. Measured against a live
+ * local model drafting a whole Blueprint: about 2 600 tokens and finished with the plain
+ * schema, still going at 6 000 with the strict one, which is why several of the models checked
+ * could not complete that operation at all. Endpoints backed by grammar-constrained decoding
+ * handle optional properties natively and need none of it.
  *
  * Correctness does not rest on this either way: both paths end at the same Zod parse, with a
  * repair round trip behind it.
@@ -194,9 +202,9 @@ function validate<T>(schema: z.ZodType<T>, raw: string): Validation<T> {
  *
  * It goes on the end of the last user message rather than into a message of its own, and that
  * is not a style choice. A second `system` message after the user's turn is rejected outright
- * by any model whose chat template requires the system message to come first — Qwen answered
- * `Jinja Exception: System message must be at the beginning.` and the whole fallback path was
- * unusable on it. Two consecutive `user` messages break strict-alternation templates the same
+ * by any model whose chat template requires the system message to come first — one such model
+ * answered `Jinja Exception: System message must be at the beginning.`, and the whole fallback
+ * path was unusable on it. Two consecutive `user` messages break strict-alternation templates the same
  * way. Appending keeps one system message at the front and one user turn at the back, which
  * every template accepts, and it keeps the contract next to the answer, where instructions are
  * followed best.
