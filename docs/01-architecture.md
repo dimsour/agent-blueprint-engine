@@ -26,7 +26,9 @@ ai-blueprint-engine/
 └── turbo.json                      task graph: build, dev, lint, typecheck, test
 ```
 
-Status: `core` and `fixtures` are implemented (roadmap P0). `exporters`, `ai` and `templates` contain a placeholder entry point and a smoke test. `apps/web` renders one placeholder page that imports `@agent-blueprint/core` to prove the wiring.
+Status: `core`, `fixtures`, `exporters` and `templates` are implemented (roadmap P0 to P2). `ai` still contains a placeholder entry point and a smoke test (P6). `apps/web` is the IDE (P3).
+
+`@agent-blueprint/templates` has two entry points. The root reads the starter blueprints from disk with `node:fs` and therefore requires Node; `@agent-blueprint/templates/artifacts` holds the per-artifact templates, which are pure data and safe to import in a browser. The IDE's "new from template" imports the second one, so the starter files never reach the client bundle.
 
 ## Dependency rules
 

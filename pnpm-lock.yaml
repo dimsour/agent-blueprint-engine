@@ -135,6 +135,9 @@ importers:
       '@agent-blueprint/eslint-config':
         specifier: workspace:*
         version: link:../../tooling/eslint-config
+      '@agent-blueprint/fixtures':
+        specifier: workspace:*
+        version: link:../../packages/fixtures
       '@agent-blueprint/tsconfig':
         specifier: workspace:*
         version: link:../../tooling/tsconfig

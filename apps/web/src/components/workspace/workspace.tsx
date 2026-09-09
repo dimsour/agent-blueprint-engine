@@ -3,24 +3,23 @@
 /**
  * The workspace: loads a project from local storage into the store and renders the IDE.
  *
- * The canvas currently shows a read-only summary of the selected artifact. Editing forms
- * (roadmap P3-06), the Markdown editor (P3-07) and the graph (P4) replace it in place; the
- * shell, the tree, the inspector and the health bar do not change when they do.
+ * The three regions are independent: the tree selects, the canvas edits, the inspector
+ * explains. The graph editors (roadmap P4) replace the canvas in place without touching
+ * either of the others.
  */
 import { ENTITY_KIND_INFO, getCollection } from '@agent-blueprint/core'
-import { AlertTriangleIcon, CircleAlertIcon, InfoIcon } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 
 import { ArtifactEditor } from '@/components/editor/artifact-editor'
+import { Inspector } from '@/components/inspector/inspector'
 import { HealthBar } from '@/components/layout/health-bar'
 import { IdeShell, PanelSection } from '@/components/layout/ide-shell'
 import { TopBar } from '@/components/layout/top-bar'
 import { ProjectTree } from '@/components/tree/project-tree'
-import { Badge, Card } from '@/components/ui/primitives'
 import { Button } from '@/components/ui/button'
 import { openProject } from '@/lib/storage'
-import { diagnosticsFor, useWorkspace } from '@/lib/state/workspace-store'
+import { useWorkspace } from '@/lib/state/workspace-store'
 
 export function Workspace({ projectId }: { projectId: string }) {
   const load = useWorkspace((state) => state.load)
@@ -115,51 +114,6 @@ function Canvas() {
     >
       {/* Keyed so switching artifacts resets the tab and re-seeds the source editor. */}
       <ArtifactEditor key={`${selection.kind}:${selection.id}`} selection={selection} />
-    </PanelSection>
-  )
-}
-
-function Inspector() {
-  const blueprint = useWorkspace((state) => state.blueprint)
-  const selection = useWorkspace((state) => state.selection)
-  const diagnostics = useWorkspace((state) => state.diagnostics)
-
-  const own = useMemo(
-    () => (selection ? diagnosticsFor(diagnostics, selection) : diagnostics.slice(0, 20)),
-    [diagnostics, selection],
-  )
-
-  if (!blueprint) return null
-
-  return (
-    <PanelSection title={selection ? 'Inspector' : 'All findings'}>
-      <div className="flex flex-col gap-2 p-3">
-        {own.length === 0 ? (
-          <p className="text-muted-foreground text-sm">
-            {selection
-              ? 'Nothing to report for this artifact.'
-              : 'No findings. This Blueprint is clean.'}
-          </p>
-        ) : (
-          own.map((diagnostic, index) => (
-            <Card key={`${diagnostic.code}-${index}`} className="flex flex-col gap-1 p-2.5">
-              <span className="flex items-center gap-1.5">
-                {diagnostic.severity === 'error' ? (
-                  <CircleAlertIcon className="text-danger size-3.5 shrink-0" />
-                ) : diagnostic.severity === 'warning' ? (
-                  <AlertTriangleIcon className="text-warning size-3.5 shrink-0" />
-                ) : (
-                  <InfoIcon className="text-muted-foreground size-3.5 shrink-0" />
-                )}
-                <Badge variant="outline" className="font-mono">
-                  {diagnostic.code}
-                </Badge>
-              </span>
-              <span className="text-sm">{diagnostic.message}</span>
-            </Card>
-          ))
-        )}
-      </div>
     </PanelSection>
   )
 }

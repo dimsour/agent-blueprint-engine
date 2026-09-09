@@ -78,7 +78,7 @@ pnpm format                  # prettier
 - Prettier: no semicolons, single quotes, width 100. Run `pnpm format`.
 - Tests: Vitest, colocated in `tests/` per package, fixtures from `@agent-blueprint/fixtures`. Golden-file tests for anything that generates files.
 - Diagnostics have stable codes (`BP-<AREA>-<NNN>`) documented in `docs/05-validation-evaluation.md`. Never reuse a code for a different meaning.
-- Public API of a package is its `src/index.ts`. The web app imports package roots only, never `src/` internals (lint-enforced).
+- Public API of a package is what its `package.json` `exports` names. The web app imports those entry points only, never `src/` internals (lint-enforced). `@agent-blueprint/templates` has a second entry, `/artifacts`, for the browser-safe artifact templates; the root reads starter blueprints with `node:fs`.
 - Prefer small pure functions over classes; pass `VirtualFs` for IO; keep Node-only APIs out of `core` (fixtures and scripts may use `node:fs`).
 
 ## 7. Status
@@ -88,7 +88,7 @@ Phases P0, P1 and P2 are complete. P3 (the web IDE) is under way.
 - `@agent-blueprint/core`: model, project format, validation (structural, semantic, orphans, contradictions, requirements), dependency graph, evaluation and health, change-sets, migrations.
 - `@agent-blueprint/exporters`: the compiler. Claude Code and Codex map every concept; Copilot, OpenCode and Pi emit the portable artifacts and report what they cannot represent.
 - `@agent-blueprint/templates`: 29 artifact templates that produce reviewable change-sets, and 10 starter blueprints stored as real source projects.
-- `apps/web`: the IDE shell, local-first storage (IndexedDB, ZIP, File System Access), the workspace store with undo/redo, the dashboard, and the workspace with a project tree, inspector and health bar. Every artifact kind has a visual form and a source tab that shows the project file itself, with a Markdown preview. Inspector actions, the command palette, the wizard and the ZIP import/export UI are still to come.
+- `apps/web`: the IDE shell, local-first storage (IndexedDB, ZIP, File System Access), the workspace store with undo/redo, the dashboard, and the workspace with a project tree, inspector and health bar. Every artifact kind has a visual form and a source tab that shows the project file itself, with a Markdown preview. The inspector explains the selected artifact’s place in the dependency graph and offers rename, duplicate, delete-with-impact and new-from-template. The command palette, the wizard and the ZIP import/export UI are still to come.
 - `@agent-blueprint/ai` has not been started (P6).
 
 See `docs/09-roadmap.md` for what comes next.

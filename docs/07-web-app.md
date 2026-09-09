@@ -52,7 +52,9 @@ This document specifies `apps/web`: routes, layout, state model, persistence, th
 - **Top bar**: logo, project name (switcher), Save, Validate, Export menu, GitHub, AI toggle.
 - **Left tree**: one entry per entity kind, in the order of `ENTITY_KINDS` in `packages/core/src/model/kinds.ts`, with counts. Overview first.
 - **Centre canvas**: three tabs. `Visual` is the form editor or graph; `Markdown` is a CodeMirror 6 editor showing the exact file the project would write; `Preview` renders the Markdown.
-- **Right inspector**: the selected artifact's summary, its outgoing references, its dependents (from `buildDependencyGraph`), and its diagnostics.
+- **Right inspector**: the selected artifact's summary, its outgoing references ("Depends on"), its dependents ("Used by", both from `buildDependencyGraph`), and its diagnostics. Every entry selects the artifact it names, so the panel is also the fastest way to walk the graph. With nothing selected it lists the Blueprint's findings instead.
+  - Quick actions: **Rename…** (through `renameEntity`, and the dialog says how many artifacts will be updated), **Duplicate** (a copy under a free slug, references not carried over), **New from template** (a `ChangeSet` from `@agent-blueprint/templates/artifacts`, shown before it is applied), **Delete** (the impact dialog lists the dependents that would lose the reference, and warns when the target is the primary agent).
+  - The visual form's Id field commits a rename inline; the inspector's ellipsis action opens the dialog. Both call the same store action.
 - **Bottom health bar**: overall score, artifact count, error/warning counts, per-target compatibility status. Clicking any item navigates to the finding's `ref`.
 
 Panels are resizable; the left and right panels collapse. Widths persist in `localStorage` under a UI namespace (never alongside credentials; see `docs/08-security.md`).

@@ -78,6 +78,47 @@ test.describe('workspace layout', () => {
     await expect(page.getByText('Nothing to report for this artifact.')).toBeVisible()
   })
 
+  test('the inspector says what uses the selected artifact and navigates there', async ({
+    page,
+  }) => {
+    await openStarter(page)
+    await page.getByRole('button', { name: 'React testing' }).click()
+
+    const usedBy = page.getByRole('list', { name: 'Used by' })
+    await expect(usedBy).toContainText('React Expert')
+
+    await usedBy.getByText('React Expert').click()
+    await expect(page.getByRole('heading', { name: 'React Expert' })).toBeVisible()
+    await expect(page.getByRole('list', { name: 'Depends on' })).toContainText('React testing')
+  })
+
+  test('deleting an artifact names what it affects first', async ({ page }) => {
+    await openStarter(page)
+    await page.getByRole('button', { name: 'React testing' }).click()
+    await page.getByRole('button', { name: 'Delete' }).click()
+
+    const dialog = page.getByRole('dialog')
+    await expect(dialog.getByRole('list', { name: 'Affected artifacts' })).toContainText(
+      'React Expert',
+    )
+
+    await dialog.getByRole('button', { name: 'Delete' }).click()
+    await expect(page.getByRole('button', { name: 'React testing' })).toHaveCount(0)
+  })
+
+  test('adding from a template shows the change before applying it', async ({ page }) => {
+    await openStarter(page)
+    await page.getByRole('button', { name: 'React testing' }).click()
+    await page.getByRole('button', { name: 'New from template' }).click()
+
+    const dialog = page.getByRole('dialog')
+    await dialog.getByLabel('Name').fill('Bundle Budget')
+    await expect(dialog).toContainText('bundle-budget')
+    await dialog.getByRole('button', { name: 'Add' }).click()
+
+    await expect(page.getByRole('button', { name: 'Bundle Budget' })).toBeVisible()
+  })
+
   test('shows the health bar with the artifact count and the targets', async ({ page }) => {
     await openStarter(page)
 
@@ -110,7 +151,8 @@ test.describe('workspace layout', () => {
     await page.getByRole('button', { name: 'Accessibility' }).click()
 
     await page.getByLabel('Id').fill('a11y')
-    await page.getByRole('button', { name: 'Rename' }).click()
+    // The inspector offers "Rename…", which opens a dialog; this is the form's inline commit.
+    await page.getByRole('button', { name: 'Rename', exact: true }).click()
 
     // The agent's skill picker now shows the new id as selected.
     await page.getByRole('button', { name: 'React Expert', exact: true }).click()
