@@ -254,6 +254,10 @@ function Canvas({
         event.preventDefault()
         event.dataTransfer.dropEffect = 'move'
       }}
+      // React Flow deletes on Backspace alone, which is the Mac key. Delete is the one people
+      // reach for, and on a full keyboard Backspace is where you go back a page. Both, then.
+      // Neither fires while a text field has the focus, so typing in the step panel is safe.
+      deleteKeyCode={['Delete', 'Backspace']}
       fitView
       proOptions={{ hideAttribution: true }}
       minZoom={0.2}
@@ -316,6 +320,9 @@ export function WorkflowEditor({ workflowId }: { workflowId: string }) {
         <span className="text-muted-foreground px-1 text-xs font-medium tracking-wide uppercase">
           Steps
         </span>
+        <span className="text-muted-foreground px-1 pb-1 text-[11px] leading-snug">
+          One at a time. Drag one onto the canvas, or click to place it below.
+        </span>
         {(Object.keys(NODE_TYPE_INFO) as NodeType[]).map((type) => (
           <button
             key={type}
@@ -359,15 +366,30 @@ export function WorkflowEditor({ workflowId }: { workflowId: string }) {
         <div className="flex h-9 shrink-0 items-center gap-2 border-b px-3">
           <Badge variant="outline">{workflow.nodes.length} steps</Badge>
           <Badge variant="outline">{workflow.edges.length} connections</Badge>
+          {/*
+            Named for what it does. It used to say "Insert a shape", meaning the shape a
+            workflow has — but a shape on a canvas is a box, so it read as the way to add one
+            step, and the way to add one step is the palette on the left. The menu says so too.
+          */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="ml-auto">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="ml-auto"
+                title="A ready-made workflow, every step at once. For one step, use the palette on the left."
+              >
                 <PlusIcon className="size-3" />
-                Insert a shape
+                Insert a whole workflow
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="max-h-72 overflow-auto">
-              <DropdownMenuLabel>Add every step of a template</DropdownMenuLabel>
+              <DropdownMenuLabel>
+                Every step of a template, at once
+                <span className="text-muted-foreground mt-0.5 block text-[11px] font-normal">
+                  For a single step, use the palette on the left.
+                </span>
+              </DropdownMenuLabel>
               {workflowTemplates.map((template) => (
                 <DropdownMenuItem
                   key={template.id}
@@ -461,7 +483,8 @@ export function WorkflowEditor({ workflowId }: { workflowId: string }) {
             </aside>
           ) : (
             <p className="text-muted-foreground pointer-events-none absolute inset-x-0 bottom-2 text-center text-xs">
-              Drag a step from the left, or drag between two steps to connect them.
+              Drag a step from the left, or drag between two steps to connect them. Select one and
+              press Delete to remove it.
             </p>
           )}
         </div>

@@ -780,6 +780,17 @@ something, it says what and where that thing still exists.
 - Found and fixed, a P4-era bug the "Connect" screenshot exposed: `PanelSection`'s content wrapper was a block, so a `flex-1` child could not stretch and collapsed to its own content height. The workflow canvas was taking **416 of the 803 pixels** it was given — clipping its last step, cutting the step panel off mid-sentence, and leaving half the pane looking like empty canvas. Content that scrolls sizes itself and so never showed it. One class, plus an e2e case that measures the canvas against its pane (416 before, 735 after).
 - Found and fixed: the axe sweep's `document-title` failures were a race, not a page. React takes the title down and puts it back across a client transition and a later re-render, so a scan landing in the gap reports a missing title on a page that has one before and after. The rule is now asserted with `toHaveTitle`, which retries — the same check without the race, and stronger, because it says which title.
 
+### P9-09 Two ways to add a step, one of them misnamed (done)
+
+- Package: `apps/web/src/components/graph/workflow/`
+- Depends on: nothing
+- Description: Reported from use. The workflow toolbar's **Insert a shape** inserts every step of a template, and a reader took "shape" to mean a box on a canvas, so the button looked like the way to add one step and appeared to add a dozen. The way to add one step — the palette down the left — was never found. Nothing was broken; the label was.
+- Also reported: `Delete` did nothing. React Flow's default `deleteKeyCode` is `Backspace` alone, which is the Mac key and the browser's back gesture elsewhere.
+- Acceptance: the toolbar button says it inserts a whole workflow and the menu says where to go for one step; `Delete` and `Backspace` both remove the selected step or connection; neither fires while a text field has the focus; the step and the edges that reached it go in one change.
+- Verify: `pnpm --filter web test:e2e workspace`
+- Built: **Insert a whole workflow**, with the menu's own label carrying "For a single step, use the palette on the left." The palette gained a line of its own — "One at a time. Drag one onto the canvas, or click to place it below." — because a heading reading `STEPS` above a list of step kinds is not an instruction, and the empty-canvas hint now names the delete key.
+- Built: `deleteKeyCode={['Delete', 'Backspace']}`, and the panel's two delete buttons carry "Or press Delete" so the key is learnable where it is wanted. The existing single `onDelete` handler already made the step and its edges one change; a test now holds that, because the failure mode is two presses of undo and it is invisible until someone tries.
+
 ### Open questions
 
 1. ~~**The logo needs a mark-only export.**~~ Settled: rather than crop by CSS, the cut is a script. `pnpm --filter web logo` measures nothing at run time — the rectangles live in `e2e/logo-assets.spec.ts`, taken from the artwork's alpha channel — and writes the three assets the app imports. A redrawn logo needs that one command and a re-measurement, and no component changes.

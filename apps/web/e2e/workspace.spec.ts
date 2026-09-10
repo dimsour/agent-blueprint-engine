@@ -351,13 +351,13 @@ test.describe('workflow editor', () => {
     await artifact(page, 'Build a Component').click()
     const before = await page.locator('.react-flow__node').count()
 
-    await page.getByRole('button', { name: 'Insert a shape' }).click()
+    await page.getByRole('button', { name: 'Insert a whole workflow' }).click()
     await page.getByRole('menuitem', { name: 'Code review' }).click()
     await expect(page.getByText(/Inserted Code review/).first()).toBeVisible()
     const once = await page.locator('.react-flow__node').count()
     expect(once).toBeGreaterThan(before)
 
-    await page.getByRole('button', { name: 'Insert a shape' }).click()
+    await page.getByRole('button', { name: 'Insert a whole workflow' }).click()
     await page.getByRole('menuitem', { name: 'Code review' }).click()
     const twice = await page.locator('.react-flow__node').count()
 
@@ -371,6 +371,50 @@ test.describe('workflow editor', () => {
       .locator('.react-flow__node')
       .evaluateAll((nodes) => nodes.map((node) => (node as HTMLElement).style.transform))
     expect(new Set(transforms).size).toBe(transforms.length)
+  })
+
+  test('Delete removes the selected step and the connections that reached it', async ({ page }) => {
+    await openStarter(page)
+    await artifact(page, 'Build a Component').click()
+
+    const steps = page.locator('.react-flow__node')
+    const connections = page.locator('.react-flow__edge')
+    const stepsBefore = await steps.count()
+    const connectionsBefore = await connections.count()
+    expect(connectionsBefore).toBeGreaterThan(0)
+
+    // One in the middle, so something is joined to it and the edges have to go too.
+    await steps.nth(1).click()
+    await expect(page.getByRole('complementary', { name: 'Step settings' })).toBeVisible()
+
+    await page.keyboard.press('Delete')
+
+    await expect(steps).toHaveCount(stepsBefore - 1)
+    expect(await connections.count()).toBeLessThan(connectionsBefore)
+    // The panel belongs to a step that no longer exists.
+    await expect(page.getByRole('complementary', { name: 'Step settings' })).toBeHidden()
+
+    // One press of undo, not two: the step and its connections went in a single change.
+    await page.keyboard.press('ControlOrMeta+z')
+    await expect(steps).toHaveCount(stepsBefore)
+    await expect(connections).toHaveCount(connectionsBefore)
+  })
+
+  test('typing in the step panel is not a delete', async ({ page }) => {
+    await openStarter(page)
+    await artifact(page, 'Build a Component').click()
+
+    const steps = page.locator('.react-flow__node')
+    const before = await steps.count()
+    await steps.nth(1).click()
+
+    const label = page.getByLabel('Label', { exact: true })
+    await label.click()
+    await label.press('End')
+    await label.press('Backspace')
+    await label.press('Delete')
+
+    await expect(steps).toHaveCount(before)
   })
 
   test('a step keeps where it was dragged to, across a reload', async ({ page }) => {

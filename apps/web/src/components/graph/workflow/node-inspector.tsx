@@ -319,6 +319,7 @@ export function NodePanel({
         <Button
           variant="outline"
           size="sm"
+          title="Or press Delete"
           onClick={() => {
             onChange(removeNode(workflow, node.id))
             onClearSelection()
@@ -394,6 +395,7 @@ export function EdgePanel({
         variant="outline"
         size="sm"
         className="self-start"
+        title="Or press Delete"
         onClick={() => {
           onChange(removeEdge(workflow, edge.id))
           onClearSelection()
