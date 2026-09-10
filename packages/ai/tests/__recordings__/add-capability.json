@@ -1,0 +1,160 @@
+{
+  "note": "\"Add a .NET review expert\" against the dotnet-testing-expert fixture. The first answer wires the new agent to a skill it never wrote (`code-review-checklist`) and re-creates a skill the fixture already has under a new id, which is the pair of mistakes this operation exists to catch. The second is the same capability written properly, used as the repair round's answer.",
+  "recordedAgainst": {
+    "operation": "add-capability",
+    "promptVersion": 1
+  },
+  "answers": [
+    {
+      "summary": "A .NET review expert with its skills and laws.",
+      "agents": [
+        {
+          "id": "review-expert",
+          "name": ".NET Review Expert",
+          "description": "Reviews .NET changes against the project's laws before they merge.",
+          "role": "reviewer",
+          "expertise": ["C#", ".NET", "code review"],
+          "responsibilities": ["Review .NET changes and report what is wrong with them"],
+          "skillIds": ["reviewing-dotnet", "code-review-checklist"],
+          "ironLawIds": ["no-unreviewed-merge"],
+          "body": "You review .NET changes. You do not approve what you have not read."
+        }
+      ],
+      "skills": [
+        {
+          "id": "reviewing-dotnet",
+          "name": "Reviewing .NET code",
+          "whenToUse": "When a C# change has to be reviewed.",
+          "body": "Read the diff and comment on what is wrong."
+        },
+        {
+          "id": "xunit-tests",
+          "name": "xUnit testing",
+          "whenToUse": "When reviewing tests.",
+          "body": "Check that the tests assert on behaviour."
+        }
+      ],
+      "ironLaws": [
+        {
+          "id": "no-unreviewed-merge",
+          "name": "Never merge unreviewed",
+          "rule": "Never merge a change nobody has read.",
+          "severity": "critical",
+          "category": "code-quality"
+        }
+      ]
+    },
+    {
+      "summary": "A .NET review expert with its skills and laws.",
+      "agents": [
+        {
+          "id": "review-expert",
+          "name": ".NET Review Expert",
+          "description": "Reviews .NET changes against the project's laws before they merge.",
+          "role": "reviewer",
+          "expertise": ["C#", ".NET", "code review"],
+          "responsibilities": [
+            "Review .NET changes and report what is wrong with them",
+            "Check that every change carries the tests it needs"
+          ],
+          "outputRequirements": [
+            "One comment per finding, naming the file and the line",
+            "An explicit verdict: approve, or the list of things that block it"
+          ],
+          "skillIds": ["reviewing-dotnet", "test-design"],
+          "ironLawIds": ["no-unreviewed-merge"],
+          "body": "You review .NET changes. You do not approve what you have not read.",
+          "workflowIds": ["review-a-dotnet-change"]
+        }
+      ],
+      "skills": [
+        {
+          "id": "reviewing-dotnet",
+          "name": "Reviewing .NET code",
+          "description": "Reviewing a C# change against the project's laws, naming file and line for every finding.",
+          "whenToUse": "When a C# change has to be reviewed.",
+          "activation": {
+            "filePatterns": ["**/*.cs"],
+            "intents": ["review this change"]
+          },
+          "body": "## Instructions\n\n1. List the changed files before reading any of them.\n2. Read each diff hunk and check it against the Iron Laws in force.\n3. Write one comment per finding, naming the file and the line.\n4. End with a verdict: approve, or the list of things that block it.\n\n## Verification\n\nEvery comment names a file and a line present in `git diff --name-only`. The verdict is one of the two forms above, never a hedge."
+        }
+      ],
+      "ironLaws": [
+        {
+          "id": "no-unreviewed-merge",
+          "name": "Never merge unreviewed",
+          "description": "Nothing reaches the default branch without a human-readable review.",
+          "rule": "Never merge a change nobody has read.",
+          "rationale": "A merge is a claim that someone checked. Without a review the claim is unfounded and the next failure is unattributable.",
+          "examples": ["Read all four hunks, commented on two, approved with the verdict stated."],
+          "counterexamples": ["The change is small and green, so merged without reading it."],
+          "severity": "critical",
+          "category": "code-quality",
+          "enforcement": ["instruction"],
+          "violationBehavior": "Stop and read the change before saying anything about it."
+        }
+      ],
+      "workflows": [
+        {
+          "id": "review-a-dotnet-change",
+          "name": "Review a .NET change",
+          "description": "From an open change to a stated verdict, with the tests observed.",
+          "entryNodeId": "start",
+          "triggers": {
+            "intents": ["review this change"]
+          },
+          "nodes": [
+            {
+              "id": "start",
+              "type": "start",
+              "label": "Start"
+            },
+            {
+              "id": "read",
+              "type": "agent",
+              "label": "Read the change",
+              "config": {
+                "agentId": "review-expert"
+              }
+            },
+            {
+              "id": "verify",
+              "type": "verification",
+              "label": "Run the tests",
+              "config": {
+                "verification": {
+                  "method": "command",
+                  "command": "dotnet test"
+                }
+              }
+            },
+            {
+              "id": "done",
+              "type": "end",
+              "label": "Done"
+            }
+          ],
+          "edges": [
+            {
+              "id": "e1",
+              "from": "start",
+              "to": "read"
+            },
+            {
+              "id": "e2",
+              "from": "read",
+              "to": "verify"
+            },
+            {
+              "id": "e3",
+              "from": "verify",
+              "to": "done"
+            }
+          ],
+          "body": "The reviewer reads the change, then the tests are run before a verdict is given."
+        }
+      ]
+    }
+  ]
+}

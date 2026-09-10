@@ -12,6 +12,7 @@
  */
 import type { Blueprint, ChangeSet, Diagnostic, EntityKind, EntityRef } from '@agent-blueprint/core'
 import {
+  addCapability,
   compound,
   createIronLawsFor,
   createWorkflowFor,
@@ -129,9 +130,32 @@ export const ASSISTANT_ACTIONS: AssistantAction[] = [
       changes(await createWorkflowFor(deps, ctx, { brief: input.text })),
   },
   {
+    id: 'add-capability',
+    label: 'Add a capability',
+    hint: 'A whole capability at once — the agent, its skills, the laws it works under and a workflow — wired into what is already here.',
+    group: 'The Blueprint',
+    field: {
+      label: 'What the capability is',
+      placeholder:
+        'A .NET review expert that checks changes against our Iron Laws before they merge.',
+      required: true,
+      rows: 3,
+    },
+    unavailable: always,
+    run: async (deps, ctx, input) =>
+      changes(
+        await addCapability(deps, ctx, {
+          brief: input.text,
+          // The selected agent holds what is created, when the model does not write one of
+          // its own. Passed through the context rather than as an option so that "nothing
+          // selected" and "something else selected" are the same case.
+        }),
+      ),
+  },
+  {
     id: 'generate-blueprint',
     label: 'Draft the whole Blueprint',
-    hint: 'Agents, skills, workflows and laws from a description of the work.',
+    hint: 'Designs a Blueprint from nothing, and names the project too. To add to one that already exists, use Add a capability.',
     group: 'The Blueprint',
     field: {
       label: 'What the system has to do',

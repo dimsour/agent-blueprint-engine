@@ -1,3 +1,4 @@
+export * from './add-capability'
 export * from './analysis'
 export * from './assemble'
 export * from './check'

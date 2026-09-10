@@ -217,3 +217,27 @@ export function fixFindingOutputSchema<K extends EntityKind>(kinds: readonly K[]
     note: z.string().optional(),
   })
 }
+
+/**
+ * A coherent set of artifacts added to a Blueprint that already exists (P9-15).
+ *
+ * The same per-collection shape `generateBlueprint` uses rather than a tagged union: an
+ * eleven-way discriminated union is a large schema on the endpoints that read it in the
+ * prompt, and this shape is the one already proven against real models. What is missing is
+ * the header — a capability added to a project does not rename it or move its primary agent.
+ */
+export const addCapabilityOutputSchema = z.object({
+  /** What was added, in a line. Becomes the ChangeSet summary the review is headed with. */
+  summary: z.string().min(1),
+  agents: z.array(tolerant(AI_ENTITY_SCHEMAS.agent)).default([]),
+  skills: z.array(tolerant(AI_ENTITY_SCHEMAS.skill)).default([]),
+  workflows: z.array(tolerant(AI_ENTITY_SCHEMAS.workflow)).default([]),
+  ironLaws: z.array(tolerant(AI_ENTITY_SCHEMAS['iron-law'])).default([]),
+  rules: z.array(tolerant(AI_ENTITY_SCHEMAS.rule)).default([]),
+  hooks: z.array(tolerant(AI_ENTITY_SCHEMAS.hook)).default([]),
+  gates: z.array(tolerant(AI_ENTITY_SCHEMAS.gate)).default([]),
+  tools: z.array(tolerant(AI_ENTITY_SCHEMAS.tool)).default([]),
+  references: z.array(tolerant(AI_ENTITY_SCHEMAS.reference)).default([]),
+  memories: z.array(tolerant(AI_ENTITY_SCHEMAS.memory)).default([]),
+  requirements: z.array(tolerant(AI_ENTITY_SCHEMAS.requirement)).default([]),
+})

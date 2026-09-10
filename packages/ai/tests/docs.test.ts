@@ -35,6 +35,7 @@ describe('documentation', () => {
     // knows the shape of.
     const doc = read('docs/06-ai-layer.md')
     const named: Record<PromptId, string> = {
+      'add-capability': 'addCapability',
       'generate-blueprint': 'generateBlueprint',
       'generate-artifact': 'generateArtifact',
       'improve-artifact': 'improveArtifact',

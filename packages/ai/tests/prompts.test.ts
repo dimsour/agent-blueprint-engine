@@ -26,6 +26,7 @@ const ids = Object.keys(PROMPTS) as PromptId[]
 describe('every prompt', () => {
   it('covers every operation, each named once', () => {
     expect(ids).toEqual([
+      'add-capability',
       'generate-blueprint',
       'generate-artifact',
       'improve-artifact',

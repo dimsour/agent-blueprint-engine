@@ -855,6 +855,18 @@ something, it says what and where that thing still exists.
 - Measured, not asserted: the recorded draft leaves 25 findings; the same brief answered to the house style leaves 6, and all six are whole-Blueprint advisories no prompt should remove. The two recordings are in `tests/__recordings__`, and the repair round is tested by making the first attempt the old answer and the second the new one.
 - Cost: `generateBlueprint` can now take two round trips. It takes the second only when the first left something an artifact-level rule objects to, and keeps the first if the second is no better.
 
+### P9-15 Add a capability, not an artifact (done)
+
+- Package: `packages/ai/src/operations/add-capability.ts`, `apps/web/src/lib/ai/actions.ts`
+- Depends on: P9-14
+- Description: Reported from use. `/new` can draft a whole Blueprint with AI; after the project exists, the assistant could only write **one artifact at a time**. But nobody wants one artifact — "create a .NET review expert" is an agent, the skills it holds, the laws it works under and the workflow that runs it, and asking for those separately leaves the author doing the wiring the model was in a position to do.
+- Acceptance: one brief produces artifacts of several kinds in a single reviewed ChangeSet, wired to each other and to what already exists; the project's own name, description and primary agent are untouched; it is reachable from the assistant and the palette.
+- Verify: `pnpm --filter @agent-blueprint/ai test`, `pnpm --filter web test`
+- Built: `addCapability`, sharing everything that already works — the house style from P9-14, the assembler, and the check against both validation passes with one repair round. What it does not share with `generateBlueprint` is the header: that one designs from nothing and names the project, this one is a guest in a Blueprint someone else made. The prompt says so in those words, and the test that matters asserts the project's name and primary agent are the same afterwards.
+- Built: with an agent selected, what is created is held from that agent — but only when the answer wrote no agent of its own. Doing both would hold every new skill from two agents at once, which is not what "add a reviewer" means.
+- The existing action was part of the problem: **Draft the whole Blueprint** sits in the same menu and does rename the project, which is why nobody pressed it from inside one. Its hint now says what it does and points at the new one.
+- Found by the check while recording the fixture: an added agent that no workflow runs and nothing delegates to raises `BP-AGENT-010`, so the "good" recorded answer had to include the workflow that runs it. That is the operation working — a capability that is not reachable is not a capability.
+
 ### Open questions
 
 1. ~~**The logo needs a mark-only export.**~~ Settled: rather than crop by CSS, the cut is a script. `pnpm --filter web logo` measures nothing at run time — the rectangles live in `e2e/logo-assets.spec.ts`, taken from the artwork's alpha channel — and writes the three assets the app imports. A redrawn logo needs that one command and a re-measurement, and no component changes.

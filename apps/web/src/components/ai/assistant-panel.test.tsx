@@ -191,3 +191,104 @@ describe('AssistantPanel', () => {
     expect(useWorkspace.getState().selection).toEqual({ kind: 'skill', id: 'test-design' })
   })
 })
+
+/**
+ * Adding a whole capability from inside a project (P9-15).
+ *
+ * Reported from use: the wizard can draft a Blueprint, and after that the assistant could only
+ * write one artifact at a time. "A .NET review expert" is an agent, its skills and the laws it
+ * works under, and asking for them separately leaves the wiring to the author.
+ */
+describe('Add a capability', () => {
+  /** Enough kinds to prove it is not the one-artifact action wearing a different name. */
+  const CAPABILITY = {
+    summary: 'A .NET review expert with its skills and laws.',
+    agents: [
+      {
+        id: 'review-expert',
+        name: '.NET Review Expert',
+        description: 'Reviews .NET changes before they merge.',
+        role: 'reviewer',
+        responsibilities: ['Review .NET changes and report what is wrong with them'],
+        outputRequirements: ['One comment per finding, naming file and line'],
+        skillIds: ['reviewing-dotnet'],
+        ironLawIds: ['no-unreviewed-merge'],
+        body: 'You review .NET changes. You do not approve what you have not read.',
+      },
+    ],
+    skills: [
+      {
+        id: 'reviewing-dotnet',
+        name: 'Reviewing .NET code',
+        description: 'Reviewing a C# change against the project laws.',
+        whenToUse: 'When a C# change has to be reviewed.',
+        activation: { filePatterns: ['**/*.cs'] },
+        body: '## Instructions\n\n1. List the changed files.\n2. Read each hunk.\n\n## Verification\n\nEvery comment names a file and a line in the diff.',
+      },
+    ],
+    ironLaws: [
+      {
+        id: 'no-unreviewed-merge',
+        name: 'Never merge unreviewed',
+        description: 'Nothing merges unread.',
+        rule: 'Never merge a change nobody has read.',
+        rationale: 'A merge is a claim that someone checked it.',
+        examples: ['Read all four hunks, then approved.'],
+        counterexamples: ['Green, so merged without reading.'],
+        severity: 'critical',
+        category: 'code-quality',
+        enforcement: ['instruction'],
+        violationBehavior: 'Stop and read the change first.',
+      },
+    ],
+  }
+
+  it('proposes artifacts of several kinds at once, wired together', async () => {
+    configure()
+    const before = await loadFixture()
+    endpointAnswers(CAPABILITY)
+    const user = userEvent.setup()
+    render(<AssistantPanel open onOpenChange={() => {}} />)
+
+    await user.click(screen.getByRole('button', { name: 'Add a capability' }))
+    await user.type(
+      screen.getByLabelText('What the capability is'),
+      'A .NET review expert that checks changes against our Iron Laws.',
+    )
+    await user.click(screen.getByRole('button', { name: 'Ask' }))
+
+    const list = await screen.findByRole('list', { name: 'Proposed changes' })
+    expect(within(list).getAllByRole('listitem').length).toBeGreaterThan(2)
+
+    await user.click(screen.getByRole('button', { name: /^Apply/ }))
+    const after = useWorkspace.getState().blueprint!
+
+    expect(after.agents).toHaveLength(before.agents.length + 1)
+    expect(after.skills).toHaveLength(before.skills.length + 1)
+    expect(after.ironLaws).toHaveLength(before.ironLaws.length + 1)
+    // Wired, not a pile of parts: the new agent holds what came with it.
+    const agent = after.agents.find((candidate) => candidate.id === 'review-expert')!
+    expect(agent.skillIds).toContain('reviewing-dotnet')
+    expect(agent.ironLawIds).toContain('no-unreviewed-merge')
+  })
+
+  it('leaves the project itself alone', async () => {
+    configure()
+    const before = await loadFixture()
+    endpointAnswers(CAPABILITY)
+    const user = userEvent.setup()
+    render(<AssistantPanel open onOpenChange={() => {}} />)
+
+    await user.click(screen.getByRole('button', { name: 'Add a capability' }))
+    await user.type(screen.getByLabelText('What the capability is'), 'A .NET review expert.')
+    await user.click(screen.getByRole('button', { name: 'Ask' }))
+    await screen.findByRole('list', { name: 'Proposed changes' })
+    await user.click(screen.getByRole('button', { name: /^Apply/ }))
+
+    // The distinction from "Draft the whole Blueprint", which names the project and picks its
+    // primary agent. Adding to a project must not rename it.
+    const after = useWorkspace.getState().blueprint!
+    expect(after.name).toBe(before.name)
+    expect(after.settings.primaryAgentId).toBe(before.settings.primaryAgentId)
+  })
+})

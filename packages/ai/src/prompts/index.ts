@@ -5,6 +5,7 @@
  * operation currently uses; an older file stays where it is so the fixtures recorded against
  * it keep meaning what they meant.
  */
+export * from './add-capability.v1'
 export * from './compose'
 export * from './glossary'
 export * from './house-style'
@@ -20,6 +21,7 @@ export * from './generate-blueprint.v1'
 export * from './improve-artifact.v1'
 export * from './judge-requirements.v1'
 
+import { addCapabilityV1 } from './add-capability.v1'
 import { compoundV1 } from './compound.v1'
 import { createIronLawsV1 } from './create-iron-laws.v1'
 import { createWorkflowV1 } from './create-workflow.v1'
@@ -33,6 +35,7 @@ import { improveArtifactV1 } from './improve-artifact.v1'
 import { judgeRequirementsV1 } from './judge-requirements.v1'
 
 export const PROMPTS = {
+  'add-capability': addCapabilityV1,
   'generate-blueprint': generateBlueprintV1,
   'generate-artifact': generateArtifactV1,
   'improve-artifact': improveArtifactV1,

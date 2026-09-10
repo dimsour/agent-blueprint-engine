@@ -21,6 +21,7 @@ import {
 import { beforeAll, describe, expect, it } from 'vitest'
 
 import {
+  addCapability,
   compound,
   createIronLawsFor,
   createWorkflowFor,
@@ -762,5 +763,99 @@ describe('generateBlueprint, checked against both passes', () => {
 
     await generateBlueprint({ client: client.client }, { blueprint: empty }, 'A crew.')
     expect(client.sent).toHaveLength(1)
+  })
+})
+
+/**
+ * Adding a capability to a Blueprint that already exists (P9-15).
+ *
+ * Reported from use: the wizard drafts a whole Blueprint, and afterwards the assistant could
+ * only write one artifact at a time. "A .NET review expert" is an agent, its skills and the
+ * laws it works under, and asking for those separately leaves the author doing the wiring.
+ */
+describe('addCapability', () => {
+  it('adds a wired set of artifacts without touching the project header', async () => {
+    const result = await addCapability(
+      depsFor('add-capability', [1, 2]),
+      { blueprint: fixture },
+      { brief: 'A .NET review expert' },
+    )
+
+    const applied = applyChangeSet(fixture, result.changeSet)
+    expect(applied.rejected).toEqual([])
+    const after = applied.blueprint
+
+    // More than one kind, in one review.
+    const kinds = new Set(
+      result.changeSet.ops.map((op) => (op.type === 'update-blueprint' ? undefined : op.kind)),
+    )
+    expect(kinds.has('agent')).toBe(true)
+    expect(kinds.has('skill')).toBe(true)
+    expect(kinds.has('iron-law')).toBe(true)
+
+    // Wired: the new agent holds what was created beside it, and a skill the fixture already
+    // had rather than a second copy of it.
+    const agent = findEntity(after, 'agent', 'review-expert')!
+    expect(agent.skillIds).toContain('reviewing-dotnet')
+    expect(agent.skillIds).toContain('test-design')
+    expect(agent.ironLawIds).toContain('no-unreviewed-merge')
+
+    // And the project is still the project: same name, same primary agent.
+    expect(after.name).toBe(fixture.name)
+    expect(after.settings.primaryAgentId).toBe(fixture.settings.primaryAgentId)
+    expect(result.changeSet.ops.some((op) => op.type === 'update-blueprint')).toBe(false)
+  })
+
+  it('asks again when the first attempt leaves the artifacts incomplete', async () => {
+    const answers = recording('add-capability')
+    const client = replayClient(answers)
+
+    const result = await addCapability(
+      { client: client.client },
+      { blueprint: fixture },
+      { brief: 'A .NET review expert' },
+    )
+
+    // The first answer wires the agent to a skill it never wrote and gives its skills no
+    // Instructions section. Both are read back, and the second answer is the one kept.
+    expect(client.sent).toHaveLength(2)
+    const second = client.sent[1]!.messages.map((message) => message.content).join('\n')
+    expect(second).toContain('BP-EVAL-SKILL-002')
+
+    const after = applyChangeSet(fixture, result.changeSet).blueprint
+    expect(findEntity(after, 'skill', 'reviewing-dotnet')!.body).toContain('## Instructions')
+  })
+
+  it('holds new artifacts from the selected agent when it writes no agent of its own', async () => {
+    // Only the laws, so there is no agent in the answer and the selection decides the owner.
+    const lawsOnly = JSON.stringify({
+      summary: 'A law about reviews.',
+      ironLaws: [
+        {
+          id: 'no-unreviewed-merge',
+          name: 'Never merge unreviewed',
+          description: 'Nothing merges unread.',
+          rule: 'Never merge a change nobody has read.',
+          rationale: 'A merge is a claim that someone checked.',
+          examples: ['Read it, then merged.'],
+          counterexamples: ['Green, so merged.'],
+          severity: 'critical',
+          category: 'code-quality',
+          enforcement: ['instruction'],
+          violationBehavior: 'Stop and read it.',
+        },
+      ],
+    })
+
+    const result = await addCapability(
+      { client: replayClient([lawsOnly, lawsOnly]).client },
+      { blueprint: fixture, selection: { kind: 'agent', id: fixture.agents[0]!.id } },
+      { brief: 'A law about reviews' },
+    )
+
+    const after = applyChangeSet(fixture, result.changeSet).blueprint
+    expect(findEntity(after, 'agent', fixture.agents[0]!.id)!.ironLawIds).toContain(
+      'no-unreviewed-merge',
+    )
   })
 })
