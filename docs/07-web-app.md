@@ -333,3 +333,11 @@ The budgets are loose against the measurements on purpose: a threshold that fail
 That check found the one real problem. Evaluation compares skills pairwise, which it has to, but it tokenized each description **inside** the loop, so the same text was parsed once per other skill: quadratic comparisons doing quadratic work. Two hundred skills meant forty thousand parses instead of two hundred. Hoisting the tokenization took an 800-artifact evaluation from 42 ms to 10 ms and made the curve linear again. The comparison is still quadratic; the work per comparison is not.
 
 Everything else was already memoized where it needed to be: the health bar, the evaluation view, the export preview, the inspector's relations and the overview graph all recompute only when the Blueprint or the diagnostics change.
+
+## The story, walked (P8-09)
+
+`e2e/story.spec.ts` walks docs/00's reference scenario once, in a single session: begin from a template, see the derived graph, edit an artifact, watch autosave commit it, open the findings behind a health count, compile, and push. Every step is covered in isolation elsewhere. This one exists for the join — a save that loses the edit, an export that disagrees with the screen, a push whose preview is not what gets committed — which no per-surface test can see.
+
+GitHub is answered locally and the mock **records the tree it was given**, so the test asserts that the commit carried exactly the paths the preview named, on the branch that was typed. It also asserts the promises in docs/00's quality bar, because a promise nothing checks is a promise that quietly stops being true: a health-bar count always has findings behind it, two exports of an untouched project are byte-identical, and every harness limitation is explained rather than dropped.
+
+It found one bug immediately. `?view=` and `&id=` are documented above as making a view linkable, and clicking a link worked — but reloading or sharing one did not. The effect that writes the URL from the store compared against values from the render _before_ the effect that reads the URL had applied them, so opening `?view=export` rewrote the URL to `overview` and dropped you on the graph. The follower reads live state now, and three tests cover it.

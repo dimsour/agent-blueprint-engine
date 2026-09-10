@@ -92,10 +92,10 @@ harness under [docs/harness/](docs/harness).
 
 ## Status
 
-Phases P0 to P7 are complete: the model, the compiler, the templates, the web IDE, the graphs,
-the trust surfaces, the AI layer and GitHub. P8 (hardening) is in progress — all five adapters
-are now full, projects carry binary assets, the UI is checked against WCAG 2.1 AA in both
-themes, and a 200-artifact project is measured rather than assumed.
+Phases P0 to P8 are complete: the model, the compiler, the templates, the web IDE, the graphs,
+the trust surfaces, the AI layer, GitHub, and the hardening pass — all five adapters full,
+binary assets carried end to end, the UI checked against WCAG 2.1 AA in both themes, a
+200-artifact project measured rather than assumed, and the docs/00 story walked in one test.
 [docs/09-roadmap.md](docs/09-roadmap.md) is the backlog and says what each phase actually built.
 
 Working in this repository with an AI agent? Start at [AGENTS.md](AGENTS.md).

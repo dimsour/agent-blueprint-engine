@@ -40,10 +40,18 @@ export function useUrlState(projectId: string, ready: boolean): void {
   }, [ready, urlView, urlId])
 
   // The store follows: selecting in the tree, the palette or the inspector rewrites the URL.
+  //
+  // Read live rather than from this render. Both effects run in the same flush, and the one
+  // above has already applied the URL to the store by the time this one runs — but `view` and
+  // `selection` here are still the values from before it did. Comparing against those made the
+  // store's default win a race it should always lose: opening or reloading `?view=export`
+  // rewrote the URL to `overview` and dropped you on the graph, so a link to a report survived
+  // being clicked but not being reloaded.
   useEffect(() => {
     if (!ready) return
-    const nextView = viewParam(view)
-    const nextId = selection?.id ?? null
+    const state = useWorkspace.getState()
+    const nextView = viewParam(state.view)
+    const nextId = state.selection?.id ?? null
     if (nextView === urlView && nextId === urlId) return
 
     const params = new URLSearchParams()
