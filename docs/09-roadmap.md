@@ -675,7 +675,7 @@ what it wants, a cursor that behaves, and a page that teaches.
 Nothing here changes the model, the compiler or the project format. Where a task removes
 something, it says what and where that thing still exists.
 
-### P9-01 The logo
+### P9-01 The logo (done)
 
 - Package: `apps/web/public`, `apps/web/src/app/layout.tsx`, `apps/web/src/components/layout/top-bar.tsx`, `apps/web/src/components/dashboard/dashboard.tsx`, `apps/web/src/components/settings/settings.tsx`, `apps/web/src/components/wizard/wizard.tsx`
 - Depends on: nothing
@@ -684,8 +684,11 @@ something, it says what and where that thing still exists.
 - The file is 680 KB, which is the whole page weight again. Serve it through `next/image` so it is resized and cached, and keep the raw asset out of the critical path.
 - Acceptance: the mark appears in the tab, the top bar, the dashboard, settings and the wizard; the dashboard's largest contentful paint does not get worse; `pnpm build` reports no new warnings.
 - Verify: `pnpm --filter web test:e2e accessibility` (the mark needs an accessible name, and an image with no `alt` is a violation), plus `pnpm --filter web screenshots`.
+- Built: one `Logo` in `apps/web/src/components/layout/logo.tsx`, used by all four headers. `src/app/icon.png` is both the favicon Next links itself and the file the component imports, so the tab and the headers cannot drift apart, and there is no second 680 KB copy in `public/`. Every placement goes through `next/image` at the size it actually paints; the dashboard's lockup is not preloaded, so the heading is still what the browser races to show.
+- The crop is the open question below, answered as it said. `MARK` in that file is a window onto the combined artwork — scale, offset and aspect as shares of the box's width — and the small placements draw the artwork larger than their box and clip it. The window is deliberately not square: the mark is about a fifth wider than it is tall, and a square box either cuts the sparkle off its left or lets the top of the "A" in "Agent" appear underneath. The comment says what to delete when a mark-only export exists; nothing outside that file would change.
+- `e2e/header.spec.ts` asserts the favicon route really answers with a PNG, that the dashboard's lockup is served through the optimizer rather than whole, and that the mark is `alt=""` everywhere a labelled link already names the product — the case axe cannot fail on, because an image that never arrives has no violation either.
 
-### P9-02 Getting back
+### P9-02 Getting back (done)
 
 - Package: `apps/web/src/components/layout/`, `apps/web/src/app/settings/page.tsx`, `apps/web/src/app/new/page.tsx`
 - Depends on: P9-01
@@ -693,6 +696,11 @@ something, it says what and where that thing still exists.
 - One `PageHeader` with the logo, the page's title, and a back control that returns to the page the user came from when that page is inside the app, and to `/` when it is not. A back button that guesses wrong is worse than none: arriving at `/settings` from a bookmark must go to `/`, not to whatever was in the history before.
 - Acceptance: every route except `/` offers a way back; back from `/settings` opened directly lands on `/`; back from `/settings` opened out of the workspace returns to that project.
 - Verify: `pnpm --filter web test:e2e story`
+- Built: `PageHeader` (logo, back control, title, theme toggle) is the header for `/settings` and `/new`; the workspace keeps its own top bar, whose wordmark still links home and now carries the mark.
+- The question the task calls out — is the page behind this one ours? — is answered by counting, not by guessing. `NavigationTrail` sits in the root layout and increments a **module-level** counter whenever the pathname changes. The app is one document, so a move between two of its routes always goes through the client router and never reloads the page; a full document load re-evaluates the module and resets the count to zero. A count above zero therefore _proves_ the previous history entry was rendered by this app. None of the obvious signals can do that: `document.referrer` is fixed at document load and never updated by the App Router, `history.length` counts entries from other sites and never shrinks, and `window.history.state` carries the router's bookkeeping under private keys.
+- The back control is a real `<a href="/">` and only the plain left click is intercepted, so ⌘-click, middle-click and "copy link address" all get `/`, and the fallback is the destination the browser was already showing.
+- The honest cost: reloading `/settings` forgets the project it was opened from and offers `/` instead. Going somewhere sensible beats going somewhere surprising, and the alternative was a control that sometimes leaves the app.
+- `e2e/header.spec.ts` covers both halves: `/settings` reached from a project returns to that project, and `/settings` opened after a page on another origin goes to `/` rather than back to it.
 
 ### P9-03 One step to a project
 

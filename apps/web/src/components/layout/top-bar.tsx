@@ -13,6 +13,7 @@ import {
   SparklesIcon,
 } from 'lucide-react'
 
+import { Logo } from '@/components/layout/logo'
 import { ThemeToggle } from '@/components/theme'
 import { Button } from '@/components/ui/button'
 import { Badge, Kbd } from '@/components/ui/primitives'
@@ -43,11 +44,14 @@ export function TopBar({
 
   return (
     <>
+      {/* The mark alone beside the wordmark: the bar is 44px tall, so the lockup's own words
+          would be unreadable at the height there is room for. */}
       <Link
         href="/"
-        className="text-sm font-semibold tracking-tight whitespace-nowrap"
+        className="flex items-center gap-2 text-sm font-semibold tracking-tight whitespace-nowrap"
         aria-label="Back to all projects"
       >
+        <Logo size={22} />
         Agent Blueprint
       </Link>
 

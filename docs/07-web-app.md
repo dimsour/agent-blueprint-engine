@@ -13,6 +13,7 @@ This document specifies `apps/web`: routes, layout, state model, persistence, th
 | AI settings, relay, ChangeSet review, assistant, AI evaluation                  | present (P6) |
 | GitHub: token and sign-in, push with preview, open from a repository            | present (P7) |
 | Accessibility checked in both themes, reduced motion, measured performance      | present (P8) |
+| The mark in the tab and every header; a way back from every route but `/`       | present (P9) |
 
 ## Routes
 
@@ -62,6 +63,29 @@ This document specifies `apps/web`: routes, layout, state model, persistence, th
 - **Bottom health bar**: overall score, artifact count, error/warning/suggestion counts, per-target status. A count opens the findings behind it in a panel above the bar; a finding navigates to its `ref`, and to the step inside a workflow when it names one. The score opens the evaluation view and a target opens the compatibility view.
 
 Panels are resizable; the left and right panels collapse. Widths persist in `localStorage` under a UI namespace (never alongside credentials; see `docs/08-security.md`).
+
+### The mark (P9-01)
+
+`apps/web/src/app/icon.png` is the artwork. Next reads that filename as the app icon and links it from every document, so it is the favicon without any configuration, and `Logo` (`src/components/layout/logo.tsx`) imports the same file — one asset, so the tab and the headers cannot disagree. Every placement goes through `next/image` at the size it paints: the original is 680 KB, about the weight of the rest of the page.
+
+The artwork is a single lockup, a square mark above the words "Agent Blueprint", and there is no mark-only export yet. So `Logo` has two variants:
+
+| Variant  | Where                                   | How                                                                                             |
+| -------- | --------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `mark`   | the 44px top bar, `PageHeader`          | the artwork drawn larger than its box and offset, with the box clipping everything but the mark |
+| `lockup` | the dashboard hero, where there is room | the whole file, unclipped                                                                       |
+
+The crop lives in one constant, `MARK`, as shares of the box's width. Its window is not square, because the mark is not: it is about a fifth wider than it is tall, and a square box either cuts the sparkle off its left edge or lets the top of the "A" in "Agent" show underneath. The file says what to delete when a mark-only export exists.
+
+The mark is `alt=""` wherever a wordmark or a labelled link already names the product, and carries the name only on the dashboard, where it stands alone.
+
+### Getting back (P9-02)
+
+Every route except `/` offers a way out of itself. The workspace top bar's wordmark links home; `/settings` and `/new` use `PageHeader`, which is the logo, a back control and the page's title.
+
+The back control returns to the previous page when that page belongs to this app, and to `/` when it does not — arriving from a bookmark must not walk back into whatever the tab was showing before. `NavigationTrail`, mounted once in the root layout, answers that by counting: it increments a module-level counter on every pathname change. The app is one document, so a move between two of its routes always goes through the client router and never reloads; a full document load re-evaluates the module and resets the counter. A counter above zero therefore proves the entry behind the current one was rendered here. `document.referrer` cannot answer it (fixed at document load, never updated by the App Router), nor can `history.length` (counts other sites' entries and never shrinks), nor `window.history.state` (private router keys).
+
+The control is a real link to `/` whose plain left click is intercepted, so a modified click, a middle click and "copy link address" all get `/`. The cost of the rule is that reloading `/settings` forgets the project it was opened from; going somewhere sensible beats going somewhere surprising.
 
 ## State model (P3)
 

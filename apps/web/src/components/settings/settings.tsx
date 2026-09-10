@@ -9,13 +9,12 @@
  * its key kept where the user chose and nowhere else; the GitHub token arrives with pushing.
  */
 import { Trash2Icon } from 'lucide-react'
-import Link from 'next/link'
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
+import { PageHeader } from '@/components/layout/page-header'
 import { AISettings } from '@/components/settings/ai-settings'
 import { GitHubSettings } from '@/components/settings/github-settings'
-import { ThemeToggle } from '@/components/theme'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/primitives'
 import { useClientValue } from '@/lib/client-value'
@@ -60,18 +59,7 @@ export function Settings({ oauthAvailable }: { oauthAvailable: boolean }) {
 
   return (
     <div className="mx-auto flex min-h-dvh max-w-3xl flex-col gap-8 px-6 py-10">
-      <header className="flex items-start justify-between gap-4">
-        <div className="flex flex-col gap-1">
-          <Link
-            href="/"
-            className="text-muted-foreground hover:text-foreground text-xs font-medium tracking-wide uppercase"
-          >
-            Agent Blueprint
-          </Link>
-          <h1 className="text-xl font-semibold tracking-tight">Settings</h1>
-        </div>
-        <ThemeToggle />
-      </header>
+      <PageHeader title="Settings" />
 
       <section className="flex flex-col gap-3">
         <h2 className="text-sm font-semibold">Storage</h2>

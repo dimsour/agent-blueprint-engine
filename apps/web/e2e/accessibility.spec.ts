@@ -71,7 +71,11 @@ async function openStarter(page: Page): Promise<void> {
   await page.waitForURL(/\/p\//)
   await expect(page.getByRole('navigation', { name: 'Blueprint artifacts' })).toBeVisible()
   // The route's title arrives with the client transition; axe reads the document, not the app.
-  await expect(page).toHaveTitle(/Agent Blueprint/)
+  // It has to be the *workspace* title: the dashboard's is "Agent Blueprint" too, so matching
+  // that would pass before the transition, and axe could then read the document in the moment
+  // between the old title being removed and the new one arriving — a `document-title` violation
+  // from a race rather than from a page.
+  await expect(page).toHaveTitle(/Workspace · Agent Blueprint/)
 }
 
 for (const theme of ['light', 'dark'] as const) {
