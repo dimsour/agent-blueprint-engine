@@ -11,7 +11,7 @@ This repository is an AI agent configuration compiled from a Blueprint. Clone it
 - `blueprint/` — the source of truth. Every other file is generated from it.
 - Claude Code — `CLAUDE.md` plus `.claude/` (skills, agents, rules, settings).
 - OpenAI Codex — `AGENTS.md` plus `.agents/skills/` and `.codex/`.
-- GitHub Copilot — `AGENTS.md` plus `.github/skills/` and `.github/copilot-instructions.md`.
+- GitHub Copilot — `AGENTS.md` plus `.github/` (instructions, skills, agents, prompts, hooks).
 - OpenCode — `AGENTS.md` plus `.agents/skills/`.
 - Pi — `AGENTS.md` plus `.agents/skills/`.
 
@@ -19,15 +19,17 @@ This repository is an AI agent configuration compiled from a Blueprint. Clone it
 
 | Workflow | What it does | Claude Code | OpenAI Codex | GitHub Copilot | OpenCode | Pi |
 | --- | --- | --- | --- | --- | --- | --- |
-| Write Unit Tests | From a request to the finished, verified test file. | `/write-tests` | `$write-tests` | `the write-tests skill` | `the write-tests skill` | `/skill:write-tests` |
-| Review Unit Tests | Review an existing test suite for coverage gaps, brittleness and readability. | `/review-tests` | `$review-tests` | `the review-tests skill` | `the review-tests skill` | `/skill:review-tests` |
+| Write Unit Tests | From a request to the finished, verified test file. | `/write-tests` | `$write-tests` | `/write-tests` | `the write-tests skill` | `/skill:write-tests` |
+| Review Unit Tests | Review an existing test suite for coverage gaps, brittleness and readability. | `/review-tests` | `$review-tests` | `/review-tests` | `the review-tests skill` | `/skill:review-tests` |
 
 ## Before you trust it
 
 - **Claude Code:** Hooks and permissions are in `.claude/settings.json`; review them before trusting the project.
 - **OpenAI Codex:** Codex reads `.codex/config.toml` only for trusted projects; trust it once with `/trust` or add it to `~/.codex/config.toml`.
 - **OpenAI Codex:** Hooks and multi-agent support are behind `[features]` flags, which the generated config sets.
-- **GitHub Copilot:** Memory is not supported; the memory section of `AGENTS.md` is guidance only.
+- **GitHub Copilot:** Hooks are in `.github/hooks/blueprint.json`; review them before trusting the project.
+- **GitHub Copilot:** Memory is not supported, and per-command permissions are guidance rather than a boundary; both are described in `AGENTS.md` only.
+- **GitHub Copilot:** Any MCP server is configured for the editor in `.vscode/mcp.json`; the cloud coding agent takes its MCP configuration from repository settings instead.
 - **Pi:** Pi runs one agent; steps that delegate ask the same session to adopt another persona.
 
 ## Changing the agent

@@ -1,16 +1,15 @@
 /**
- * Copilot, OpenCode and Pi adapters.
+ * OpenCode and Pi adapters.
  *
- * These three ship their capability matrix, their options schema and the portable artifact
- * set (`AGENTS.md` plus skills), and they report every concept they cannot represent. Their
- * native mappings (Copilot agent files and instructions, `opencode.json`, `.pi/` extensions)
- * are roadmap P8; the capability matrices below already describe what those will do, so the
+ * Both ship their capability matrix, their options schema and the portable artifact set
+ * (`AGENTS.md` plus the `.agents/skills` tree), and both report every concept they cannot
+ * represent. Their native mappings (`opencode.json`, `.pi/` extensions) are roadmap P8-02 and
+ * P8-03; the capability matrices below already describe what those will do, so the
  * compatibility view is accurate today.
  */
 import type { Blueprint, Diagnostic, HarnessId } from '@agent-blueprint/core'
 import { z } from 'zod'
 
-import { withHeader } from './shared/header'
 import { primaryAgentOf } from './shared/instructions'
 import {
   emitPortableInstructionFile,
@@ -22,7 +21,6 @@ import {
   type CapabilityMatrix,
   type CompatibilityIssue,
   type CompileResult,
-  generatedFile,
   type GeneratedFile,
   type HarnessAdapter,
 } from './types'
@@ -88,147 +86,6 @@ function permissionIssue(
       adaptation: 'AGENTS.md "Command policy" section',
     },
   ]
-}
-
-// ---------------------------------------------------------------------------
-// GitHub Copilot
-// ---------------------------------------------------------------------------
-
-const COPILOT_SKILLS_DIR = '.github/skills'
-
-const copilotCapabilities: CapabilityMatrix = {
-  skills: {
-    support: 'native',
-    explanation:
-      'Skills compile to `.github/skills/<id>/SKILL.md`; Copilot also reads `.claude/skills` and `.agents/skills`.',
-  },
-  agents: {
-    support: 'native',
-    explanation:
-      'Copilot supports `.github/agents/*.agent.md` custom agents. Emitting them is roadmap P8; for now every agent is described in AGENTS.md.',
-  },
-  parallelAgents: {
-    support: 'limited',
-    explanation:
-      'Subagents exist but Copilot documents no concurrency control, so parallel branches may run one after another.',
-  },
-  workflows: {
-    support: 'adapted',
-    explanation:
-      'Workflows compile to orchestration skills. Prompt files and handoffs are roadmap P8.',
-  },
-  hooks: {
-    support: 'native',
-    explanation:
-      'Copilot reads `.github/hooks/*.json`. Emitting them is roadmap P8; hooks are currently described in AGENTS.md only.',
-  },
-  gates: {
-    support: 'adapted',
-    explanation:
-      'Gates become instructions in the workflow skill; the `agentStop` hook that would enforce them is roadmap P8.',
-  },
-  permissions: {
-    support: 'adapted',
-    explanation:
-      'Copilot has no allow/ask/deny syntax; permissions become a command policy in AGENTS.md and, later, a per-agent tool allowlist.',
-  },
-  memory: {
-    support: 'unsupported',
-    explanation:
-      'Copilot has no persistent memory; memory definitions become instructions to keep notes in the repository.',
-  },
-  pathScopedRules: {
-    support: 'native',
-    explanation:
-      'Copilot supports `.github/instructions/*.instructions.md` with `applyTo`. Emitting them is roadmap P8; rules are inlined in AGENTS.md today.',
-  },
-  commands: {
-    support: 'native',
-    explanation: 'Copilot supports `.github/prompts/*.prompt.md`. Skills already act as commands.',
-  },
-  ironLaws: {
-    support: 'adapted',
-    explanation:
-      'Iron Laws become a section in AGENTS.md and in `.github/copilot-instructions.md`.',
-  },
-  references: {
-    support: 'native',
-    explanation: 'References attached to a skill are copied beside it.',
-  },
-}
-
-export const copilotAdapter: HarnessAdapter<PortableAdapterOptions> = {
-  id: 'copilot',
-  name: 'GitHub Copilot',
-  version: '0.1.0',
-  docsUrl: 'https://docs.github.com/en/copilot/concepts/agents/about-agent-skills',
-  capabilities: copilotCapabilities,
-  optionsSchema,
-  parseOptions: (raw) => optionsSchema.parse(raw),
-  validate: (blueprint) => idCollisions(blueprint, 'BP-COPILOT-001', COPILOT_SKILLS_DIR),
-
-  compile(blueprint): CompileResult {
-    const files: GeneratedFile[] = []
-    const issues: CompatibilityIssue[] = []
-
-    files.push(emitPortableInstructionFile(blueprint).file)
-
-    const skillSet = emitPortableSkillSet(blueprint, {
-      root: COPILOT_SKILLS_DIR,
-      owner: 'copilot',
-      referencesDir: '.github/references',
-    })
-    files.push(...skillSet.files)
-
-    // Copilot reads AGENTS.md, but repository custom instructions are the documented entry
-    // point, so this file points at the real content instead of duplicating it.
-    files.push(
-      generatedFile(
-        '.github/copilot-instructions.md',
-        `${withHeader(
-          'blueprint/',
-          [
-            `# ${blueprint.name}`,
-            blueprint.description ?? '',
-            'The full agent definition is in `AGENTS.md` at the repository root. Read it before making changes, and follow its Iron Laws without exception.',
-            'Skills for specific tasks are in `.github/skills/`.',
-          ]
-            .filter((part) => part.length > 0)
-            .join('\n\n'),
-        )}\n`,
-        'markdown',
-        'copilot',
-        [],
-      ),
-    )
-
-    issues.push(...workflowIssues(blueprint, 'copilot'))
-    issues.push(...memoryIssue(blueprint, 'copilot'))
-    issues.push(
-      ...permissionIssue(
-        blueprint,
-        'copilot',
-        'Copilot has no permission rule syntax, so the permission set is compiled into AGENTS.md as a command policy rather than an enforced boundary.',
-      ),
-    )
-    if (blueprint.agents.length > 1) {
-      issues.push({
-        harnessId: 'copilot',
-        concept: 'agents',
-        support: 'adapted',
-        message: `${blueprint.agents.length - 1} non-primary agent(s) are described in AGENTS.md. Compiling them to \`.github/agents/*.agent.md\` is roadmap P8.`,
-      })
-    }
-    if (blueprint.hooks.length > 0) {
-      issues.push({
-        harnessId: 'copilot',
-        concept: 'hooks',
-        support: 'adapted',
-        message: `${blueprint.hooks.length} hook(s) are described in the instructions but not yet compiled to \`.github/hooks/\` (roadmap P8), so nothing enforces them automatically.`,
-      })
-    }
-    return { files, issues }
-  },
 }
 
 // ---------------------------------------------------------------------------

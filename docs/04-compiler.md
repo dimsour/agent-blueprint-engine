@@ -275,6 +275,18 @@ subagent primitive, or to persona-switch prompts where subagents are unsupported
 | Permissions, MCP, memories flags                    | `.codex/config.toml`                                                          |
 | Rules with directory `paths`                        | nested `AGENTS.md`                                                            |
 
+## Copilot adapter mapping (summary; full table in `docs/harness/copilot.md`)
+
+| Blueprint                                           | Output                                                                  |
+| --------------------------------------------------- | ----------------------------------------------------------------------- |
+| Primary agent + laws + rules + roster + memory seed | `AGENTS.md` (shared) + `.github/copilot-instructions.md` pointing at it |
+| Skills                                              | `.github/skills/<id>/SKILL.md` + resources                              |
+| Other agents                                        | `.github/agents/<id>.agent.md` (`tools` allowlist, `agents` subagents)  |
+| Workflows                                           | `.github/skills/<id>/SKILL.md` + `.github/prompts/<id>.prompt.md`       |
+| Rules with `paths`                                  | `.github/instructions/<id>.instructions.md` (`applyTo`)                 |
+| Hooks, gates, hook-enforced laws                    | `.github/hooks/blueprint.json`                                          |
+| MCP tools                                           | `.vscode/mcp.json` (editor only)                                        |
+
 ## Repository layout after compilation
 
 ```
@@ -289,9 +301,10 @@ subagent primitive, or to persona-switch prompts where subagents are unsupported
 ├── AGENTS.md                      shared: codex, copilot, opencode, pi
 ├── .agents/skills/<id>/           shared: codex, opencode, pi
 ├── .codex/{config.toml,hooks.json,agents/}      codex
-├── .github/{skills,agents,instructions,prompts,hooks}/   copilot (P8; MVP: skills only)
-├── opencode.json, .opencode/{agents,commands,plugins}/   opencode (P8)
-└── .pi/{prompts,extensions,settings.json}       pi (P8)
+├── .github/{skills,agents,instructions,prompts,hooks}/   copilot
+├── .vscode/mcp.json               copilot (only with MCP tools)
+├── opencode.json, .opencode/{agents,commands,plugins}/   opencode (P8-02)
+└── .pi/{prompts,extensions,settings.json}       pi (P8-03)
 ```
 
 ## Worked example: `packages/fixtures/projects/dotnet-testing-expert`
@@ -439,3 +452,55 @@ normalization does sort.
 The adapter writes `{ "hooks": { "<Event>": [ { "hooks": [ … ] } ] } }`, mirroring Claude
 Code, which matches every published example. Verify against the Codex hooks documentation
 before relying on it in production.
+
+## Implementation notes (P8-01, Copilot)
+
+### A workflow prompt file points at the skill instead of repeating it
+
+Copilot has two ways to carry a procedure: a skill, which every client reads, and a prompt
+file, which makes it `/`-invocable in the editor. Emitting the full orchestration body into
+both would put two copies of the same procedure in one repository. The prompt file therefore
+carries the name and description and tells the agent to read
+`.github/skills/<id>/SKILL.md` — the same choice `.github/copilot-instructions.md` already
+makes about `AGENTS.md`.
+
+### Handoffs are not emitted
+
+`handoffs[]` hangs off a custom agent file, but the Blueprint's delegate steps hang off a
+workflow, whose Copilot form is a prompt file, and the primary agent is `AGENTS.md` rather
+than a custom agent file at all. There is no agent file to attach a workflow's handoffs to.
+What can be expressed is expressed: `delegation.canDelegateTo` becomes the `agents` list on
+each non-primary agent file, with the `agent` tool added so the list is usable. A delegation
+target that is the primary agent is dropped and reported, since it has no file to hand to.
+
+### Per-command permissions are reported, not enforced
+
+A Copilot `tools` allowlist names tool categories (`read`, `edit`, `execute`, `web`), and a
+hook `matcher` is a regex over tool names, not over command text. Neither can say "`dotnet
+test` yes, `git push` no". Enforcing a per-command rule would need a `preToolUse` handler that
+parses the tool arguments — a script the compiler would be inventing, and one that fails
+closed on a non-zero exit. So blanket decisions lower to the allowlist (an alias is dropped
+only when every operation behind it is denied) and patterns stay the command policy in
+`AGENTS.md`, with a `limited` compatibility issue naming how many rules that covers.
+
+### Prompt-style hooks print a reminder
+
+Copilot documents a `prompt` handler type but not the field that carries the text. Rather than
+guess a shape that a `preToolUse` handler would fail closed on, `prompt-check` and
+`check-iron-laws` compile to a printed reminder, exactly as they do for Codex. Revisit when
+the payload field is confirmed.
+
+### A gate refuses the stop from a command
+
+`agentStop` reads `{ "decision": "block", "reason": … }` from stdout, so a gate criterion
+compiles to `<command> || echo '<json>'` in bash and the `$LASTEXITCODE` equivalent in
+PowerShell: nothing is printed when the command succeeds, which Copilot reads as allow. The
+reason is stripped of quotes first, because it is quoted twice over — once as JSON, once for
+the shell.
+
+### `.vscode/mcp.json` configures the editor only
+
+The cloud coding agent takes MCP configuration from repository settings, not from a file, so
+the generated file serves VS Code and the adapter says so. `sse` is written as `http`: the
+VS Code schema names `stdio` and `http`, and `http` is the transport that replaced SSE. Only
+environment variable _names_ are written, never values.

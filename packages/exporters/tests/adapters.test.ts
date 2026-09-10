@@ -202,13 +202,13 @@ describe('portable adapters', () => {
     expect(memory?.message).toContain('no persistent memory')
   })
 
-  it('give Copilot its own skills directory and instructions pointer', async () => {
+  it('share AGENTS.md with Copilot, which reads it too', async () => {
     const blueprint = await loadFixture()
-    const paths = compileBlueprint(blueprint, { targets: ['copilot'] }).files.map(
-      (file) => file.path,
-    )
-    expect(paths).toContain('.github/skills/xunit/SKILL.md')
-    expect(paths).toContain('.github/copilot-instructions.md')
-    expect(paths).toContain('AGENTS.md')
+    const codex = compileBlueprint(blueprint, { targets: ['codex'] })
+    const copilot = compileBlueprint(blueprint, { targets: ['copilot'] })
+    const agentsMd = (result: typeof codex) =>
+      result.files.find((file) => file.path === 'AGENTS.md')
+    expect(agentsMd(copilot)?.content).toBe(agentsMd(codex)?.content)
+    expect(agentsMd(copilot)?.owner).toBe('shared')
   })
 })

@@ -6,4 +6,4 @@ An expert .NET agent that writes and reviews high-quality xUnit unit tests.
 
 The full agent definition is in `AGENTS.md` at the repository root. Read it before making changes, and follow its Iron Laws without exception.
 
-Skills for specific tasks are in `.github/skills/`.
+Skills for specific tasks are in `.github/skills/`, workflows are `/`-invocable prompts in `.github/prompts/`, and rules that apply to particular files are in `.github/instructions/`.

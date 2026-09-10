@@ -34,9 +34,13 @@ const USAGE: Record<HarnessId, HarnessUsage> = {
     ],
   },
   copilot: {
-    entry: '`AGENTS.md` plus `.github/skills/` and `.github/copilot-instructions.md`.',
-    workflow: (id) => `the ${id} skill`,
-    notes: ['Memory is not supported; the memory section of `AGENTS.md` is guidance only.'],
+    entry: '`AGENTS.md` plus `.github/` (instructions, skills, agents, prompts, hooks).',
+    workflow: (id) => `/${id}`,
+    notes: [
+      'Hooks are in `.github/hooks/blueprint.json`; review them before trusting the project.',
+      'Memory is not supported, and per-command permissions are guidance rather than a boundary; both are described in `AGENTS.md` only.',
+      'Any MCP server is configured for the editor in `.vscode/mcp.json`; the cloud coding agent takes its MCP configuration from repository settings instead.',
+    ],
   },
   opencode: {
     entry: '`AGENTS.md` plus `.agents/skills/`.',

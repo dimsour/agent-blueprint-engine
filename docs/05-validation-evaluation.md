@@ -102,6 +102,7 @@ Manifest problems are thrown as `ProjectReadError` (`MANIFEST_MISSING`, `MANIFES
 | `BP-COMPILE-001`                                                                  | error    | Two adapters produced different content for one path; neither was written. This is an adapter bug.          |
 | `BP-CLAUDE-001`, `BP-CODEX-001`, `BP-COPILOT-001`, `BP-OPENCODE-001`, `BP-PI-001` | error    | A workflow and a skill share an id, so they compile to the same file and overwrite each other.              |
 | `BP-CODEX-002`                                                                    | warning  | `AGENTS.md` is still over the Codex instruction budget after optional sections moved to a skill.            |
+| `BP-COPILOT-002`                                                                  | warning  | A custom agent file is longer than the 30 000 characters Copilot reads.                                     |
 
 ### 2.5 Evaluation-only findings (implemented: `evaluation/score.ts`)
 

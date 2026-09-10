@@ -9,18 +9,20 @@ This repository is an AI agent configuration compiled from a Blueprint. Clone it
 ## What is here
 
 - `blueprint/` — the source of truth. Every other file is generated from it.
-- GitHub Copilot — `AGENTS.md` plus `.github/skills/` and `.github/copilot-instructions.md`.
+- GitHub Copilot — `AGENTS.md` plus `.github/` (instructions, skills, agents, prompts, hooks).
 
 ## Workflows
 
 | Workflow | What it does | GitHub Copilot |
 | --- | --- | --- |
-| Write Unit Tests | From a request to the finished, verified test file. | `the write-tests skill` |
-| Review Unit Tests | Review an existing test suite for coverage gaps, brittleness and readability. | `the review-tests skill` |
+| Write Unit Tests | From a request to the finished, verified test file. | `/write-tests` |
+| Review Unit Tests | Review an existing test suite for coverage gaps, brittleness and readability. | `/review-tests` |
 
 ## Before you trust it
 
-- **GitHub Copilot:** Memory is not supported; the memory section of `AGENTS.md` is guidance only.
+- **GitHub Copilot:** Hooks are in `.github/hooks/blueprint.json`; review them before trusting the project.
+- **GitHub Copilot:** Memory is not supported, and per-command permissions are guidance rather than a boundary; both are described in `AGENTS.md` only.
+- **GitHub Copilot:** Any MCP server is configured for the editor in `.vscode/mcp.json`; the cloud coding agent takes its MCP configuration from repository settings instead.
 
 ## Changing the agent
 
