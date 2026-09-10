@@ -35,7 +35,7 @@ export interface AIClientConfig {
   viaProxy?: boolean
   /** Where that proxy lives; default /api/ai/proxy. */
   proxyPath?: string
-  timeoutMs?: number // default 120 000
+  timeoutMs?: number // default 120 000; silence, not duration, when streaming
 }
 
 export interface AIClient {
@@ -211,26 +211,45 @@ malformed object.
 ### Streaming
 
 `stream()` parses server-sent events (`data: {…}` lines, `[DONE]` terminator) and yields
-`{ delta: string, done: boolean }`.
+`{ delta, done, usage? }`. The usage event arrives last, carries no content, and is only sent
+by endpoints that honour `stream_options.include_usage`, so a caller must cope without it.
 
-Nothing in the product calls it yet. Structured operations cannot stream — the answer is only
-useful once it parses — and the assistant shows a result rather than a running reply, so the
-capability is built and tested but unused. It stays because a streaming reply is the obvious
-next thing the panel wants, and because the transport is the wrong place to discover that SSE
-parsing was never written.
+**`structured()` streams by default**, and not for the look of it. A completion that is not
+streamed sends nothing until the model has finished, so `timeoutMs` — which measures time to
+the first byte — is in practice a cap on how long the model may take to think. A local model
+drafting a whole Blueprint routinely runs past two minutes and was reported as
+"No answer within 120s" while working perfectly, and the only thing the UI could show
+meanwhile was a spinner. Streamed, the first token arrives in seconds, which changes both:
+
+- `timeoutMs` becomes **silence**, not duration: the watchdog restarts on every chunk, so a
+  model may take as long as it likes so long as it keeps writing. The error says which it was —
+  `Nothing arrived within Ns` before the first token, `The answer stopped arriving…` after —
+  and carries the partial answer so the UI can show where it stopped.
+- `onProgress(received)` reports the characters in so far, which is the difference between "it
+  is working" and "it is stuck". Only the count: the answer is JSON being assembled.
+
+The watchdog races each read against its own abort rather than relying on the request's signal
+to interrupt a read already waiting on the body — a stalled endpoint is exactly the case where
+nothing else will ever wake it.
+
+There is no automatic fallback to a single request when a stream fails. Every
+OpenAI-compatible endpoint targeted here streams, and "retry the other way" cannot tell an
+endpoint that will not stream from a rejected schema, a refused key or a rate limit; it would
+swallow all three and pay for a second request. `stream: false` is the switch, surfaced in
+Settings as **Stream the answer**, and it makes `timeoutMs` mean the whole answer again.
 
 ### Error taxonomy
 
-| `AIError.code`      | Cause                                  | UI behaviour                                        |
-| ------------------- | -------------------------------------- | --------------------------------------------------- |
-| `network`           | fetch failed, CORS, DNS                | Suggest `viaProxy` for local endpoints              |
-| `auth`              | 401 / 403                              | Point to settings                                   |
-| `rate-limit`        | 429                                    | Retry with backoff once, then surface               |
-| `server`            | 5xx                                    | Surface, allow retry                                |
-| `timeout`           | exceeded `timeoutMs`                   | Surface                                             |
-| `unsupported`       | 400 mentioning `response_format`       | Set `features.jsonSchema = false`, retry via path B |
-| `invalid-output`    | schema validation failed after repairs | Show raw output, offer regenerate                   |
-| `context-too-large` | 400 token limit                        | Reduce context budget and retry once                |
+| `AIError.code`      | Cause                                                     | UI behaviour                                        |
+| ------------------- | --------------------------------------------------------- | --------------------------------------------------- |
+| `network`           | fetch failed, CORS, DNS                                   | Suggest `viaProxy` for local endpoints              |
+| `auth`              | 401 / 403                                                 | Point to settings                                   |
+| `rate-limit`        | 429                                                       | Retry with backoff once, then surface               |
+| `server`            | 5xx                                                       | Surface, allow retry                                |
+| `timeout`           | silence for `timeoutMs` (whole answer when not streaming) | Surface, with the partial answer                    |
+| `unsupported`       | 400 mentioning `response_format`                          | Set `features.jsonSchema = false`, retry via path B |
+| `invalid-output`    | schema validation failed after repairs                    | Show raw output, offer regenerate                   |
+| `context-too-large` | 400 token limit                                           | Reduce context budget and retry once                |
 
 ## Operations
 

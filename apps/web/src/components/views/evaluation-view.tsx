@@ -40,7 +40,7 @@ import {
 
 import { validateNow } from '@/lib/actions'
 import { withAiFindings, withoutDuplicates } from '@/lib/ai/merge'
-import { configuredClient } from '@/lib/ai/settings'
+import { configuredClient, structuredFor } from '@/lib/ai/settings'
 import { useClientValue } from '@/lib/client-value'
 import { DiagnosticRow } from '@/components/views/diagnostic-row'
 import { Button } from '@/components/ui/button'
@@ -113,7 +113,10 @@ export function EvaluationView() {
     setAsking(true)
     setAiError(undefined)
     try {
-      const deps = { client: configured.client, structured: { signal: controller.signal } }
+      const deps = {
+        client: configured.client,
+        structured: structuredFor(configured, { signal: controller.signal }),
+      }
       const ctx = { blueprint, diagnostics }
       // Settled rather than all: these are two independent questions, and one of them failing
       // is no reason to throw away the answer to the other. A rate-limited endpoint refusing

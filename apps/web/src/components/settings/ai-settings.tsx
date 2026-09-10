@@ -78,6 +78,7 @@ export function AISettings() {
   const storageId = useId()
   const proxyId = useId()
   const timeoutId = useId()
+  const streamId = useId()
 
   const [settings, setSettings] = useState<AISettings>(DEFAULT_AI_SETTINGS)
   const [where, setWhere] = useState<CredentialStorage>('session')
@@ -174,10 +175,32 @@ export function AISettings() {
           : {})}
       />
 
+      <label htmlFor={streamId} className="flex items-start gap-2 text-sm">
+        <input
+          id={streamId}
+          type="checkbox"
+          className="mt-0.5"
+          checked={settings.stream}
+          onChange={(event) => change({ stream: event.target.checked })}
+        />
+        <span>
+          Stream the answer
+          <span className="text-muted-foreground block text-xs">
+            The answer arrives in pieces, so you can see it being written and stop it part way.
+            Leave it on unless the endpoint refuses to stream: with it off, nothing arrives until
+            the model has finished, and the wait below becomes a cap on how long it may take.
+          </span>
+        </span>
+      </label>
+
       <Field
-        label="Wait for an answer"
+        label={settings.stream ? 'Give up after silence of' : 'Wait for an answer'}
         htmlFor={timeoutId}
-        help="A hosted API answers in seconds. A local model drafting a whole Blueprint can take minutes, and the wait is what stands between that and a request that looked like a failure."
+        help={
+          settings.stream
+            ? 'How long to wait with nothing arriving. A model may take as long as it likes so long as it keeps writing, so this only has to cover the pause before it starts — and it is what tells a slow model apart from a dead connection.'
+            : 'The whole answer, because nothing arrives until the model has finished. A hosted API answers in seconds; a local model drafting a whole Blueprint can take many minutes, and everything past this is reported as a failure however well it was going.'
+        }
       >
         <div className="flex items-center gap-2">
           <Input

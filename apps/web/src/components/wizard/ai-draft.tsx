@@ -13,21 +13,55 @@
  */
 import { applyChangeSet, type Blueprint, type ChangeOp } from '@agent-blueprint/core'
 import { AIError, generateBlueprint } from '@agent-blueprint/ai'
-import { ArrowRightIcon, Loader2Icon, SparklesIcon } from 'lucide-react'
+import { ArrowRightIcon, Loader2Icon, SparklesIcon, SquareIcon } from 'lucide-react'
 import Link from 'next/link'
-import { useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { ChangeSetReview } from '@/components/ai/changeset-review'
 import { Button } from '@/components/ui/button'
 import { Card, Textarea } from '@/components/ui/primitives'
-import { configuredClient } from '@/lib/ai/settings'
+import { configuredClient, structuredFor } from '@/lib/ai/settings'
 import { useClientValue } from '@/lib/client-value'
 
 interface Draft {
   changeSet: Parameters<typeof ChangeSetReview>[0]['changeSet']
   notes: string[]
   contextTrimmed: boolean
+}
+
+interface Progress {
+  /** Characters of the answer received so far. Zero until the model starts writing. */
+  received: number
+  since: number
+}
+
+/**
+ * What is happening while nothing has come back yet.
+ *
+ * A spinner says a request is open; it does not say whether the model is working or the
+ * connection died twenty seconds ago. The count does, because it only moves when the answer
+ * is actually arriving. It ticks its own clock so the seconds keep moving between chunks —
+ * a model that thinks for a minute before writing sends nothing to re-render on.
+ *
+ * Not a live region on purpose: it changes every second, and a screen reader reading that
+ * aloud each time would drown out everything else. The button beside it carries the state.
+ */
+function Waiting({ progress }: { progress: Progress }) {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(timer)
+  }, [])
+
+  const seconds = Math.max(0, Math.round((now - progress.since) / 1000))
+  return (
+    <p className="text-muted-foreground text-xs tabular-nums">
+      {progress.received === 0
+        ? `Thinking… ${seconds}s. A local model can take a while before it starts writing.`
+        : `Writing… ${progress.received.toLocaleString()} characters in ${seconds}s.`}
+    </p>
+  )
 }
 
 export function DraftWithAI({
@@ -40,27 +74,62 @@ export function DraftWithAI({
   const briefId = useId()
   const [brief, setBrief] = useState('')
   const [busy, setBusy] = useState(false)
+  const [progress, setProgress] = useState<Progress | undefined>()
   const [proposal, setProposal] = useState<Draft | undefined>()
   const [failure, setFailure] = useState<string | undefined>()
+  // Held across renders rather than in state: stopping must not wait for one.
+  const inFlight = useRef<AbortController | undefined>(undefined)
 
   // Whether an endpoint exists is a browser fact; the server renders the honest default.
   const configured = useClientValue(() => configuredClient() !== undefined, false)
 
+  const stop = () => inFlight.current?.abort()
+
   const run = async () => {
     const client = configuredClient()
     if (!client) return
+    const controller = new AbortController()
+    inFlight.current = controller
     setBusy(true)
     setFailure(undefined)
     setProposal(undefined)
+    setProgress({ received: 0, since: Date.now() })
     try {
-      const result = await generateBlueprint({ client: client.client }, { blueprint: draft }, brief)
+      const result = await generateBlueprint(
+        {
+          client: client.client,
+          structured: structuredFor(client, {
+            signal: controller.signal,
+            // A whole Blueprint is thousands of characters, and watching them arrive is the
+            // difference between "it is working" and "it is stuck". Only the count is kept:
+            // the answer itself is JSON being assembled, and showing that would be noise.
+            onProgress: (received) =>
+              setProgress((current) =>
+                current ? { ...current, received } : { received, since: Date.now() },
+              ),
+          }),
+        },
+        { blueprint: draft },
+        brief,
+      )
       setProposal(result)
     } catch (error) {
-      setFailure(error instanceof AIError || error instanceof Error ? error.message : 'It failed.')
+      // Stopping is a decision, not a failure.
+      if (!(error instanceof AIError && error.code === 'aborted')) {
+        setFailure(
+          error instanceof AIError || error instanceof Error ? error.message : 'It failed.',
+        )
+      }
     } finally {
+      inFlight.current = undefined
       setBusy(false)
+      setProgress(undefined)
     }
   }
+
+  // Leaving mid-request left it running, which on a local model is minutes of work nobody is
+  // waiting for — and on a metered endpoint, an answer nobody reads that somebody still pays for.
+  useEffect(() => () => inFlight.current?.abort(), [])
 
   const applyOps = (ops: ChangeOp[]) => {
     if (!proposal) return
@@ -107,15 +176,19 @@ export function DraftWithAI({
           Describe the work. Nothing is added until you accept it, one artifact at a time.
         </p>
       </div>
-      <Button
-        className="self-start"
-        size="sm"
-        disabled={busy || !brief.trim()}
-        onClick={() => void run()}
-      >
-        {busy ? <Loader2Icon className="animate-spin" /> : <SparklesIcon />}
-        {busy ? 'Drafting…' : 'Draft'}
-      </Button>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button size="sm" disabled={busy || !brief.trim()} onClick={() => void run()}>
+          {busy ? <Loader2Icon className="animate-spin" /> : <SparklesIcon />}
+          {busy ? 'Drafting…' : 'Draft'}
+        </Button>
+        {busy ? (
+          <Button size="sm" variant="outline" onClick={stop}>
+            <SquareIcon />
+            Stop
+          </Button>
+        ) : null}
+        {progress ? <Waiting progress={progress} /> : null}
+      </div>
 
       {failure ? (
         <p role="alert" className="text-sm">

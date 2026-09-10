@@ -18,7 +18,14 @@ import type * as z from 'zod'
 
 import { AIError, looksLikeSecret } from './client/errors'
 import { presetFor } from './client/presets'
-import type { AIClient, ChatMessage, JsonSchemaResponseFormat, TokenUsage } from './client/types'
+import type {
+  AIClient,
+  ChatMessage,
+  ChatOptions,
+  ChatResult,
+  JsonSchemaResponseFormat,
+  TokenUsage,
+} from './client/types'
 import { dropNulls, extractJson, issueLines, toJsonSchema, toStrictJsonSchema } from './json-schema'
 
 export interface StructuredOptions {
@@ -30,6 +37,18 @@ export interface StructuredOptions {
   /** Name given to the schema on the wire. Default `result`. */
   name?: string
   signal?: AbortSignal
+  /**
+   * Called as the answer arrives, with the characters received so far, so a caller can show
+   * that something is happening. Only the streaming path reports; a non-streaming answer
+   * arrives all at once and there is nothing honest to report before it does.
+   */
+  onProgress?: (received: number) => void
+  /**
+   * Off to force the single-response path. On by default, because it is what makes a slow
+   * model visibly slow rather than indistinguishable from a broken one — and what turns the
+   * timeout into "nothing arrived for a while" instead of "took longer than N seconds".
+   */
+  stream?: boolean
 }
 
 export interface StructuredResult<T> {
@@ -43,6 +62,117 @@ export interface StructuredResult<T> {
 
 const DEFAULT_TEMPERATURE = 0.2
 const DEFAULT_REPAIRS = 1
+/** The client's own timeout, when it has not been told one. Kept in step with the client. */
+const DEFAULT_TIMEOUT_MS = 120_000
+/** Enough of a stalled answer to see where it stopped, without pasting an essay into an error. */
+const MAX_PARTIAL = 2_000
+
+/**
+ * One answer, streamed when the endpoint allows it.
+ *
+ * Streaming is not a nicety here. A completion that is not streamed sends nothing at all until
+ * the model has finished, so the client's timeout — which measures time to the first byte — is
+ * really a cap on how long the model may take to think. On a local 30B that is a guaranteed
+ * failure at two minutes, no matter how healthy the connection is, and the only signal the
+ * caller can offer meanwhile is a spinner. Streamed, the first token arrives in seconds: the
+ * timeout below becomes "nothing has arrived for a while", which is the thing actually worth
+ * failing on, and the caller gets something true to show.
+ *
+ * There is deliberately no fallback to a single request when a stream fails. Every
+ * OpenAI-compatible endpoint this package targets streams, and "retry the other way when the
+ * first way failed" cannot tell an endpoint that will not stream from a schema it rejected, a
+ * key it refused or a rate limit — it would swallow all three and charge for a second request.
+ * `stream: false` is the switch for an endpoint that cannot, and Settings exposes it.
+ */
+async function answer(
+  client: AIClient,
+  messages: ChatMessage[],
+  options: ChatOptions,
+  streaming: boolean,
+  onProgress: ((received: number) => void) | undefined,
+): Promise<ChatResult> {
+  // Nobody is waiting for this answer, so it is not worth asking for — and on a metered
+  // endpoint an answer nobody reads is still an answer somebody pays for.
+  if (options.signal?.aborted) throw new AIError('aborted', 'Cancelled.')
+  if (!streaming) return client.chat(messages, options)
+
+  const idleMs = client.config.timeoutMs ?? DEFAULT_TIMEOUT_MS
+  const watchdog = new AbortController()
+  const onAbort = () => watchdog.abort(options.signal?.reason)
+  // Checked as well as listened for: `addEventListener('abort')` on a signal that has already
+  // aborted never fires, and a caller who stopped before the call began still means it.
+  if (options.signal?.aborted) watchdog.abort(options.signal.reason)
+  else options.signal?.addEventListener('abort', onAbort, { once: true })
+
+  let received = ''
+  let usage: TokenUsage | undefined
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const wait = () => {
+    if (timer !== undefined) clearTimeout(timer)
+    timer = setTimeout(() => watchdog.abort(), idleMs)
+  }
+
+  /*
+   * The loop watches the clock itself rather than trusting the signal to interrupt it.
+   *
+   * Aborting the request that produced the stream does not necessarily end a read already
+   * waiting on the body, and a stalled endpoint is precisely the case where nothing else will
+   * ever wake it: the whole point of a stall watchdog is that no further bytes are coming, so
+   * `await next()` would wait for ever. Racing each read against the abort is what makes the
+   * timeout real instead of advisory.
+   */
+  const iterator = client
+    .stream(messages, { ...options, signal: watchdog.signal })
+    [Symbol.asyncIterator]()
+  const stopped = new Promise<never>((_, reject) => {
+    // Already aborted counts, for the same reason as above: the listener would never fire.
+    if (watchdog.signal.aborted) reject(new StreamStopped())
+    else
+      watchdog.signal.addEventListener('abort', () => reject(new StreamStopped()), { once: true })
+  })
+
+  try {
+    wait()
+    for (;;) {
+      const step = await Promise.race([iterator.next(), stopped])
+      if (step.done === true) break
+      wait()
+      received += step.value.delta
+      usage = step.value.usage ?? usage
+      if (step.value.delta !== '') onProgress?.(received.length)
+    }
+    return { content: received, model: client.config.model, ...(usage ? { usage } : {}) }
+  } catch (cause) {
+    // Stopping is the caller's decision and never a failure of the endpoint.
+    if (options.signal?.aborted) {
+      throw cause instanceof AIError && cause.code === 'aborted'
+        ? cause
+        : new AIError('aborted', 'Cancelled.', { cause })
+    }
+    if (!watchdog.signal.aborted) throw cause
+    throw new AIError(
+      'timeout',
+      received === ''
+        ? `Nothing arrived within ${Math.round(idleMs / 1000)}s.`
+        : `The answer stopped arriving, with nothing further for ${Math.round(idleMs / 1000)}s.`,
+      { cause, raw: received.slice(0, MAX_PARTIAL) },
+    )
+  } finally {
+    if (timer !== undefined) clearTimeout(timer)
+    options.signal?.removeEventListener('abort', onAbort)
+    // Releases the body when the loop left early; a generator that is never returned to keeps
+    // the connection open.
+    void iterator.return?.(undefined).catch(() => undefined)
+  }
+}
+
+/** Internal: what the race rejects with, so the catch above can tell it from a real error. */
+class StreamStopped extends Error {
+  constructor() {
+    super('The stream was stopped.')
+    this.name = 'StreamStopped'
+  }
+}
 
 export async function structured<T>(
   client: AIClient,
@@ -74,34 +204,38 @@ export async function structured<T>(
   let attempt = 0
 
   for (;;) {
-    const answer = await client
-      .chat(conversation, {
+    const reply = await answer(
+      client,
+      conversation,
+      {
         ...wire,
         ...(mode === 'json-schema'
           ? { responseFormat: responseFormatFor(client, name, schema) }
           : {}),
-      })
-      .catch((error: unknown) => {
-        // We sent a schema and the endpoint rejected the request. Whether it said so in words
-        // we recognise (`unsupported`) or not at all is the endpoint's business — one hosted
-        // API rejects schemas carrying `pattern` or `minLength` with nothing but "Request
-        // contains an invalid argument". Either way the cheapest next move is the same: ask again
-        // without the schema. It costs one request, it cannot loop because the retry is on the
-        // prompt path, and a 400 for some other reason still surfaces from there.
-        const rejected =
-          error instanceof AIError && (error.code === 'unsupported' || error.code === 'bad-request')
-        if (rejected && mode === 'json-schema') return undefined
-        throw error
-      })
+      },
+      options.stream ?? true,
+      options.onProgress,
+    ).catch((error: unknown) => {
+      // We sent a schema and the endpoint rejected the request. Whether it said so in words
+      // we recognise (`unsupported`) or not at all is the endpoint's business — one hosted
+      // API rejects schemas carrying `pattern` or `minLength` with nothing but "Request
+      // contains an invalid argument". Either way the cheapest next move is the same: ask again
+      // without the schema. It costs one request, it cannot loop because the retry is on the
+      // prompt path, and a 400 for some other reason still surfaces from there.
+      const rejected =
+        error instanceof AIError && (error.code === 'unsupported' || error.code === 'bad-request')
+      if (rejected && mode === 'json-schema') return undefined
+      throw error
+    })
 
-    if (answer === undefined) {
+    if (reply === undefined) {
       mode = 'prompt'
       conversation = withContract(messages, schema)
       continue
     }
 
-    raw = answer.content
-    usage = answer.usage ?? usage
+    raw = reply.content
+    usage = reply.usage ?? usage
 
     const parsed = validate(schema, raw)
     if (parsed.ok) {

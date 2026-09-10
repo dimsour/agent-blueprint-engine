@@ -5,6 +5,7 @@
  * for and explains the rest, nothing it produces reaches the Blueprint without passing through
  * the review, and a failure says what happened instead of leaving a spinner behind.
  */
+import { stubEndpoint } from '@/lib/ai/stub-endpoint'
 import { readFixtureFiles } from '@agent-blueprint/fixtures'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -58,23 +59,7 @@ const COMPOUND_ANSWER = {
 }
 
 function endpointAnswers(content: unknown) {
-  globalThis.fetch = (() =>
-    Promise.resolve(
-      new Response(
-        JSON.stringify({
-          model: 'stub',
-          choices: [
-            {
-              message: {
-                role: 'assistant',
-                content: typeof content === 'string' ? content : JSON.stringify(content),
-              },
-            },
-          ],
-        }),
-        { status: 200 },
-      ),
-    )) as unknown as typeof globalThis.fetch
+  stubEndpoint(content)
 }
 
 function configure() {

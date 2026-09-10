@@ -16,6 +16,7 @@ import {
   type AIClientConfig,
   createAIClient,
   type PresetId,
+  type StructuredOptions,
 } from '@agent-blueprint/ai'
 
 import { readCredential } from '@/lib/credentials'
@@ -33,8 +34,20 @@ export interface AISettings {
   viaProxy: boolean
   /** Extra headers some endpoints want (OpenRouter's HTTP-Referer, a workspace id). */
   extraHeaders: Record<string, string>
-  /** How long to wait for an answer. Seeded from the preset; the user can change it. */
+  /**
+   * How long to wait with nothing arriving. Seeded from the preset; the user can change it.
+   *
+   * With `stream` on this is silence, not duration: a model may take as long as it likes so
+   * long as it keeps producing. With `stream` off it is the whole answer, because an endpoint
+   * that is not streaming sends nothing at all until the model has finished.
+   */
   timeoutMs: number
+  /**
+   * Ask for the answer in pieces. On unless the endpoint cannot: it is what makes a slow model
+   * visibly slow rather than indistinguishable from a broken one, and what lets the wait above
+   * mean silence instead of duration.
+   */
+  stream: boolean
 }
 
 export const DEFAULT_AI_SETTINGS: AISettings = {
@@ -45,6 +58,7 @@ export const DEFAULT_AI_SETTINGS: AISettings = {
   viaProxy: false,
   extraHeaders: {},
   timeoutMs: AI_PRESETS.openai.timeoutMs,
+  stream: true,
 }
 
 /** What choosing a preset fills in. Only the fields the preset actually knows. */
@@ -106,6 +120,24 @@ export function clientConfig(settings: AISettings, apiKey: string | undefined): 
 export interface ConfiguredClient {
   client: AIClient
   settings: AISettings
+}
+
+/**
+ * What every operation should be told, so no surface has to remember on its own.
+ *
+ * Streaming is a property of the endpoint, not of the screen asking, so it comes from the
+ * settings rather than from each caller. `signal` and `onProgress` are the screen's: one to
+ * stop, one to show that something is happening.
+ */
+export function structuredFor(
+  configured: ConfiguredClient,
+  caller: { signal?: AbortSignal; onProgress?: (received: number) => void } = {},
+): StructuredOptions {
+  return {
+    stream: configured.settings.stream,
+    ...(caller.signal ? { signal: caller.signal } : {}),
+    ...(caller.onProgress ? { onProgress: caller.onProgress } : {}),
+  }
 }
 
 /**

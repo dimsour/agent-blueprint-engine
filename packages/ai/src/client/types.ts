@@ -48,6 +48,11 @@ export interface ChatResult {
 export interface ChatDelta {
   delta: string
   done: boolean
+  /**
+   * Only on the final delta, and only from an endpoint that honours
+   * `stream_options.include_usage` — several do not, so a caller must cope without it.
+   */
+  usage?: TokenUsage
 }
 
 export interface AIClientFeatures {

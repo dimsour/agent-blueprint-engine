@@ -23,6 +23,7 @@ import type {
   ChatOptions,
   ChatResult,
   ProbeResult,
+  TokenUsage,
 } from './types'
 
 const DEFAULT_TIMEOUT_MS = 120_000
@@ -187,11 +188,15 @@ export function createAIClient(config: AIClientConfig, deps: AIClientDeps = {}):
       passThrough(options),
     )
     if (!response.body) throw new AIError('network', 'The endpoint sent no stream.')
+    // The usage chunk arrives last and carries no content, so it is collected on the way past
+    // and handed over with the final delta rather than dropped.
+    let usage: TokenUsage | undefined
     for await (const payload of sseData(decodeChunks(response.body))) {
+      usage = readUsage(payload) ?? usage
       const delta = readDelta(payload)
       if (delta !== undefined) yield { delta, done: false }
     }
-    yield { delta: '', done: true }
+    yield { delta: '', done: true, ...(usage ? { usage } : {}) }
   }
 
   async function probe(options: { signal?: AbortSignal } = {}): Promise<ProbeResult> {
@@ -344,5 +349,20 @@ function probeAnswered(result: ChatResult): boolean {
     return (JSON.parse(match[0]) as { ok?: unknown }).ok === true
   } catch {
     return false
+  }
+}
+
+/** The usage chunk an endpoint sends last when `stream_options.include_usage` is honoured. */
+function readUsage(payload: string): TokenUsage | undefined {
+  try {
+    const json: unknown = JSON.parse(payload)
+    const usage = (json as { usage?: { prompt_tokens?: number; completion_tokens?: number } }).usage
+    if (!usage) return undefined
+    return {
+      promptTokens: usage.prompt_tokens ?? 0,
+      completionTokens: usage.completion_tokens ?? 0,
+    }
+  } catch {
+    return undefined
   }
 }

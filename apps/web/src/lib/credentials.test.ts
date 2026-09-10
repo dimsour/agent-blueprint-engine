@@ -73,6 +73,7 @@ describe('credentials', () => {
       viaProxy: false,
       extraHeaders: {},
       timeoutMs: 120_000,
+      stream: true,
     })
 
     // The endpoint settings are persisted; the key is not part of them.

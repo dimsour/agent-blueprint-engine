@@ -69,16 +69,37 @@ async function stubEndpoint(page: Page, answer: unknown) {
       'sk-stub-abcdefghijklmnop',
     ],
   )
-  await page.route('https://stub.test/**', (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        model: 'stub',
-        choices: [{ message: { role: 'assistant', content: JSON.stringify(answer) } }],
-      }),
-    }),
-  )
+  await page.route('https://stub.test/**', (route) => {
+    // The app streams by default, and an endpoint answers a streaming request as a stream.
+    // Fulfilling with a whole completion would be a shape no endpoint produces, and the
+    // screens under test would fail for a reason that has nothing to do with them.
+    const body = route.request().postData() ?? ''
+    const streaming = body.includes('"stream":true')
+    const content = JSON.stringify(answer)
+    return route.fulfill(
+      streaming
+        ? { status: 200, contentType: 'text/event-stream', body: sse(content) }
+        : {
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              model: 'stub',
+              choices: [{ message: { role: 'assistant', content } }],
+            }),
+          },
+    )
+  })
+}
+
+/** One answer as server-sent events, in three chunks the way a real one arrives. */
+function sse(content: string): string {
+  const size = Math.max(1, Math.ceil(content.length / 3))
+  const parts = [content.slice(0, size), content.slice(size, size * 2), content.slice(size * 2)]
+  return parts
+    .filter((part) => part !== '')
+    .map((delta) => `data: ${JSON.stringify({ choices: [{ delta: { content: delta } }] })}\n\n`)
+    .concat('data: [DONE]\n\n')
+    .join('')
 }
 
 async function openStarter(page: Page) {
@@ -256,5 +277,87 @@ test.describe('the wizard', () => {
 
     // The wizard stays on step one; drafting fills the page in, it does not skip the questions.
     await expect(page.getByRole('heading', { name: 'What are you building?' })).toBeVisible()
+  })
+})
+
+/**
+ * What a slow model looks like (P9-08).
+ *
+ * The reported failure was "No answer within 120s" from a local model that was working, with a
+ * spinner and no way to stop it. These drive an endpoint that answers in pieces, slowly, which
+ * is what every endpoint does and what the fast stub above cannot show.
+ */
+test.describe('waiting for a slow model', () => {
+  /** An endpoint that sends the answer a piece at a time, pausing between pieces. */
+  async function trickle(page: Page, answer: unknown, pauseMs: number) {
+    await page.addInitScript(
+      ([key, settings, credential]) => {
+        localStorage.setItem(key as string, settings as string)
+        sessionStorage.setItem('ab:credentials:ai', credential as string)
+      },
+      [
+        'ab:settings:ai',
+        JSON.stringify({
+          presetId: 'custom',
+          baseUrl: 'https://slow.test/v1',
+          model: 'stub',
+          jsonSchema: true,
+          viaProxy: false,
+          extraHeaders: {},
+          stream: true,
+        }),
+        'sk-stub-abcdefghijklmnop',
+      ],
+    )
+    await page.route('https://slow.test/**', async (route) => {
+      const content = JSON.stringify(answer)
+      const size = Math.max(1, Math.ceil(content.length / 4))
+      const parts = [0, 1, 2, 3].map((index) => content.slice(index * size, (index + 1) * size))
+      // Playwright fulfils in one go, so the pause is before the body rather than between its
+      // pieces. That is the half that matters here: the wait before anything arrives.
+      await new Promise((resolve) => setTimeout(resolve, pauseMs))
+      await route.fulfill({
+        status: 200,
+        contentType: 'text/event-stream',
+        body: parts
+          .filter((part) => part !== '')
+          .map(
+            (delta) => `data: ${JSON.stringify({ choices: [{ delta: { content: delta } }] })}\n\n`,
+          )
+          .concat('data: [DONE]\n\n')
+          .join(''),
+      })
+    })
+  }
+
+  test('says what is happening instead of showing a spinner', async ({ page }) => {
+    await trickle(page, BLUEPRINT_DRAFT, 1_500)
+    await page.goto('/new')
+
+    await page.getByLabel('Draft this with AI', { exact: true }).fill('A PR review crew.')
+    await page.getByRole('button', { name: 'Draft', exact: true }).click()
+
+    // While nothing has come back, it says so, and says why it might take a while.
+    await expect(page.getByText(/Thinking…/)).toBeVisible()
+    // Then the answer arrives and the count says how much of it.
+    await expect(page.getByRole('list', { name: 'Proposed changes' })).toBeVisible()
+  })
+
+  test('can be stopped, and stopping is not a failure', async ({ page }) => {
+    await trickle(page, BLUEPRINT_DRAFT, 20_000)
+    await page.goto('/new')
+
+    await page.getByLabel('Draft this with AI', { exact: true }).fill('A PR review crew.')
+    await page.getByRole('button', { name: 'Draft', exact: true }).click()
+    await expect(page.getByText(/Thinking…/)).toBeVisible()
+
+    await page.getByRole('button', { name: 'Stop' }).click()
+
+    // Back to where it started: no proposal, nothing reported, and it offers to try again.
+    // The alert region is always in the document; what matters is that it stayed empty.
+    await expect(page.getByRole('button', { name: 'Draft', exact: true })).toBeEnabled()
+    await expect(page.getByRole('alert')).toHaveText('')
+    await expect(page.getByRole('list', { name: 'Proposed changes' })).toHaveCount(0)
+    await expect(page.getByText(/Thinking…/)).toHaveCount(0)
   })
 })

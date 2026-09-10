@@ -37,7 +37,7 @@ import {
 } from '@/components/ui/overlays'
 import { Badge, Card, Textarea } from '@/components/ui/primitives'
 import { ASSISTANT_ACTIONS, ASSISTANT_GROUPS, type AssistantResult } from '@/lib/ai/actions'
-import { configuredClient } from '@/lib/ai/settings'
+import { configuredClient, structuredFor } from '@/lib/ai/settings'
 import { useWorkspace } from '@/lib/state/workspace-store'
 
 export function AssistantPanel({
@@ -83,7 +83,10 @@ export function AssistantPanel({
     try {
       setResult(
         await action.run(
-          { client: configured.client, structured: { signal: controller.signal } },
+          {
+            client: configured.client,
+            structured: structuredFor(configured, { signal: controller.signal }),
+          },
           {
             blueprint,
             ...(selection ? { selection } : {}),

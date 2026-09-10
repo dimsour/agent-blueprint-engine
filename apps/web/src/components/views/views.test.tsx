@@ -4,6 +4,7 @@
  * These are the screens that make the product's claims checkable, so what matters is that
  * they agree with the functions behind them rather than paraphrasing them.
  */
+import { answerFor, stubEndpoint } from '@/lib/ai/stub-endpoint'
 import { readFixtureFiles } from '@agent-blueprint/fixtures'
 import { evaluateBlueprint, validateBlueprint } from '@agent-blueprint/core'
 import { compileBlueprint, portabilityOf } from '@agent-blueprint/exporters'
@@ -42,16 +43,7 @@ function configureEndpoint() {
 }
 
 function stubAnswer(content: unknown) {
-  globalThis.fetch = (() =>
-    Promise.resolve(
-      new Response(
-        JSON.stringify({
-          model: 'stub',
-          choices: [{ message: { role: 'assistant', content: JSON.stringify(content) } }],
-        }),
-        { status: 200 },
-      ),
-    )) as unknown as typeof globalThis.fetch
+  stubEndpoint(content)
 }
 
 const realFetch = globalThis.fetch
@@ -199,32 +191,22 @@ describe('EvaluationView', () => {
     // Contradictions answer; the requirement judging is refused. Losing both would throw away
     // an answer the user already paid for.
     let call = 0
-    globalThis.fetch = (() => {
+    globalThis.fetch = ((_url: string, init?: RequestInit) => {
       call += 1
       return Promise.resolve(
         call === 1
-          ? new Response(
-              JSON.stringify({
-                model: 'stub',
-                choices: [
+          ? answerFor(
+              {
+                contradictions: [
                   {
-                    message: {
-                      role: 'assistant',
-                      content: JSON.stringify({
-                        contradictions: [
-                          {
-                            first: { kind: 'iron-law', id: 'no-implementation-details' },
-                            second: { kind: 'skill', id: 'test-design' },
-                            conflict: 'A real finding that must survive the other call failing.',
-                            severity: 'high',
-                          },
-                        ],
-                      }),
-                    },
+                    first: { kind: 'iron-law', id: 'no-implementation-details' },
+                    second: { kind: 'skill', id: 'test-design' },
+                    conflict: 'A real finding that must survive the other call failing.',
+                    severity: 'high',
                   },
                 ],
-              }),
-              { status: 200 },
+              },
+              init,
             )
           : new Response('slow down', { status: 429 }),
       )

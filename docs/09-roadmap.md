@@ -728,6 +728,19 @@ something, it says what and where that thing still exists.
 - Acceptance: a Blueprint straight out of `/new` reports what it is missing, and scores well below one that is finished; the fixture and the ten starters keep their current scores; every new code is in the catalogue.
 - Verify: `pnpm --filter @agent-blueprint/core test`, `pnpm --filter web test:e2e`
 
+### P9-08 A slow model is not a broken one (done)
+
+- Package: `packages/ai/src/structured.ts`, `packages/ai/src/client/`, `apps/web/src/lib/ai/settings.ts`, `apps/web/src/components/wizard/ai-draft.tsx`
+- Depends on: nothing
+- Description: "Draft this with AI" failed with **No answer within 120s** against a local model that was working perfectly, showed a spinner and nothing else while it waited, and could not be stopped. Reported from use.
+- The cause was not the number. A completion that is not streamed sends nothing until the model has finished, so `timeoutMs` — which measures time to the first byte — was really a cap on how long the model was allowed to think. Raising it would only have moved the cliff, and would have left the two-minute spinner exactly as uninformative.
+- Built: `structured()` streams by default. The timeout is now **silence** — the watchdog restarts on every chunk, so a model may take as long as it likes so long as it keeps writing — and the error says which kind it was, carrying the partial answer. `onProgress` reports characters received, so the wait shows the answer arriving rather than a spinner.
+- Built: the draft has a **Stop** button and aborts on unmount, matching the assistant and the evaluation view; all three now go through one `structuredFor` helper, so the endpoint's settings reach every surface rather than each remembering separately.
+- Built: **Stream the answer** in Settings, for an endpoint that cannot, which makes the wait mean the whole answer again and says so. Hosted presets now start at 300s rather than 120s: with streaming that only has to cover the pause before the first token, and a hosted reasoning model can think for minutes.
+- Deliberately not done: an automatic fallback to a single request when a stream fails. It cannot tell an endpoint that will not stream from a rejected schema, a refused key or a rate limit — the first draft of this change swallowed all three, and the existing schema-rejection test caught it. The switch above is the honest version.
+- The test fakes on both sides now answer a streaming request as a stream. A fake that replies to `stream: true` with a whole completion is answering in a shape no endpoint produces, and hides which path the code took.
+- Verify: `pnpm check`, and `packages/ai/tests/live.test.ts` against a real slow endpoint.
+
 ### P9-04 What this field is for (done)
 
 - Package: `apps/web/src/components/editors/fields.tsx`, `apps/web/src/components/editors/entity-form.tsx`

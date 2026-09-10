@@ -22,6 +22,7 @@ import {
   truncateToTokens,
   type AIClientConfig,
 } from '../src/index'
+import { sseBody } from './helpers'
 
 const skill = z.object({
   id: z.string(),
@@ -30,7 +31,15 @@ const skill = z.object({
   tags: z.array(z.string()).optional(),
 })
 
-function reply(content: string): Response {
+function reply(content: string, streaming: boolean): Response {
+  // `structured` streams by default, and an endpoint answers a streaming request as a stream.
+  // Replying with a whole completion instead would test a shape no endpoint produces.
+  if (streaming) {
+    return new Response(sseBody(content), {
+      status: 200,
+      headers: { 'content-type': 'text/event-stream' },
+    })
+  }
   return new Response(
     JSON.stringify({
       model: 'gpt-test',
@@ -43,6 +52,7 @@ function reply(content: string): Response {
 
 interface Sent {
   messages: { role: string; content: string }[]
+  stream?: boolean
   response_format?: { json_schema?: { schema?: Record<string, unknown>; strict?: boolean } }
 }
 
@@ -51,13 +61,16 @@ function clientWith(
   answers: (string | Response)[],
   features: { jsonSchema?: boolean } = {},
   presetId?: AIClientConfig['presetId'],
+  /** Short in the tests that wait for silence, so they take milliseconds rather than minutes. */
+  timeoutMs?: number,
 ) {
   const sent: Sent[] = []
   const fetch = ((_url: string, init: RequestInit) => {
-    sent.push(JSON.parse(init.body as string) as Sent)
+    const request = JSON.parse(init.body as string) as Sent
+    sent.push(request)
     const next = answers.shift()
     if (next === undefined) throw new Error('No answer left in the script')
-    return Promise.resolve(typeof next === 'string' ? reply(next) : next)
+    return Promise.resolve(typeof next === 'string' ? reply(next, request.stream === true) : next)
   }) as unknown as typeof globalThis.fetch
 
   const config: AIClientConfig = {
@@ -65,6 +78,7 @@ function clientWith(
     model: 'gpt-test',
     features,
     ...(presetId ? { presetId } : {}),
+    ...(timeoutMs !== undefined ? { timeoutMs } : {}),
   }
   return { client: createAIClient(config, { fetch }), sent }
 }
@@ -348,5 +362,109 @@ describe('the repair budget', () => {
     expect(result.repaired).toBe(true)
     expect(result.value.id).toBe('xunit')
     expect(sent).toHaveLength(3)
+  })
+})
+
+/**
+ * Streaming is not decoration here.
+ *
+ * A completion that is not streamed sends nothing until the model has finished, so the
+ * client's timeout — which measures time to the first byte — becomes a cap on how long a
+ * model may take to think, and a local one blows through it while working perfectly. These
+ * cover what streaming buys: something to show while waiting, and a timeout that fails on
+ * silence rather than on duration.
+ */
+describe('streaming', () => {
+  it('streams by default, and reports the answer arriving', async () => {
+    const { client, sent } = clientWith(['{"id":"xunit","name":"xUnit"}'], { jsonSchema: true })
+    const progress: number[] = []
+
+    const result = await structured(client, skill, [{ role: 'user', content: 'a skill' }], {
+      onProgress: (received) => progress.push(received),
+    })
+
+    expect(sent[0]?.stream).toBe(true)
+    expect(result.value.id).toBe('xunit')
+    // Reported more than once, and never going backwards: it is a running total, not a size.
+    expect(progress.length).toBeGreaterThan(1)
+    expect(progress).toEqual([...progress].sort((a, b) => a - b))
+    expect(progress.at(-1)).toBe('{"id":"xunit","name":"xUnit"}'.length)
+  })
+
+  it('asks for one whole answer when told not to stream', async () => {
+    const { client, sent } = clientWith(['{"id":"xunit","name":"xUnit"}'], { jsonSchema: true })
+
+    const result = await structured(client, skill, [{ role: 'user', content: 'a skill' }], {
+      stream: false,
+    })
+
+    expect(sent[0]?.stream).toBe(false)
+    expect(result.value.id).toBe('xunit')
+  })
+
+  it('fails on silence rather than on how long the whole answer takes', async () => {
+    // A stream that says something and then stops for ever: the connection is open, the model
+    // is not sending. Waiting for it is the failure worth reporting.
+    const stalled = new Response(
+      new ReadableStream({
+        start(controller) {
+          controller.enqueue(
+            new TextEncoder().encode(`data: {"choices":[{"delta":{"content":"{\\"id\\":"}}]}\n\n`),
+          )
+          // and never closes
+        },
+      }),
+      { status: 200, headers: { 'content-type': 'text/event-stream' } },
+    )
+    const { client } = clientWith([stalled], { jsonSchema: true }, undefined, 60)
+
+    const failure = await structured(client, skill, [{ role: 'user', content: 'a skill' }]).catch(
+      (error: unknown) => error,
+    )
+
+    expect(failure).toBeInstanceOf(AIError)
+    expect((failure as AIError).code).toBe('timeout')
+    expect((failure as AIError).message).toMatch(/stopped arriving/)
+    // What did arrive is kept, so the UI can show where it got to.
+    expect((failure as AIError).raw).toContain('{"id":')
+  })
+
+  it('stops when the caller stops it, without waiting for the rest', async () => {
+    // Somebody presses Stop while the answer is coming in, which is the case that matters: a
+    // stream half arrived, and nothing more is wanted. It must not wait for the endpoint.
+    const controller = new AbortController()
+    const halfAnswer = new Response(
+      new ReadableStream({
+        start(stream) {
+          stream.enqueue(
+            new TextEncoder().encode(`data: {"choices":[{"delta":{"content":"{\\"id\\":"}}]}\n\n`),
+          )
+          // and never closes, so only the abort can end this
+        },
+      }),
+      { status: 200, headers: { 'content-type': 'text/event-stream' } },
+    )
+    const { client } = clientWith([halfAnswer], { jsonSchema: true })
+
+    const failure = await structured(client, skill, [{ role: 'user', content: 'a skill' }], {
+      signal: controller.signal,
+      onProgress: () => controller.abort(),
+    }).catch((error: unknown) => error)
+
+    expect(failure).toBeInstanceOf(AIError)
+    expect((failure as AIError).code).toBe('aborted')
+  })
+
+  it('stops before it asks, when the caller had already given up', async () => {
+    const controller = new AbortController()
+    controller.abort()
+    const { client, sent } = clientWith(['{"id":"xunit","name":"xUnit"}'], { jsonSchema: true })
+
+    const failure = await structured(client, skill, [{ role: 'user', content: 'a skill' }], {
+      signal: controller.signal,
+    }).catch((error: unknown) => error)
+
+    expect((failure as AIError).code).toBe('aborted')
+    expect(sent).toHaveLength(0)
   })
 })
