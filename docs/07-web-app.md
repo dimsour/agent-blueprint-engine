@@ -124,6 +124,8 @@ A store moves `Record<path, content>` and never has to understand the model, whi
 | Folder  | File System Access API (Chromium) | Open a real directory. Its contents are read into a project; writing back to the directory is not built yet, see the note below         |
 | Archive | ZIP (`jszip`)                     | Export writes the source project and the compiled output together; import accepts a ZIP, a folder, or a lone manifest                   |
 
+A project id says which store owns it: a folder project's id begins `fs:`, so `openProject` and `saveProject` route to the folder it came from (P3-13). A save arrives with nothing but the id, which is why the id has to carry it. Opening a folder does not copy it into IndexedDB — the directory the user chose stays the project — and saving prunes, using core's rule for what may be removed: a path under the source directory that parses as an artifact file. The build manifest, the compiled output, a README and are all untouched. Without the prune, deleting an artifact left its file on disk and the next open read it back.
+
 Autosave writes the project itself rather than a separate draft, so nothing is lost when a tab closes, and Save is a way to hurry that rather than the thing that makes an edit durable. Import never trusts anything but the files.
 
 Opening a folder currently copies it into the browser and edits the copy: the store can pick a directory and read it, but nothing routes saves back to disk. Doing that needs `writeProject`'s pruning, because writing the current files without removing what a deleted artifact left behind would make deleted artifacts reappear on the next open. That is the remaining work, and it is not done.

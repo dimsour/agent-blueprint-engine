@@ -292,13 +292,16 @@ Verification: `pnpm check` green; `pnpm --filter @agent-blueprint/core test` sho
 - Removed: three unused dependencies and their components, an endpoint with no caller, a store helper used only by its own test, an editor prop never passed, and six hand-rolled entity lookups.
 - Verify: `pnpm check` and `pnpm --filter web test:e2e`
 
-### P3-13 Write to a folder on disk
+### P3-13 Write to a folder on disk (done)
 
 - Package: `apps/web/src/lib/storage/file-system.ts`
 - Depends on: P3-02
 - Description: `FileSystemAccessStore` can pick a directory and read it, but nothing routes saves back to it: opening a folder copies it into IndexedDB. Wire `saveProject` to the store the project came from, and make `writeDirectory` prune, because writing the current files without removing what a deleted artifact left behind makes deleted artifacts reappear on the next open. Folder projects also need a stable id: today it is the directory's base name, so two folders with the same name collide.
 - Acceptance: edit a folder project, reopen the folder, and see the edit and not the deleted artifact; two folders of the same name coexist.
-- Verify: manual in Chromium, plus unit tests over a fake directory handle.
+- Verify: `pnpm --filter web test storage`, plus manual confirmation in Chromium.
+- Built: the project id says which store owns it (`fs:` for a folder), so `openProject` and `saveProject` route to the folder the project came from rather than defaulting to IndexedDB — a save arrives with nothing but the id, which is why the id has to carry it. Opening a folder no longer copies it in: the preview carries the id the folder already has, and Open navigates to it.
+- `writeDirectory` prunes, using core's own rule for what may be removed: a path under the source directory that parses as an artifact file. Nothing else is touched — not the build manifest, not the compiled output, not a README, not `.git`. Without it, deleting an artifact left its file behind and the next open read it back, so the artifact returned from the dead.
+- A folder's id is minted once and keyed to the handle, not to the directory's name: two projects are often both called `blueprint`, and one was opening the other. Re-picking the same folder finds its existing id through `isSameEntry` rather than making a second entry.
 
 ## P4 — Graphs
 

@@ -16,8 +16,15 @@ import {
   renderProjectFiles,
 } from '@agent-blueprint/core'
 
+import { fileSystemStore } from './file-system'
 import { indexedDbStore } from './indexeddb'
-import type { ProjectFiles, ProjectStore, ProjectSummary, SaveMeta } from './types'
+import {
+  FILE_SYSTEM_ID_PREFIX,
+  type ProjectFiles,
+  type ProjectStore,
+  type ProjectSummary,
+  type SaveMeta,
+} from './types'
 import { StorageError } from './types'
 
 export interface LoadedProject {
@@ -63,9 +70,20 @@ export function summaryOf(blueprint: Blueprint): SaveMeta {
   }
 }
 
+/**
+ * The store a project lives in, read off its id.
+ *
+ * A folder project is a folder: it is not copied anywhere, and a save has to go back to the
+ * directory it was opened from. The id carries which store owns it, because everything that
+ * has only the id — a route parameter, a recent-projects row, an autosave — needs to know.
+ */
+export function storeFor(id: string): ProjectStore {
+  return id.startsWith(FILE_SYSTEM_ID_PREFIX) ? fileSystemStore : indexedDbStore
+}
+
 export async function openProject(
   id: string,
-  store: ProjectStore = indexedDbStore,
+  store: ProjectStore = storeFor(id),
 ): Promise<LoadedProject> {
   const files = await store.open(id)
   if (!files) throw new StorageError(`No project stored under "${id}".`, 'not-found')
@@ -75,7 +93,7 @@ export async function openProject(
 export async function saveProject(
   id: string,
   blueprint: Blueprint,
-  store: ProjectStore = indexedDbStore,
+  store: ProjectStore = storeFor(id),
 ): Promise<ProjectSummary> {
   return store.save(id, projectFilesOf(blueprint), summaryOf(blueprint))
 }

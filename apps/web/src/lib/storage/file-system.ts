@@ -9,10 +9,12 @@
  * Handles are kept in IndexedDB so a folder opened yesterday is still listed today. The
  * browser still asks for permission again on a new session; `open` requests it.
  */
-import { decodeUtf8 } from '@agent-blueprint/core'
+import { DEFAULT_SOURCE_DIR, decodeUtf8, parseEntityPath } from '@agent-blueprint/core'
 
 import { db } from './indexeddb'
 import {
+  FILE_SYSTEM_ID_PREFIX,
+  newProjectId,
   type ProjectFiles,
   type ProjectStore,
   type ProjectSummary,
@@ -23,6 +25,7 @@ import {
 /** The parts of the File System Access API this store uses. */
 interface DirectoryHandle {
   readonly name: string
+  isSameEntry?(other: DirectoryHandle): Promise<boolean>
   keys(): AsyncIterableIterator<string>
   entries(): AsyncIterableIterator<[string, FileSystemHandleLike]>
   getDirectoryHandle(name: string, options?: { create?: boolean }): Promise<DirectoryHandle>
@@ -84,10 +87,29 @@ export class FileSystemAccessStore implements ProjectStore {
       }
     ).showDirectoryPicker
     const handle = await picker({ mode: 'readwrite' })
-    const id = `fs:${handle.name}`
+
+    // The directory's name is not an identity: two projects are often both called `blueprint`,
+    // and one would open the other. The handle is the identity, so an id is minted once per
+    // folder and reused when that same folder is picked again.
+    const existing = await this.idOfSameFolder(handle)
+    const id = existing ?? `${FILE_SYSTEM_ID_PREFIX}${newProjectId(slug(handle.name))}`
 
     await (await db()).put('handles', { id, name: handle.name, handle }, id)
     return { id, name: handle.name, files: await readDirectory(handle) }
+  }
+
+  /** The id already minted for this folder, if it has been opened before. */
+  private async idOfSameFolder(handle: DirectoryHandle): Promise<string | undefined> {
+    if (!handle.isSameEntry) return undefined
+    const stored = (await (await db()).getAll('handles')) as StoredHandle[]
+    for (const entry of stored) {
+      const other = entry.handle as DirectoryHandle | undefined
+      // A handle from a previous session may no longer be comparable; that is not an error,
+      // it just means this pick mints a new id.
+      const same = await handle.isSameEntry(other as DirectoryHandle).catch(() => false)
+      if (same) return entry.id
+    }
+    return undefined
   }
 
   async open(id: string): Promise<ProjectFiles | undefined> {
@@ -142,6 +164,12 @@ const SKIPPED = new Set(['node_modules', '.git', '.next', 'dist', 'coverage', '.
 export const readDirectoryForTests = (handle: DirectoryHandle): Promise<ProjectFiles> =>
   readDirectory(handle)
 
+/** Exposed for tests, for the same reason: writing and pruning is where the rules live. */
+export const writeDirectoryForTests = (
+  handle: DirectoryHandle,
+  files: ProjectFiles,
+): Promise<void> => writeDirectory(handle, files)
+
 async function readDirectory(handle: DirectoryHandle, prefix = ''): Promise<ProjectFiles> {
   const files: ProjectFiles = {}
   for await (const [name, child] of handle.entries()) {
@@ -158,6 +186,53 @@ async function readDirectory(handle: DirectoryHandle, prefix = ''): Promise<Proj
     }
   }
   return files
+}
+
+/** A folder-safe id fragment from a directory name. */
+function slug(name: string): string {
+  return (
+    name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '') || 'folder'
+  )
+}
+
+/** Where the project lives inside the folder, read off the manifest the writer produced. */
+function sourceDirOf(files: ProjectFiles): string {
+  const manifest = Object.keys(files).find((path) => path.endsWith('/blueprint.yaml'))
+  return manifest ? manifest.slice(0, manifest.lastIndexOf('/')) : DEFAULT_SOURCE_DIR
+}
+
+/**
+ * Removes artifact files the project no longer produces.
+ *
+ * Without this, deleting an artifact deletes it from the Blueprint and leaves its file on
+ * disk, so the next open reads it back and the artifact returns from the dead. The rule for
+ * what may be removed is core's: a path under the source directory that parses as an artifact
+ * file. Everything else in the folder is the user's — the build manifest, the compiled output,
+ * a README, .git — and none of it is this function's to delete.
+ */
+async function pruneDirectory(
+  handle: DirectoryHandle,
+  files: ProjectFiles,
+  prefix = '',
+): Promise<void> {
+  const sourceDir = sourceDirOf(files)
+  for await (const [name, child] of handle.entries()) {
+    const path = prefix ? `${prefix}/${name}` : name
+    // Only descend towards the source directory, and only inspect what is inside it.
+    const inside = path.startsWith(`${sourceDir}/`)
+    const onTheWay = `${sourceDir}/`.startsWith(`${path}/`)
+    if (!inside && !onTheWay) continue
+    if (child.kind === 'directory') {
+      await pruneDirectory(child as DirectoryHandle, files, path)
+      continue
+    }
+    if (path in files) continue
+    if (!parseEntityPath(sourceDir, path)) continue
+    await handle.removeEntry(name)
+  }
 }
 
 async function writeDirectory(handle: DirectoryHandle, files: ProjectFiles): Promise<void> {
@@ -177,6 +252,8 @@ async function writeDirectory(handle: DirectoryHandle, files: ProjectFiles): Pro
     await writable.write(content === undefined ? '' : content)
     await writable.close()
   }
+
+  await pruneDirectory(handle, files)
 }
 
 export const fileSystemStore = new FileSystemAccessStore()

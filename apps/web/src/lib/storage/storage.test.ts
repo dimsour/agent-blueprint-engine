@@ -342,3 +342,135 @@ describe('a folder on disk', () => {
     expect(files['notes.md']).toBe('# Notes\n')
   })
 })
+
+/**
+ * Saving back to the folder the project came from (P3-13).
+ *
+ * Until now, opening a folder copied it into IndexedDB and every save went there: the
+ * directory the user picked quietly stopped being the project. These cover the two rules that
+ * make a folder a real store — writes land in it, and what the project no longer produces
+ * stops existing — over a fake handle, because a real one needs a browser.
+ */
+describe('a project that is a folder', () => {
+  /** A directory handle backed by a plain map, enough for the read/write/prune logic. */
+  function fakeTree(initial: Record<string, string>) {
+    const files = new Map(Object.entries(initial))
+
+    const dirAt = (prefix: string): unknown => ({
+      name: prefix.split('/').at(-1) ?? 'root',
+      entries: async function* () {
+        const seen = new Set<string>()
+        for (const path of files.keys()) {
+          if (prefix && !path.startsWith(`${prefix}/`)) continue
+          const rest = prefix ? path.slice(prefix.length + 1) : path
+          const [head, ...tail] = rest.split('/')
+          if (!head || seen.has(head)) continue
+          seen.add(head)
+          const full = prefix ? `${prefix}/${head}` : head
+          yield [
+            head,
+            tail.length > 0
+              ? Object.assign(dirAt(full) as object, { kind: 'directory' as const })
+              : {
+                  kind: 'file' as const,
+                  name: head,
+                  getFile: () => Promise.resolve(new File([files.get(full) ?? ''], head)),
+                  createWritable: () =>
+                    Promise.resolve({
+                      write: (data: string | Uint8Array) => {
+                        files.set(
+                          full,
+                          typeof data === 'string' ? data : new TextDecoder().decode(data),
+                        )
+                        return Promise.resolve()
+                      },
+                      close: () => Promise.resolve(),
+                    }),
+                },
+          ] as const
+        }
+      },
+      getDirectoryHandle: (name: string) =>
+        Promise.resolve(dirAt(prefix ? `${prefix}/${name}` : name)),
+      getFileHandle: (name: string) => {
+        const full = prefix ? `${prefix}/${name}` : name
+        return Promise.resolve({
+          name,
+          getFile: () => Promise.resolve(new File([files.get(full) ?? ''], name)),
+          createWritable: () =>
+            Promise.resolve({
+              write: (data: string | Uint8Array) => {
+                files.set(full, typeof data === 'string' ? data : new TextDecoder().decode(data))
+                return Promise.resolve()
+              },
+              close: () => Promise.resolve(),
+            }),
+        })
+      },
+      removeEntry: (name: string) => {
+        files.delete(prefix ? `${prefix}/${name}` : name)
+        return Promise.resolve()
+      },
+    })
+
+    return { handle: dirAt('') as never, files }
+  }
+
+  it('writes the project into the folder', async () => {
+    const { writeDirectoryForTests } = await import('./file-system')
+    const source = readStarterFiles('react-expert')
+    const { handle, files } = fakeTree({})
+
+    await writeDirectoryForTests(handle, source)
+
+    expect(files.get('blueprint/blueprint.yaml')).toBe(source['blueprint/blueprint.yaml'])
+  })
+
+  it('removes an artifact the project no longer has', async () => {
+    const { writeDirectoryForTests } = await import('./file-system')
+    const source = readStarterFiles('react-expert')
+    const { handle, files } = fakeTree({
+      ...(source as Record<string, string>),
+      'blueprint/skills/deleted/SKILL.md': '---\nname: Deleted\n---\n',
+    })
+
+    await writeDirectoryForTests(handle, source)
+
+    // Without this, deleting an artifact leaves its file behind and the next open reads it
+    // back: the artifact returns from the dead.
+    expect(files.has('blueprint/skills/deleted/SKILL.md')).toBe(false)
+  })
+
+  it('leaves everything that is not the project alone', async () => {
+    const { writeDirectoryForTests } = await import('./file-system')
+    const source = readStarterFiles('react-expert')
+    const { handle, files } = fakeTree({
+      ...(source as Record<string, string>),
+      'CLAUDE.md': '# Compiled\n',
+      'README.md': '# Mine\n',
+      'blueprint/build-manifest.json': '{}',
+      'blueprint/notes.md': 'not an artifact',
+    })
+
+    await writeDirectoryForTests(handle, source)
+
+    // The compiler owns its output and the manifest; the rest is the user's.
+    for (const path of [
+      'CLAUDE.md',
+      'README.md',
+      'blueprint/build-manifest.json',
+      'blueprint/notes.md',
+    ]) {
+      expect(files.has(path), path).toBe(true)
+    }
+  })
+})
+
+describe('which store a project belongs to', () => {
+  it('is read off the id, so a save goes back where the project came from', async () => {
+    const { storeFor } = await import('./project')
+
+    expect(storeFor('fs:my-folder-a1b2c3').kind).toBe('file-system')
+    expect(storeFor('react-expert-a1b2c3').kind).toBe('indexeddb')
+  })
+})

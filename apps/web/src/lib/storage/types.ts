@@ -16,6 +16,13 @@ export type ProjectFiles = Record<string, ProjectFile>
 
 export type ProjectStoreKind = 'indexeddb' | 'file-system'
 
+/**
+ * Marks an id as belonging to a folder on disk. The id has to say which store owns it: a save
+ * arrives with nothing else, and writing a folder project into IndexedDB would silently stop
+ * the user's directory from being the project.
+ */
+export const FILE_SYSTEM_ID_PREFIX = 'fs:'
+
 export interface ProjectSummary {
   /** Storage id. Stable for the life of the project; not the Blueprint id. */
   id: string

@@ -74,16 +74,27 @@ export interface ImportPreview {
   migrations: Migration[]
   /** What saving would change under the source directory. Empty when it round-trips. */
   rewrites: Rewrite[]
+  /**
+   * The project this already is, when it came from somewhere that keeps it: a folder on disk
+   * stays that folder. Absent for an archive or a manifest, which have to be stored somewhere
+   * before they are a project.
+   */
+  existingId?: string
 }
 
 /**
  * Parses without storing anything. Throws `StorageError` only when the files are not a
  * project at all; everything else comes back as diagnostics for the user to weigh.
  */
-export async function previewImport(files: ProjectFiles, label: string): Promise<ImportPreview> {
+export async function previewImport(
+  files: ProjectFiles,
+  label: string,
+  existingId?: string,
+): Promise<ImportPreview> {
   const { blueprint, diagnostics, sourceSchemaVersion, migrations } = await parseProject(files)
   return {
     label,
+    ...(existingId ? { existingId } : {}),
     files,
     blueprint,
     diagnostics,

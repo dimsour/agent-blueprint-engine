@@ -93,14 +93,18 @@ export function Dashboard({ starters }: { starters: StarterInfo[] }) {
   )
 
   /** Anything from outside is read and reported first; nothing is stored until Open. */
-  const inspect = useCallback(async (files: ProjectFiles, label: string) => {
-    setPreview(await previewImport(files, label))
+  const inspect = useCallback(async (files: ProjectFiles, label: string, existingId?: string) => {
+    setPreview(await previewImport(files, label, existingId))
     setBusy(undefined)
   }, [])
 
   const confirmImport = useCallback(async () => {
     if (!preview) return
     try {
+      if (preview.existingId) {
+        router.push(`/p/${preview.existingId}`)
+        return
+      }
       const { summary } = await importProject(preview.files)
       router.push(`/p/${summary.id}`)
     } catch (error) {
@@ -142,8 +146,10 @@ export function Dashboard({ starters }: { starters: StarterInfo[] }) {
   const importFolder = useCallback(async () => {
     setBusy('folder')
     try {
-      const { files, name } = await fileSystemStore.pickDirectory()
-      await inspect(files, name)
+      const { files, name, id } = await fileSystemStore.pickDirectory()
+      // The folder is already the project: opening it must not copy it into IndexedDB, or the
+      // directory the user chose quietly stops being the thing they are editing.
+      await inspect(files, name, id)
     } catch (error) {
       // Cancelling the picker is not an error worth a toast.
       if (!(error instanceof DOMException && error.name === 'AbortError')) {
