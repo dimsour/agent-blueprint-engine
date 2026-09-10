@@ -1,12 +1,16 @@
 import { readStarterFiles } from '@agent-blueprint/templates'
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import { parseProject } from '@/lib/storage'
-import { useWorkspace } from '@/lib/state/workspace-store'
+import { useWorkspace, workspaceHistory } from '@/lib/state/workspace-store'
 
 import { EntityForm } from './entity-form'
+import { FIELD_EXAMPLES } from './field-examples'
+
+const storedSkill = (id: string) =>
+  useWorkspace.getState().blueprint?.skills.find((item) => item.id === id)
 
 async function load(id = 'react-expert') {
   const { blueprint } = await parseProject(readStarterFiles(id))
@@ -192,6 +196,108 @@ describe('EntityForm', () => {
       useWorkspace.getState().blueprint?.requirements.find((r) => r.id === 'both-reviews-happen')
         ?.checks,
     ).toHaveLength(before)
+  })
+
+  /**
+   * "What this field is for" (P9-04).
+   *
+   * The example is the half that teaches, so the checks that matter are the ones about
+   * reaching it and about what inserting it costs: it has to be usable without a mouse, it
+   * must never quietly eat what somebody already wrote, and it has to be an edit like any
+   * other rather than a special case the undo stack knows nothing about.
+   */
+  describe('the example behind a field', () => {
+    it('is reachable, and readable, from the keyboard alone', async () => {
+      await load()
+      const user = userEvent.setup()
+      render(<EntityForm selection={{ kind: 'skill', id: 'react-testing' }} />)
+
+      // The info control sits between the label and the control it explains, so the field
+      // itself is one Shift+Tab away from it.
+      await user.click(screen.getByLabelText('When to use'))
+      await user.tab({ shift: true })
+
+      const info = screen.getByRole('button', { name: 'About When to use' })
+      expect(info).toHaveFocus()
+      expect(info).toHaveAttribute('aria-expanded', 'false')
+
+      await user.keyboard('{Enter}')
+      expect(info).toHaveAttribute('aria-expanded', 'true')
+      // A tooltip would show this on hover and to nobody else; the panel is in the document.
+      expect(screen.getByText(FIELD_EXAMPLES['skill.whenToUse'] ?? '')).toBeInTheDocument()
+    })
+
+    it('fills an empty field without asking', async () => {
+      await load()
+      const user = userEvent.setup()
+      render(<EntityForm selection={{ kind: 'skill', id: 'react-testing' }} />)
+
+      await user.clear(screen.getByLabelText('When to use'))
+      expect(storedSkill('react-testing')?.whenToUse).toBeUndefined()
+
+      await user.click(screen.getByRole('button', { name: 'About When to use' }))
+      await user.click(screen.getByRole('button', { name: 'Insert example into When to use' }))
+
+      expect(storedSkill('react-testing')?.whenToUse).toBe(FIELD_EXAMPLES['skill.whenToUse'])
+      expect(screen.getByLabelText('When to use')).toHaveValue(FIELD_EXAMPLES['skill.whenToUse'])
+    })
+
+    it('asks before replacing what is already there, and takes no for an answer', async () => {
+      await load()
+      const user = userEvent.setup()
+      render(<EntityForm selection={{ kind: 'skill', id: 'react-testing' }} />)
+
+      const written = storedSkill('react-testing')?.whenToUse
+      expect(written).toBeTruthy()
+
+      await user.click(screen.getByRole('button', { name: 'About When to use' }))
+      await user.click(screen.getByRole('button', { name: 'Insert example into When to use' }))
+
+      // Nothing has changed yet: the press asked a question rather than answering it.
+      expect(storedSkill('react-testing')?.whenToUse).toBe(written)
+
+      await user.click(screen.getByRole('button', { name: 'Cancel replacing When to use' }))
+      expect(storedSkill('react-testing')?.whenToUse).toBe(written)
+
+      await user.click(screen.getByRole('button', { name: 'Insert example into When to use' }))
+      await user.click(screen.getByRole('button', { name: 'Replace When to use with the example' }))
+      expect(storedSkill('react-testing')?.whenToUse).toBe(FIELD_EXAMPLES['skill.whenToUse'])
+    })
+
+    it('inserts through the same path typing takes, so undo reverses it', async () => {
+      await load()
+      const user = userEvent.setup()
+      render(<EntityForm selection={{ kind: 'skill', id: 'react-testing' }} />)
+
+      const before = storedSkill('react-testing')?.name
+      expect(before).toBe('React testing')
+
+      await user.click(screen.getByRole('button', { name: 'About Name' }))
+      await user.click(screen.getByRole('button', { name: 'Insert example into Name' }))
+      await user.click(screen.getByRole('button', { name: 'Replace Name with the example' }))
+      expect(storedSkill('react-testing')?.name).toBe(FIELD_EXAMPLES['skill.name'])
+
+      // One insert is one step, not a rewrite the history cannot see.
+      act(() => workspaceHistory.undo())
+      expect(storedSkill('react-testing')?.name).toBe(before)
+    })
+
+    it('adds a line to a list rather than replacing the list', async () => {
+      await load()
+      const user = userEvent.setup()
+      render(<EntityForm selection={{ kind: 'agent', id: 'react-expert' }} />)
+
+      const before = useWorkspace.getState().blueprint?.agents[0]?.responsibilities ?? []
+      expect(before.length).toBeGreaterThan(0)
+
+      await user.click(screen.getByRole('button', { name: 'About Responsibilities' }))
+      await user.click(screen.getByRole('button', { name: 'Insert example into Responsibilities' }))
+
+      expect(useWorkspace.getState().blueprint?.agents[0]?.responsibilities).toEqual([
+        ...before,
+        FIELD_EXAMPLES['agent.responsibilities'],
+      ])
+    })
   })
 
   it('renders a form for every kind in the team starter without throwing', async () => {

@@ -63,6 +63,15 @@ This document specifies `apps/web`: routes, layout, state model, persistence, th
 
 Panels are resizable; the left and right panels collapse. Widths persist in `localStorage` under a UI namespace (never alongside credentials; see `docs/08-security.md`).
 
+### What a field is for (P9-04)
+
+Every field in the visual form carries a sentence of help. Printed under twelve fields at once that is a wall of grey text nobody reads, and it only ever says what the field _is_ — never what a filled-in one looks like. So each field also carries an **example**, and the two live together behind an info icon beside the label.
+
+- The icon is a real button, named `About <field>`, so it is tabbed to and announced. Hovering or focusing it shows the sentence as a tooltip; pressing it opens a panel that stays open, because an example only a mouse can reach is an example a keyboard user does not have. Escape closes the panel and puts focus back on the icon.
+- The panel holds the sentence, the example, and **Insert example**. Inserting goes through the field's own `onChange` — the same path typing takes — so it lands in the Blueprint through `upsertEntity` and ⌘Z takes it back out in one step. A field that already has something in it asks first (**Replace** / **Cancel**); a list gains a row rather than losing one, so it never asks.
+- The examples are one map in `apps/web/src/components/editors/field-examples.ts`, keyed `<kind>.<field>`, lifted from the fixture project and the starters so what the form suggests is what the product ships. This is not **New from template**, which fills a whole artifact from `@agent-blueprint/templates/artifacts`; this fills one field.
+- The sentence keeps its own line only where there is no example to take its place — a field with nothing but a sentence gains nothing from hiding it, and `help` is not always help: the API key field in Settings passes the masked key it already holds through the same prop, and that is live status, not a definition.
+
 ## State model (P3)
 
 One Zustand store per open project:
