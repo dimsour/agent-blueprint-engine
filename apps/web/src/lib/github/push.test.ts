@@ -118,6 +118,22 @@ describe('pushing', () => {
     expect(calls[2]!.body).toMatchObject({ ref: 'refs/heads/blueprint', sha: 'new-commit' })
   })
 
+  it('moves a branch whose name has a slash in it, which is most branches worth pushing to', async () => {
+    await pushToGitHub({
+      token: TOKEN,
+      repo: REPO,
+      branch: 'feature/blueprint',
+      message: 'Update',
+      parentCommit: 'old-commit',
+      writes: { 'CLAUDE.md': '# x\n' },
+      deletes: [],
+    })
+
+    expect(calls[3]!.url).toBe(
+      'https://api.github.com/repos/octocat/blueprints/git/refs/heads/feature/blueprint',
+    )
+  })
+
   it('refuses to win a race with whoever pushed while the preview was open', async () => {
     refStatus = 422
     await expect(

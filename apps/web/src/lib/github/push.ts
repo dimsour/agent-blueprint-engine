@@ -12,7 +12,7 @@
  * changed, and the honest response is to look again.
  */
 import { GitHubError, githubRequest } from './client'
-import type { RepoRef } from './repos'
+import { encodeBranch, type RepoRef } from './repos'
 
 /** GitHub's documented ceiling for one tree request. Text projects are nowhere near it. */
 const MAX_TREE_BYTES = 7_000_000
@@ -92,7 +92,7 @@ export async function pushToGitHub(input: PushInput): Promise<PushResult> {
   if (parentCommit) {
     await githubRequest(token, {
       method: 'PATCH',
-      path: `${base}/git/refs/heads/${encodeURIComponent(branch)}`,
+      path: `${base}/git/refs/heads/${encodeBranch(branch)}`,
       // Never force: a branch that moved since the plan was made is a conversation, not a race
       // this app should win.
       body: { sha: commit.sha, force: false },

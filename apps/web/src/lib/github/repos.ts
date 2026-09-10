@@ -156,10 +156,21 @@ export async function getBranch(
   branch: string,
 ): Promise<GitHubBranch | undefined> {
   const { data } = await githubRequest<{ object: { sha: string } } | undefined>(token, {
-    path: `/repos/${ref.owner}/${ref.name}/git/ref/heads/${encodeURIComponent(branch)}`,
+    path: `/repos/${ref.owner}/${ref.name}/git/ref/heads/${encodeBranch(branch)}`,
     allowMissing: true,
   })
   return data ? { name: branch, sha: data.object.sha, protected: false } : undefined
+}
+
+/**
+ * A branch name as it goes into a ref path.
+ *
+ * `feature/thing` is one branch, not two path segments, and `encodeURIComponent` would send
+ * `feature%2Fthing`, which the ref endpoints answer 404 for. The separator stays; everything
+ * else is escaped.
+ */
+export function encodeBranch(branch: string): string {
+  return branch.split('/').map(encodeURIComponent).join('/')
 }
 
 /**

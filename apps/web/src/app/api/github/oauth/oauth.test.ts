@@ -189,6 +189,7 @@ describe('completing a sign-in', () => {
   it('escapes what it renders, so an error message cannot close the script', async () => {
     configured()
     githubReturns({ error: 'nope', error_description: '</script><script>alert(1)</script>' })
+    vi.spyOn(console, 'error').mockImplementation(() => undefined)
 
     const body = await callback(
       request(callbackUrl(`code=${CODE}&state=matching`), { cookie: 'ab_gh_state=matching' }),

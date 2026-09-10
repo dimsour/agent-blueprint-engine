@@ -170,6 +170,9 @@ function Push() {
           : undefined,
       )
 
+      // Everything this push could carry is scanned, conflicts included, so a warning does not
+      // appear only after one is ticked. What blocks is narrower: a finding in a file that is
+      // actually going, since a conflict left alone publishes nothing.
       const { writes } = writesFor(
         plan,
         plan.conflicts.map((conflict) => conflict.path),
@@ -219,6 +222,9 @@ function Push() {
     })
   }
 
+  // Every finding blocks, including one in a file that is only a conflict. That is not
+  // over-blocking: compiled content comes from the source, so anything key-shaped in a compiled
+  // file is also in an artifact this push is carrying regardless.
   const blockedBySecret = (prepared?.findings ?? []).some(
     (finding) => !accepted.has(secretKey(finding)),
   )

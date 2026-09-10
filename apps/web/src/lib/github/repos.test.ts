@@ -169,6 +169,15 @@ describe('branches', () => {
     ).resolves.toBeUndefined()
   })
 
+  it('asks for a branch whose name has a slash in it as one branch, not two segments', async () => {
+    github({ body: { object: { sha: 'aaa' } } })
+    await getBranch(TOKEN, { owner: 'octocat', name: 'blueprints' }, 'feature/blueprint update')
+
+    expect(calls[0]!.url).toBe(
+      'https://api.github.com/repos/octocat/blueprints/git/ref/heads/feature/blueprint%20update',
+    )
+  })
+
   it('starts a branch at the commit it was branched from', async () => {
     github({ body: { ref: 'refs/heads/blueprint-update', object: { sha: 'aaa' } } })
     await createBranch(TOKEN, { owner: 'octocat', name: 'blueprints' }, 'blueprint-update', 'aaa')
