@@ -299,3 +299,46 @@ test.describe('severity colours', () => {
     })
   }
 })
+
+/**
+ * A pointer on anything clickable (P9-05).
+ *
+ * Tailwind v4's preflight dropped the browser's own `cursor: pointer` on buttons, and nothing
+ * put it back, so every button in the product showed a text caret. The fix is one rule, which
+ * is exactly the kind of thing that gets reverted by a later change to the stylesheet — so it
+ * is asserted on the real thing rather than trusted.
+ */
+test.describe('the cursor', () => {
+  const cursorOf = (page: Page, selector: string) =>
+    page
+      .locator(selector)
+      .first()
+      .evaluate((element) => getComputedStyle(element).cursor)
+
+  test('is a pointer on a button and not-allowed on a refused one', async ({ page }) => {
+    await openStarter(page)
+    await page
+      .getByRole('navigation', { name: 'Blueprint artifacts' })
+      .getByRole('button', { name: 'Export', exact: true })
+      .click()
+    await expect(page.getByRole('button', { name: 'Download', exact: true })).toBeVisible()
+
+    expect(await cursorOf(page, 'button:not(:disabled)')).toBe('pointer')
+
+    // The health bar disables a count with nothing behind it, which is a refusal, not a
+    // control that failed to load.
+    const zero = page.getByRole('button', { name: /^0 errors$/ })
+    if (await zero.isDisabled()) {
+      expect(await zero.evaluate((element) => getComputedStyle(element).cursor)).toBe('not-allowed')
+    }
+  })
+
+  test('covers the buttons that are not the Button component', async ({ page }) => {
+    await openStarter(page)
+    const tree = page.getByRole('navigation', { name: 'Blueprint artifacts' })
+    const row = tree.getByRole('button', { name: /^React testing(,|$)/ })
+
+    // The project tree writes its rows as bare elements, which is why the rule is global.
+    expect(await row.evaluate((element) => getComputedStyle(element).cursor)).toBe('pointer')
+  })
+})

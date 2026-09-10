@@ -264,3 +264,29 @@
     scroll-behavior: auto !important;
   }
 }
+
+/*
+  A pointer on anything clickable (P9-05).
+
+  Tailwind v4's preflight dropped the browser's own `cursor: pointer` on buttons, so every
+  button in this product showed a text caret. Restored here rather than as a utility on each
+  one: there are twenty-nine bare `<button>` elements across sixteen files, and a rule that has
+  to be remembered is a rule that will be forgotten by the next one.
+
+  Disabled keeps a cursor of its own. A refusal that looks like a dead control reads as a bug,
+  and this app refuses on purpose in a lot of places — an export with errors, a push with an
+  unaccepted finding, a health count with nothing behind it.
+
+  An element selector, so any `cursor-*` utility still wins where a component means something
+  else by it (a menu item, a select option).
+*/
+button:not(:disabled),
+summary,
+[role='button']:not([aria-disabled='true']) {
+  cursor: pointer;
+}
+
+button:disabled,
+[aria-disabled='true'] {
+  cursor: not-allowed;
+}
