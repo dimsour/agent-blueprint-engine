@@ -42,9 +42,13 @@ export async function readProjectFromGitHub(
   )
 
   if (!tree.entries.has(`${DEFAULT_SOURCE_DIR}/blueprint.yaml`)) {
+    // A truncated listing is a different answer from "it is not there", and saying the second
+    // when the first is true sends the user looking for a file that exists.
     throw new GitHubError(
       'not-found',
-      `There is no Blueprint in ${repo.owner}/${repo.name} on ${target}: it has no ${DEFAULT_SOURCE_DIR}/blueprint.yaml.`,
+      tree.truncated
+        ? `GitHub would not list all of ${repo.owner}/${repo.name}, so ${DEFAULT_SOURCE_DIR}/blueprint.yaml could not be found. Clone the repository and open the folder instead.`
+        : `There is no Blueprint in ${repo.owner}/${repo.name} on ${target}: it has no ${DEFAULT_SOURCE_DIR}/blueprint.yaml.`,
     )
   }
 

@@ -3,20 +3,12 @@
  *
  * The interesting cases are the ones where GitHub's answer and the obvious assumption differ:
  * a repository you can see but not write to, an organisation's repositories that a default
- * listing hides, a repository with no commits whose default branch does not exist, and a second
- * page that only the `Link` header knows about.
+ * listing hides, and a branch name with a slash in it, which is one ref rather than two path
+ * segments.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import {
-  createBranch,
-  createRepository,
-  getBranch,
-  listBranches,
-  listOwners,
-  listRepositories,
-  parseRepoRef,
-} from './repos'
+import { createRepository, getBranch, listBranches, listRepositories, parseRepoRef } from './repos'
 
 const TOKEN = 'ghp_token'
 const realFetch = globalThis.fetch
@@ -52,10 +44,7 @@ function repoPayload(overrides: Record<string, unknown> = {}): unknown {
   return {
     name: 'blueprints',
     full_name: 'octocat/blueprints',
-    private: false,
     default_branch: 'main',
-    description: null,
-    size: 120,
     owner: { login: 'octocat' },
     permissions: { push: true },
     ...overrides,
@@ -78,21 +67,16 @@ describe('listing repositories', () => {
     expect(calls[0]!.url).toContain('sort=updated')
   })
 
-  it('follows the Link header rather than guessing where the list ends', async () => {
-    github(
-      {
-        body: [repoPayload({ name: 'one', full_name: 'octocat/one' })],
-        headers: {
-          link: '<https://api.github.com/user/repos?page=2>; rel="next", <https://api.github.com/user/repos?page=3>; rel="last"',
-        },
-      },
-      { body: [repoPayload({ name: 'two', full_name: 'octocat/two' })] },
-    )
+  it('asks for one page: this fills a suggestion list, not an inventory', async () => {
+    github({
+      body: [repoPayload()],
+      headers: { link: '<https://api.github.com/user/repos?page=2>; rel="next"' },
+    })
 
     const repos = await listRepositories(TOKEN)
 
-    expect(repos.map((repo) => repo.name)).toEqual(['one', 'two'])
-    expect(calls[1]!.url).toBe('https://api.github.com/user/repos?page=2')
+    expect(repos).toHaveLength(1)
+    expect(calls).toHaveLength(1)
   })
 
   it('reports what the token may do here rather than inferring it from ownership', async () => {
@@ -110,17 +94,11 @@ describe('listing repositories', () => {
     const repos = await listRepositories(TOKEN)
     expect(repos.map((repo) => repo.canPush)).toEqual([false, true, false])
   })
-
-  it('marks a repository with no commits, whose default branch does not exist yet', async () => {
-    github({ body: [repoPayload({ size: 0, default_branch: 'main' })] })
-    const [repo] = await listRepositories(TOKEN)
-    expect(repo).toMatchObject({ empty: true, defaultBranch: 'main' })
-  })
 })
 
 describe('creating a repository', () => {
   it('creates it empty, so the Blueprint is the first commit', async () => {
-    github({ body: repoPayload({ size: 0, permissions: undefined }) })
+    github({ body: repoPayload({ permissions: undefined }) })
     const repo = await createRepository(TOKEN, { name: 'blueprints', private: true })
 
     expect(calls[0]).toMatchObject({
@@ -129,7 +107,7 @@ describe('creating a repository', () => {
       body: { name: 'blueprints', private: true, auto_init: false },
     })
     // GitHub omits permissions on the create response; the account that made it can write to it.
-    expect(repo).toMatchObject({ empty: true, canPush: true })
+    expect(repo).toMatchObject({ canPush: true })
   })
 
   it('creates it under an organisation when one was chosen', async () => {
@@ -137,28 +115,19 @@ describe('creating a repository', () => {
     await createRepository(TOKEN, { name: 'blueprints', private: false, org: 'acme' })
     expect(calls[0]!.url).toBe('https://api.github.com/orgs/acme/repos')
   })
-
-  it('offers the account and its organisations as owners', async () => {
-    github({ body: { login: 'octocat' } }, { body: [{ login: 'acme' }, { login: 'hooli' }] })
-    await expect(listOwners(TOKEN)).resolves.toEqual([
-      { login: 'octocat', kind: 'user' },
-      { login: 'acme', kind: 'organization' },
-      { login: 'hooli', kind: 'organization' },
-    ])
-  })
 })
 
 describe('branches', () => {
   it('carries the commit each branch points at, which is what a push needs', async () => {
     github({
       body: [
-        { name: 'main', commit: { sha: 'aaa' }, protected: true },
+        { name: 'main', commit: { sha: 'aaa' } },
         { name: 'draft', commit: { sha: 'bbb' } },
       ],
     })
     await expect(listBranches(TOKEN, { owner: 'octocat', name: 'blueprints' })).resolves.toEqual([
-      { name: 'main', sha: 'aaa', protected: true },
-      { name: 'draft', sha: 'bbb', protected: false },
+      { name: 'main', sha: 'aaa' },
+      { name: 'draft', sha: 'bbb' },
     ])
   })
 
@@ -176,16 +145,6 @@ describe('branches', () => {
     expect(calls[0]!.url).toBe(
       'https://api.github.com/repos/octocat/blueprints/git/ref/heads/feature/blueprint%20update',
     )
-  })
-
-  it('starts a branch at the commit it was branched from', async () => {
-    github({ body: { ref: 'refs/heads/blueprint-update', object: { sha: 'aaa' } } })
-    await createBranch(TOKEN, { owner: 'octocat', name: 'blueprints' }, 'blueprint-update', 'aaa')
-    expect(calls[0]).toMatchObject({
-      method: 'POST',
-      url: 'https://api.github.com/repos/octocat/blueprints/git/refs',
-      body: { ref: 'refs/heads/blueprint-update', sha: 'aaa' },
-    })
   })
 })
 

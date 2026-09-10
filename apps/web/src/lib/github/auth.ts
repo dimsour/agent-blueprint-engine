@@ -16,9 +16,9 @@ import { readCredential, writeCredential, type CredentialStorage } from '@/lib/c
 import { viewer, type GitHubViewer } from './client'
 
 /** What each token prefix means, in the terms GitHub itself uses. */
-export type TokenKind = 'fine-grained' | 'classic' | 'oauth' | 'unknown'
+type TokenKind = 'fine-grained' | 'classic' | 'oauth' | 'unknown'
 
-export function tokenKind(token: string): TokenKind {
+function tokenKind(token: string): TokenKind {
   if (token.startsWith('github_pat_')) return 'fine-grained'
   if (token.startsWith('ghp_')) return 'classic'
   if (token.startsWith('gho_') || token.startsWith('ghu_')) return 'oauth'
@@ -73,7 +73,7 @@ export async function identify(token: string): Promise<GitHubIdentity> {
 }
 
 /** What the callback page posts back to the app. Same-origin; nothing else is accepted. */
-export interface OAuthMessage {
+interface OAuthMessage {
   source: 'agent-blueprint-github-oauth'
   token?: string
   error?: string

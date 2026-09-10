@@ -12,7 +12,7 @@
  * configuration at all.
  */
 
-export const STATE_COOKIE = 'ab_gh_state'
+const STATE_COOKIE = 'ab_gh_state'
 
 /** Ten minutes is longer than a sign-in takes and shorter than a coffee break. */
 const STATE_MAX_AGE_SECONDS = 600
@@ -42,11 +42,21 @@ export function githubOAuthConfigured(): boolean {
 /**
  * Where this app is, as the browser sees it.
  *
- * The redirect URI has to match what was registered with GitHub, and behind a proxy the
- * request's own URL is the internal one. The forwarded headers are what the deployment's proxy
- * sets; falling back to the request URL keeps local development working.
+ * This decides two things that must not be guessed loosely: the `redirect_uri` GitHub is asked
+ * to come back to, and the origin the token is posted to. Behind a proxy the request's own URL
+ * is the internal one, so the forwarded headers are read — but a forwarded header is set by
+ * whoever is in front of the app, and on a deployment with nothing in front, by the caller.
+ *
+ * So a deployment that knows its own address says so in `APP_ORIGIN`, and that wins over
+ * anything a request claims. Without it the headers are trusted, which is safe enough in
+ * practice — GitHub refuses a `redirect_uri` that is not the registered one, and a
+ * `postMessage` to an origin the opener does not have is simply not delivered — but naming it
+ * removes the guess.
  */
 export function appOrigin(request: Request): string {
+  const configured = process.env['APP_ORIGIN']
+  if (configured) return configured.replace(/\/$/, '')
+
   const url = new URL(request.url)
   const host = request.headers.get('x-forwarded-host') ?? url.host
   const protocol = request.headers.get('x-forwarded-proto') ?? url.protocol.replace(':', '')

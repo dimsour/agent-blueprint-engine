@@ -244,7 +244,7 @@ Two ways to hand this app a token, one place it is kept.
 
 The token then lives exactly where the AI key does: `ab:credentials:github`, `sessionStorage` by default, `localStorage` only after the warning, read by `lib/credentials` and nothing else. **Forget credentials** clears both.
 
-**Pushing** (`⌘K` → Push to GitHub, or the GitHub button in the top bar) is two steps, and the second is a preview. Choose a repository (`owner/name`, a URL, or one of the repositories the token can push to) and a branch, which is created by the push when it does not exist; then **Preview the changes** builds a plan against that branch and shows it before anything can be pressed:
+**Pushing** (`⌘K` → Push to GitHub, or the GitHub button in the top bar) is two steps, and the second is a preview. Choose a repository (`owner/name`, a URL, or one of the hundred the token most recently touched) and a branch, which is created by the push when it does not exist; a repository GitHub has nothing at is offered for creation from the same place, empty and private by default. Then **Preview the changes** builds a plan against that branch and shows it before anything can be pressed:
 
 - every path that would be added, changed or removed, with the ones edited on GitHub since the last push marked as such;
 - errors from the compiler, which block: files compiled from a Blueprint the validator rejects would misrepresent it;

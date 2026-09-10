@@ -21,13 +21,16 @@ vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 const realFetch = globalThis.fetch
 
 /** What GitHub answers. Repository and branches exist; the tree is empty unless one is given. */
-async function github(options: { tree?: { path: string; content: string }[] } = {}): Promise<{
+async function github(
+  options: { tree?: { path: string; content: string }[]; missingUntilCreated?: boolean } = {},
+): Promise<{
   requests: { method: string; url: string; body: Record<string, unknown> }[]
 }> {
   const requests: { method: string; url: string; body: Record<string, unknown> }[] = []
   const files = options.tree ?? []
   const shas = new Map<string, string>()
   for (const file of files) shas.set(file.path, await gitBlobSha(file.content))
+  let exists = !options.missingUntilCreated
 
   globalThis.fetch = vi.fn((url: URL, init: RequestInit = {}) => {
     const path = String(url)
@@ -45,7 +48,20 @@ async function github(options: { tree?: { path: string; content: string }[] } = 
     ) {
       return Promise.resolve(Response.json([]))
     }
+    if (path.endsWith('/user/repos') && method === 'POST') {
+      exists = true
+      return Promise.resolve(
+        Response.json({
+          name: 'blueprints',
+          full_name: 'octocat/blueprints',
+          default_branch: 'main',
+          owner: { login: 'octocat' },
+        }),
+      )
+    }
+    if (path.endsWith('/user')) return Promise.resolve(Response.json({ login: 'octocat' }))
     if (path.endsWith('/repos/octocat/blueprints')) {
+      if (!exists) return Promise.resolve(Response.json({ message: 'Not Found' }, { status: 404 }))
       return Promise.resolve(
         Response.json({
           name: 'blueprints',
@@ -181,6 +197,40 @@ describe('pushing to GitHub', () => {
     )
     expect(writes).toHaveLength(1)
     expect(requests.filter((request) => request.url.endsWith('/git/commits')).length).toBe(1)
+  })
+
+  it('counts an accepted conflict as one more file in the commit', async () => {
+    sessionStorage.setItem('ab:credentials:github', 'ghp_token')
+    await load()
+    await github({ tree: [{ path: 'CLAUDE.md', content: '# Written by hand, long ago\n' }] })
+    const user = await openDialog()
+
+    await chooseRepository(user)
+    await screen.findByRole('list', { name: 'Changes' })
+    const before = Number(/(\d+) files in one commit/.exec(document.body.textContent ?? '')?.[1])
+
+    await user.click(screen.getByRole('checkbox', { name: /CLAUDE\.md/ }))
+
+    const after = Number(/(\d+) files in one commit/.exec(document.body.textContent ?? '')?.[1])
+    expect(after).toBe(before + 1)
+  })
+
+  it('offers to make a repository that is not there, and previews against the new one', async () => {
+    sessionStorage.setItem('ab:credentials:github', 'ghp_token')
+    await load()
+    const { requests } = await github({ missingUntilCreated: true })
+    const user = await openDialog()
+
+    await chooseRepository(user)
+    await screen.findByRole('button', { name: /Create octocat\/blueprints/ })
+
+    await user.click(screen.getByRole('button', { name: /Create octocat\/blueprints/ }))
+
+    await screen.findByRole('list', { name: 'Changes' })
+    const created = requests.find(
+      (request) => request.url.endsWith('/user/repos') && request.method === 'POST',
+    )
+    expect(created?.body).toMatchObject({ name: 'blueprints', private: true, auto_init: false })
   })
 
   it('has nothing to offer when the branch already holds this Blueprint', async () => {

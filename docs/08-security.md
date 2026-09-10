@@ -48,6 +48,7 @@ Both routes exist only to work around browser limitations. The app is fully func
 - `callback` verifies `state`, exchanges the code for a token, and returns the token to the client page **once** (rendered into a page that posts it to the opener via `postMessage` with a same-origin target, then closes). The token is not set as a cookie and is not stored server-side.
 - Requested scopes are the minimum for the feature: `repo` (or fine-grained equivalent) only. No `user:email`, no `admin:*`.
 - Logging: the route logs nothing on success; on failure it logs the error class and HTTP status, never the code, state or token.
+- The origin used for the `redirect_uri` and as the `postMessage` target comes from `APP_ORIGIN` when the deployment sets it, and from the forwarded host headers otherwise. A deployment with nothing trusted in front of it should set it: a forged `x-forwarded-host` cannot deliver the token anywhere (GitHub refuses an unregistered `redirect_uri`, and a `postMessage` to an origin the opener does not have is dropped), but naming the origin removes the guess.
 
 ### `.env`
 
@@ -55,6 +56,8 @@ Both routes exist only to work around browser limitations. The app is fully func
 # optional; enables the GitHub OAuth route handlers
 GITHUB_CLIENT_ID=
 GITHUB_CLIENT_SECRET=
+# optional; this app's public origin, for the OAuth redirect and the postMessage target
+APP_ORIGIN=
 # optional; hosts the AI proxy may relay to
 AI_PROXY_ALLOWED_HOSTS=localhost,127.0.0.1
 ```

@@ -19,7 +19,7 @@
  * on a different kind of text; they are deliberately not shared.
  */
 
-export interface SecretPattern {
+interface SecretPattern {
   kind: string
   pattern: RegExp
 }

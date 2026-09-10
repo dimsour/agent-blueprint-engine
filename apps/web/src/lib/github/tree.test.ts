@@ -80,7 +80,7 @@ describe('reading a branch', () => {
 
     const tree = await readRemoteTree(TOKEN, REPO, 'main')
 
-    expect(tree).toMatchObject({ commitSha: 'head-sha', treeSha: 'tree-sha', truncated: false })
+    expect(tree).toMatchObject({ commitSha: 'head-sha', truncated: false })
     expect([...(tree?.entries.keys() ?? [])]).toEqual(['blueprint/blueprint.yaml'])
     expect(requested[1]).toContain('recursive=1')
   })

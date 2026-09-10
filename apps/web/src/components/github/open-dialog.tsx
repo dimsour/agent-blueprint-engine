@@ -40,6 +40,31 @@ export function OpenFromGitHubDialog({
   /** Hands the files to the import path, which reports what is in them before storing any. */
   onRead: (files: ProjectFiles, label: string) => Promise<void> | void
 }) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Open from GitHub</DialogTitle>
+          <DialogDescription>
+            Reads the <code>blueprint/</code> directory of a repository. Nothing is stored until you
+            have seen what is in it.
+          </DialogDescription>
+        </DialogHeader>
+        {/* Mounted only while the dialog is open, so a repository typed and an error reported
+            belong to this attempt rather than to the one before it. */}
+        <OpenFromGitHub onOpenChange={onOpenChange} onRead={onRead} />
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function OpenFromGitHub({
+  onOpenChange,
+  onRead,
+}: {
+  onOpenChange: (open: boolean) => void
+  onRead: (files: ProjectFiles, label: string) => Promise<void> | void
+}) {
   const repoId = useId()
   const branchId = useId()
 
@@ -61,8 +86,10 @@ export function OpenFromGitHubDialog({
     setError(undefined)
     try {
       const project = await readProjectFromGitHub(token, chosen, branch || undefined)
-      onOpenChange(false)
+      // Closed only once the files are with the import preview: a failure in there has to have
+      // somewhere to be reported, and a closed dialog is not somewhere.
       await onRead(project.files, `${chosen.owner}/${chosen.name} on ${project.branch}`)
+      onOpenChange(false)
     } catch (cause) {
       setError(cause instanceof GitHubError ? cause.message : String(cause))
     } finally {
@@ -71,56 +98,42 @@ export function OpenFromGitHubDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Open from GitHub</DialogTitle>
-          <DialogDescription>
-            Reads the <code>blueprint/</code> directory of a repository. Nothing is stored until you
-            have seen what is in it.
-          </DialogDescription>
-        </DialogHeader>
+    <>
+      <Field label="Repository" htmlFor={repoId} help="owner/name, or a GitHub URL.">
+        <Input
+          id={repoId}
+          value={repoInput}
+          placeholder="octocat/agent-blueprint"
+          spellCheck={false}
+          onChange={(event) => setRepoInput(event.target.value)}
+        />
+      </Field>
 
-        <Field label="Repository" htmlFor={repoId} help="owner/name, or a GitHub URL.">
-          <Input
-            id={repoId}
-            value={repoInput}
-            placeholder="octocat/agent-blueprint"
-            spellCheck={false}
-            onChange={(event) => setRepoInput(event.target.value)}
-          />
-        </Field>
+      <Field label="Branch" htmlFor={branchId} help="Left empty, the repository's default branch.">
+        <Input
+          id={branchId}
+          value={branch}
+          placeholder="main"
+          spellCheck={false}
+          onChange={(event) => setBranch(event.target.value)}
+        />
+      </Field>
 
-        <Field
-          label="Branch"
-          htmlFor={branchId}
-          help="Left empty, the repository's default branch."
-        >
-          <Input
-            id={branchId}
-            value={branch}
-            placeholder="main"
-            spellCheck={false}
-            onChange={(event) => setBranch(event.target.value)}
-          />
-        </Field>
+      {error ? (
+        <p role="alert" className="text-danger text-sm">
+          {error}
+        </p>
+      ) : null}
 
-        {error ? (
-          <p role="alert" className="text-danger text-sm">
-            {error}
-          </p>
-        ) : null}
-
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
-            Cancel
-          </Button>
-          <Button onClick={() => void read()} disabled={!chosen || busy}>
-            {busy ? <LoaderIcon className="animate-spin" /> : null}
-            Read the repository
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      <DialogFooter>
+        <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
+          Cancel
+        </Button>
+        <Button onClick={() => void read()} disabled={!chosen || busy}>
+          {busy ? <LoaderIcon className="animate-spin" /> : null}
+          Read the repository
+        </Button>
+      </DialogFooter>
+    </>
   )
 }

@@ -28,7 +28,6 @@ export interface TreeEntry {
 export interface RemoteTree {
   /** The commit the branch points at. The parent of whatever this push commits. */
   commitSha: string
-  treeSha: string
   entries: Map<string, TreeEntry>
   /**
    * GitHub stopped listing. It happens on repositories with more than 100 000 entries, and it
@@ -39,7 +38,6 @@ export interface RemoteTree {
 }
 
 interface TreePayload {
-  sha: string
   truncated?: boolean
   tree: { path: string; type: string; sha: string; size?: number }[]
 }
@@ -64,12 +62,7 @@ export async function readRemoteTree(
     entries.set(entry.path, { path: entry.path, sha: entry.sha, size: entry.size ?? 0 })
   }
 
-  return {
-    commitSha: head.sha,
-    treeSha: data.sha,
-    entries,
-    truncated: data.truncated === true,
-  }
+  return { commitSha: head.sha, entries, truncated: data.truncated === true }
 }
 
 /** How many blobs to fetch at once: enough to hide the latency, few enough to be polite. */
@@ -108,12 +101,11 @@ export class GitHubTreeFs implements VirtualFs {
       else differing.push(path)
     }
 
+    // A failure here is not swallowed. `read` would only ask for the same blob again and throw
+    // then, and a plan built on "could not read it" would have to guess whether the branch has
+    // that file — which is the question the ownership rules turn on.
     for (let index = 0; index < differing.length; index += FETCH_CONCURRENCY) {
-      await Promise.all(
-        differing
-          .slice(index, index + FETCH_CONCURRENCY)
-          .map((path) => this.fetchBlob(path).catch(() => undefined)),
-      )
+      await Promise.all(differing.slice(index, index + FETCH_CONCURRENCY).map((p) => this.read(p)))
     }
   }
 

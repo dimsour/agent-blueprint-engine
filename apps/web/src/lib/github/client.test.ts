@@ -8,7 +8,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { GitHubError, githubRequest, viewer } from './client'
+import { GitHubError, githubPaginate, githubRequest, viewer } from './client'
 
 const TOKEN = 'ghp_secretsecretsecretsecret'
 const realFetch = globalThis.fetch
@@ -131,6 +131,47 @@ describe('the GitHub transport', () => {
     await expect(githubRequest(TOKEN, { path: '/user' })).rejects.toMatchObject({
       code: 'network',
     })
+  })
+
+  it('follows the Link header rather than guessing where a list ends', async () => {
+    const pages = [
+      new Response(JSON.stringify([{ id: 1 }]), {
+        headers: {
+          link: '<https://api.github.com/user/repos?page=2>; rel="next", <https://api.github.com/user/repos?page=9>; rel="last"',
+        },
+      }),
+      new Response(JSON.stringify([{ id: 2 }])),
+    ]
+    const asked: string[] = []
+    globalThis.fetch = vi.fn((url: URL) => {
+      asked.push(String(url))
+      return Promise.resolve(pages.shift() ?? new Response('[]'))
+    }) as unknown as typeof globalThis.fetch
+
+    const items = await githubPaginate<{ id: number }>(TOKEN, {
+      path: '/user/repos',
+      query: { per_page: 100 },
+    })
+
+    expect(items.map((item) => item.id)).toEqual([1, 2])
+    // The cursor is the URL GitHub gave, not our query with a page number bolted on.
+    expect(asked[1]).toBe('https://api.github.com/user/repos?page=2')
+  })
+
+  it('stops where it was told to, so one runaway list cannot spend the rate limit', async () => {
+    const asked: string[] = []
+    globalThis.fetch = vi.fn((url: URL) => {
+      asked.push(String(url))
+      return Promise.resolve(
+        new Response(JSON.stringify([{ id: asked.length }]), {
+          headers: { link: '<https://api.github.com/user/repos?page=99>; rel="next"' },
+        }),
+      )
+    }) as unknown as typeof globalThis.fetch
+
+    await githubPaginate(TOKEN, { path: '/user/repos' }, 2)
+
+    expect(asked).toHaveLength(2)
   })
 
   it('never puts the token in an error, however deep you look', async () => {

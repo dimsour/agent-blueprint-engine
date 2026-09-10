@@ -20,7 +20,7 @@ async function fixture() {
 }
 
 function branch(files: ProjectFiles): RemoteBranch {
-  return { fs: new MemoryFs(files), commitSha: 'commit-sha', truncated: false }
+  return { fs: new MemoryFs(files), truncated: false }
 }
 
 /** What the branch looks like after a push has been applied. */
@@ -80,7 +80,7 @@ describe('planning a push', () => {
     const plan = await planPush(blueprint, branch(remote))
     const change = plan.changes.find((entry) => entry.path === 'CLAUDE.md')
 
-    expect(change).toMatchObject({ kind: 'update', handEdited: true, category: 'generated' })
+    expect(change).toMatchObject({ kind: 'update', handEdited: true })
     // The manifest is the only other thing that moves: it records what was pushed, not when.
     expect(plan.changes.map((entry) => entry.path)).toEqual(['CLAUDE.md'])
   })

@@ -500,7 +500,7 @@ Verification: `pnpm check` green; `pnpm --filter @agent-blueprint/core test` sho
 - Description: Octokit: list orgs/repos, create repo, list/create branch.
 - Acceptance: mocked tests.
 - Verify: `pnpm --filter web test`
-- Built: `lib/github/repos.ts` over the `fetch` client (ADR-23 replaces Octokit here). Listing asks for collaborator and organisation repositories, not only owned ones, and pages by GitHub's `Link` header rather than by counting. Two things are read from GitHub rather than assumed: whether the token may push here (`permissions`, since a visible repository is not a writable one), and whether the repository has any commits at all — a new one's default branch does not exist yet, which the push path treats as the ordinary first-commit case. Creation is deliberately `auto_init: false`, so the Blueprint is the first commit rather than a merge question. `parseRepoRef` accepts a browser URL, a clone URL or `owner/name`.
+- Built: `lib/github/repos.ts` over the `fetch` client (ADR-23 replaces Octokit here), reached from the push dialog: a repository GitHub has nothing at can be created from there, empty and private by default, and whether it belongs to the account or to an organisation is already in what was typed. Creating a branch has no function of its own — a push to a branch that does not exist writes the ref itself. Listing asks for collaborator and organisation repositories, not only owned ones, and pages by GitHub's `Link` header rather than by counting. Two things are read from GitHub rather than assumed: whether the token may push here (`permissions`, since a visible repository is not a writable one), and whether the repository has any commits at all — a new one's default branch does not exist yet, which the push path treats as the ordinary first-commit case. Creation is deliberately `auto_init: false`, so the Blueprint is the first commit rather than a merge question. `parseRepoRef` accepts a browser URL, a clone URL or `owner/name`.
 
 ### P7-03 Preview diff against remote tree (done)
 
@@ -552,6 +552,7 @@ Verification: `pnpm check` green; `pnpm --filter @agent-blueprint/core test` sho
 ### P8-04 Binary assets in projects
 
 - Description: `VirtualFs` gains `readBinary`/`writeBinary`; skill `assets/` may be binary; ZIP and GitHub backends updated.
+- Also fixes a consequence found reviewing P7: a push deletes anything under `blueprint/` that the project writer does not produce, and a binary asset is exactly such a file, so pushing a project whose repository holds one removes it. The push preview lists every deletion, so it is disclosed rather than silent, and a commit is recoverable from history — but a file the app cannot represent should not be a file it removes.
 
 ### P8-05 Migrations UI
 

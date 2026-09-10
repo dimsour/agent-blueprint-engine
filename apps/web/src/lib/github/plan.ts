@@ -40,8 +40,6 @@ export type ChangeKind = 'add' | 'update' | 'delete'
 export interface FileChange {
   path: string
   kind: ChangeKind
-  /** Source of truth, or compiler output. The UI groups by it; the commit does not care. */
-  category: 'source' | 'generated'
   /** What to write. Absent for a delete. */
   content?: string
   /**
@@ -68,7 +66,7 @@ export interface PushPlan {
 export interface RemoteBranch {
   /** The branch, read-only. */
   fs: VirtualFs
-  commitSha: string
+  /** GitHub stopped listing the tree; the plan says so rather than assuming it saw everything. */
   truncated: boolean
   /**
    * Optional: settle which of these files the branch already has, byte for byte, before the
@@ -158,7 +156,6 @@ export async function planPush(
     previous,
   )
 
-  const generated = new Set(compiled.files.map((file) => file.path))
   const handEdited = new Set(written.modifiedSinceBuild)
   const changes: FileChange[] = []
   let unchanged = written.unchanged.length
@@ -172,24 +169,18 @@ export async function planPush(
     changes.push({
       path,
       kind: before === undefined ? 'add' : 'update',
-      category: generated.has(path) ? 'generated' : 'source',
       content,
       ...(handEdited.has(path) ? { handEdited: true } : {}),
     })
   }
 
   for (const path of fs.deletes) {
-    changes.push({
-      path,
-      kind: 'delete',
-      category: generated.has(path) || !path.startsWith(`${sourceDir}/`) ? 'generated' : 'source',
-    })
+    changes.push({ path, kind: 'delete' })
   }
 
   const conflicts: FileChange[] = written.skipped.map((path) => ({
     path,
     kind: 'update' as const,
-    category: 'generated' as const,
     content: compiled.files.find((file) => file.path === path)?.content ?? '',
   }))
 

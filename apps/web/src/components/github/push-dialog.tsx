@@ -24,6 +24,7 @@ import {
   ExternalLinkIcon,
   KeyRoundIcon,
   Loader2Icon,
+  PlusIcon,
 } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useId, useState } from 'react'
@@ -41,10 +42,11 @@ import {
 } from '@/components/ui/overlays'
 import { Badge, Input } from '@/components/ui/primitives'
 import { readGitHubToken } from '@/lib/github/auth'
-import { GitHubError } from '@/lib/github/client'
+import { GitHubError, viewer } from '@/lib/github/client'
 import { type FileChange, planPush, type PushPlan, writesFor } from '@/lib/github/plan'
 import { pushToGitHub } from '@/lib/github/push'
 import {
+  createRepository,
   getRepository,
   type GitHubRepo,
   listBranches,
@@ -108,9 +110,12 @@ function Push() {
   const [branches, setBranches] = useState<string[]>([])
   const [prepared, setPrepared] = useState<Prepared | undefined>()
   const [accepted, setAccepted] = useState<Set<string>>(new Set())
-  const [busy, setBusy] = useState<'preview' | 'push' | undefined>()
+  const [busy, setBusy] = useState<'preview' | 'push' | 'create' | undefined>()
   const [error, setError] = useState<string | undefined>()
   const [pushed, setPushed] = useState<{ url: string; count: number } | undefined>()
+  /** GitHub had nothing at that name, so creating it is the next thing the user wants. */
+  const [missing, setMissing] = useState(false)
+  const [makePrivate, setMakePrivate] = useState(true)
 
   // Suggesting the repositories this token can push to costs one request and saves the user
   // remembering how a repository is spelled.
@@ -151,6 +156,7 @@ function Push() {
     if (!token || !chosen || !blueprint) return
     setBusy('preview')
     setError(undefined)
+    setMissing(false)
     try {
       const repo = await getRepository(token, chosen)
       const target = branch || repo.defaultBranch
@@ -160,25 +166,45 @@ function Push() {
       const fs = new GitHubTreeFs(token, chosen, tree)
       const plan = await planPush(
         blueprint,
-        tree
-          ? {
-              fs,
-              commitSha: tree.commitSha,
-              truncated: tree.truncated,
-              prime: (files) => fs.prime(files),
-            }
-          : undefined,
+        tree ? { fs, truncated: tree.truncated, prime: (files) => fs.prime(files) } : undefined,
       )
 
-      // Everything this push could carry is scanned, conflicts included, so a warning does not
-      // appear only after one is ticked. What blocks is narrower: a finding in a file that is
-      // actually going, since a conflict left alone publishes nothing.
+      // Conflicts are scanned too, so a warning does not appear only once one has been ticked.
       const { writes } = writesFor(
         plan,
         plan.conflicts.map((conflict) => conflict.path),
       )
       setPrepared({ plan, findings: scanForSecrets(writes), repo, tree })
       setAccepted(new Set())
+    } catch (cause) {
+      setError(cause instanceof GitHubError ? cause.message : String(cause))
+      // A 404 is also what a fine-grained token gets for a repository it cannot see, so this
+      // offers creation rather than assuming it: GitHub refuses a name that is taken, and says so.
+      setMissing(cause instanceof GitHubError && cause.code === 'not-found')
+    } finally {
+      setBusy(undefined)
+    }
+  }
+
+  /**
+   * Makes the repository the user named. Whether it belongs to them or to an organisation is
+   * already in what they typed, so nothing has to be chosen twice — and the account's own
+   * login is the only thing that has to be asked for.
+   */
+  const create = async () => {
+    if (!token || !chosen || !blueprint) return
+    setBusy('create')
+    setError(undefined)
+    try {
+      const me = await viewer(token)
+      await createRepository(token, {
+        name: chosen.name,
+        private: makePrivate,
+        ...(me.login.toLowerCase() === chosen.owner.toLowerCase() ? {} : { org: chosen.owner }),
+        ...(blueprint.description ? { description: blueprint.description } : {}),
+      })
+      setMissing(false)
+      await preview()
     } catch (cause) {
       setError(cause instanceof GitHubError ? cause.message : String(cause))
     } finally {
@@ -228,9 +254,14 @@ function Push() {
   const blockedBySecret = (prepared?.findings ?? []).some(
     (finding) => !accepted.has(secretKey(finding)),
   )
-  const nothingToDo = prepared !== undefined && prepared.plan.changes.length === 0
+  // A ticked conflict is a file this push carries, so it counts towards what the commit does.
+  // Counting only `changes` left a repository that already holds the Blueprint, plus one
+  // hand-written file the user had just chosen to overwrite, with the Push button disabled.
+  const acceptedConflicts =
+    prepared?.plan.conflicts.filter((conflict) => accepted.has(conflict.path)).length ?? 0
+  const fileCount = (prepared?.plan.changes.length ?? 0) + acceptedConflicts
   const canPush =
-    prepared !== undefined && prepared.plan.ok && !blockedBySecret && !nothingToDo && !busy
+    prepared !== undefined && prepared.plan.ok && !blockedBySecret && fileCount > 0 && !busy
 
   return (
     <>
@@ -299,7 +330,7 @@ function Push() {
               prepared={prepared}
               accepted={accepted}
               onToggle={toggle}
-              nothingToDo={nothingToDo}
+              fileCount={fileCount}
             />
           ) : null}
 
@@ -307,6 +338,27 @@ function Push() {
             <p role="alert" className="text-danger text-sm">
               {error}
             </p>
+          ) : null}
+
+          {missing && chosen ? (
+            <div className="flex flex-col items-start gap-2 border-l-2 pl-3">
+              <p className="text-muted-foreground text-xs">
+                Nothing answers to that name. It can be made here, empty, so this Blueprint is its
+                first commit.
+              </p>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={makePrivate}
+                  onChange={(event) => setMakePrivate(event.target.checked)}
+                />
+                Private
+              </label>
+              <Button variant="outline" onClick={() => void create()} disabled={busy !== undefined}>
+                {busy === 'create' ? <Loader2Icon className="animate-spin" /> : <PlusIcon />}
+                Create {chosen.owner}/{chosen.name}
+              </Button>
+            </div>
           ) : null}
         </div>
       )}
@@ -375,12 +427,13 @@ function Preview({
   prepared,
   accepted,
   onToggle,
-  nothingToDo,
+  fileCount,
 }: {
   prepared: Prepared
   accepted: Set<string>
   onToggle: (path: string) => void
-  nothingToDo: boolean
+  /** Changes, plus the conflicts that have been accepted: what the commit would carry. */
+  fileCount: number
 }) {
   const { plan, findings } = prepared
   const errors = plan.diagnostics.filter((diagnostic) => diagnostic.severity === 'error')
@@ -394,7 +447,7 @@ function Preview({
         </Note>
       ) : null}
 
-      {nothingToDo ? (
+      {fileCount === 0 ? (
         <p className="text-muted-foreground text-sm">
           Nothing to push: this branch already has exactly this Blueprint
           {plan.unchanged > 0 ? `, all ${plan.unchanged} files of it` : ''}.
@@ -402,7 +455,7 @@ function Preview({
       ) : (
         <p className="text-sm">
           {plan.newBranch ? 'Creates the branch, with ' : ''}
-          {plan.changes.length} {plan.changes.length === 1 ? 'file' : 'files'} in one commit
+          {fileCount} {fileCount === 1 ? 'file' : 'files'} in one commit
           {plan.unchanged > 0 ? `, leaving ${plan.unchanged} unchanged` : ''}.
         </p>
       )}

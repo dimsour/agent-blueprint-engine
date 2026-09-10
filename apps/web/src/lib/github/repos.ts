@@ -20,23 +20,16 @@ export interface RepoRef {
 
 export interface GitHubRepo extends RepoRef {
   fullName: string
-  private: boolean
-  /** The branch GitHub would show first. Absent from a repository with no commits. */
+  /** The branch GitHub would show first. It does not exist yet on a repository with no commits. */
   defaultBranch: string
   /** What this token may do here, as GitHub reports it — not inferred from who owns it. */
   canPush: boolean
-  description?: string
-  /** True when the repository has no commits yet, so a push writes its first. */
-  empty: boolean
 }
 
 interface RepoPayload {
   name: string
   full_name: string
-  private: boolean
   default_branch?: string
-  description: string | null
-  size?: number
   owner: { login: string }
   permissions?: { push?: boolean; admin?: boolean }
 }
@@ -46,32 +39,33 @@ function toRepo(payload: RepoPayload): GitHubRepo {
     owner: payload.owner.login,
     name: payload.name,
     fullName: payload.full_name,
-    private: payload.private,
     defaultBranch: payload.default_branch || 'main',
     canPush: payload.permissions?.push ?? payload.permissions?.admin ?? false,
-    ...(payload.description ? { description: payload.description } : {}),
-    // A repository with no commits reports size 0. It is a hint rather than a promise, and the
-    // push path confirms it by asking for the branch; but it is enough to word the UI.
-    empty: payload.size === 0,
   }
 }
 
 /**
- * Every repository this token can see, most recently touched first.
+ * The repositories to suggest: the hundred this token touched most recently.
  *
- * `affiliation` is what makes an organisation's repositories appear at all: the default is
+ * `affiliation` is what makes an organisation's repositories appear at all — the default is
  * owner-only, and a user pushing to their employer's repository would otherwise find an empty
- * list and no explanation.
+ * list and no explanation. One page is deliberate: this fills a suggestion list beside a field
+ * that accepts anything typed into it, so paging an account with two thousand repositories
+ * would cost twenty requests to complete a list nobody reads to the end.
  */
 export async function listRepositories(token: string): Promise<GitHubRepo[]> {
-  const payloads = await githubPaginate<RepoPayload>(token, {
-    path: '/user/repos',
-    query: {
-      affiliation: 'owner,collaborator,organization_member',
-      sort: 'updated',
-      per_page: 100,
+  const payloads = await githubPaginate<RepoPayload>(
+    token,
+    {
+      path: '/user/repos',
+      query: {
+        affiliation: 'owner,collaborator,organization_member',
+        sort: 'updated',
+        per_page: 100,
+      },
     },
-  })
+    1,
+  )
   return payloads.map(toRepo)
 }
 
@@ -108,45 +102,23 @@ export async function createRepository(token: string, repo: NewRepo): Promise<Gi
       ...(repo.description ? { description: repo.description } : {}),
     },
   })
-  return { ...toRepo(data), empty: true, canPush: true }
-}
-
-export interface RepoOwner {
-  login: string
-  kind: 'user' | 'organization'
-}
-
-/** Who a new repository could belong to: this account, and the organisations it belongs to. */
-export async function listOwners(token: string): Promise<RepoOwner[]> {
-  const [{ data: user }, orgs] = await Promise.all([
-    githubRequest<{ login: string }>(token, { path: '/user' }),
-    githubPaginate<{ login: string }>(token, { path: '/user/orgs', query: { per_page: 100 } }),
-  ])
-  return [
-    { login: user.login, kind: 'user' },
-    ...orgs.map((org) => ({ login: org.login, kind: 'organization' as const })),
-  ]
+  // The create response carries no permissions block; the account that just made it can write.
+  return { ...toRepo(data), canPush: true }
 }
 
 export interface GitHubBranch {
   name: string
   /** The commit the branch points at: the parent of anything pushed onto it. */
   sha: string
-  protected: boolean
 }
 
 export async function listBranches(token: string, ref: RepoRef): Promise<GitHubBranch[]> {
-  const payloads = await githubPaginate<{
-    name: string
-    commit: { sha: string }
-    protected?: boolean
-  }>(token, { path: `/repos/${ref.owner}/${ref.name}/branches`, query: { per_page: 100 } })
+  const payloads = await githubPaginate<{ name: string; commit: { sha: string } }>(token, {
+    path: `/repos/${ref.owner}/${ref.name}/branches`,
+    query: { per_page: 100 },
+  })
 
-  return payloads.map((branch) => ({
-    name: branch.name,
-    sha: branch.commit.sha,
-    protected: branch.protected ?? false,
-  }))
+  return payloads.map((branch) => ({ name: branch.name, sha: branch.commit.sha }))
 }
 
 /** The branch as GitHub has it now, or nothing when it does not exist yet. */
@@ -159,7 +131,7 @@ export async function getBranch(
     path: `/repos/${ref.owner}/${ref.name}/git/ref/heads/${encodeBranch(branch)}`,
     allowMissing: true,
   })
-  return data ? { name: branch, sha: data.object.sha, protected: false } : undefined
+  return data ? { name: branch, sha: data.object.sha } : undefined
 }
 
 /**
@@ -171,27 +143,6 @@ export async function getBranch(
  */
 export function encodeBranch(branch: string): string {
   return branch.split('/').map(encodeURIComponent).join('/')
-}
-
-/**
- * Starts a branch at an existing commit.
- *
- * Branching from what the user is looking at, rather than from the default branch, is what
- * makes "push to a branch and open a pull request" work on a repository whose default branch is
- * protected — which is most repositories worth pushing to.
- */
-export async function createBranch(
-  token: string,
-  ref: RepoRef,
-  name: string,
-  fromSha: string,
-): Promise<GitHubBranch> {
-  await githubRequest(token, {
-    method: 'POST',
-    path: `/repos/${ref.owner}/${ref.name}/git/refs`,
-    body: { ref: `refs/heads/${name}`, sha: fromSha },
-  })
-  return { name, sha: fromSha, protected: false }
 }
 
 /**
