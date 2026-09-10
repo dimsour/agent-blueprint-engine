@@ -13,9 +13,9 @@
  * shows where an unmodified click would land if the history could not be trusted, and a
  * plain click goes back only when `cameFromInsideTheApp` says the entry behind us is ours.
  */
-import { ArrowLeftIcon } from 'lucide-react'
+import { ArrowLeftIcon, BookOpenIcon } from 'lucide-react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import type { MouseEvent, ReactNode } from 'react'
 
 import { Logo } from '@/components/layout/logo'
@@ -33,6 +33,8 @@ export interface PageHeaderProps {
 
 export function PageHeader({ title, description, actions }: PageHeaderProps) {
   const router = useRouter()
+  // The tutorial uses this header too, and a link to the page you are on is noise.
+  const onTutorial = usePathname() === '/tutorial'
 
   const goBack = (event: MouseEvent<HTMLAnchorElement>) => {
     // A modified click is a request for a new tab or a saved link, and neither of those wants
@@ -72,6 +74,14 @@ export function PageHeader({ title, description, actions }: PageHeaderProps) {
 
       <div className="flex shrink-0 items-center gap-1">
         {actions}
+        {onTutorial ? null : (
+          <Button variant="ghost" size="sm" asChild>
+            <Link href="/tutorial">
+              <BookOpenIcon />
+              How it works
+            </Link>
+          </Button>
+        )}
         <ThemeToggle />
       </div>
     </header>

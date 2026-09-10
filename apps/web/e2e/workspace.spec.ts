@@ -433,6 +433,22 @@ test.describe('workflow editor', () => {
 
     await expect(page.getByLabel('Name', { exact: true })).toHaveValue('Build a Component')
   })
+
+  /**
+   * A canvas sizes itself from its container, so a container that does not fill its pane
+   * makes the graph clip its own last step and the step panel end mid-sentence — with the
+   * empty half below still looking like canvas. Nothing throws, and no other assertion here
+   * would notice, which is why this one measures.
+   */
+  test('the canvas fills the pane it was given', async ({ page }) => {
+    await openStarter(page)
+    await artifact(page, 'Build a Component').click()
+    await expect(page.locator('.react-flow__node').first()).toBeVisible()
+
+    const canvas = await page.locator('.react-flow').boundingBox()
+    const pane = await page.locator('#workspace-editor').boundingBox()
+    expect(canvas?.height ?? 0).toBeGreaterThan((pane?.height ?? 0) * 0.8)
+  })
 })
 
 test.describe('addressable workspace', () => {

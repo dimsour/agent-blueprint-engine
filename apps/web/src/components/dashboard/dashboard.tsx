@@ -11,6 +11,7 @@ import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import {
+  BookOpenIcon,
   CloudUploadIcon,
   FileUpIcon,
   FolderOpenIcon,
@@ -192,6 +193,12 @@ export function Dashboard({ starters }: { starters: StarterInfo[] }) {
           </div>
         </div>
         <span className="flex shrink-0 items-center gap-1">
+          <Button variant="ghost" size="sm" asChild>
+            <Link href="/tutorial">
+              <BookOpenIcon />
+              How it works
+            </Link>
+          </Button>
           <Button variant="ghost" size="sm" asChild>
             <Link href="/settings">
               <SettingsIcon />

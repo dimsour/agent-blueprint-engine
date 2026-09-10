@@ -12,7 +12,7 @@ Everything happens in the browser. There is no server, no account and no databas
 lives in IndexedDB, in a folder on your disk, in a ZIP, or in a Git repository, and the two
 optional route handlers are stateless relays that exist only to work around browser limits.
 
-![The workspace](docs/images/workspace.png)
+![The workspace](apps/web/src/assets/screenshots/workspace.png)
 
 ## What it does
 
@@ -23,14 +23,14 @@ a first Blueprint from templates, and a command palette (`⌘K`) creates, naviga
 **Validate.** Structural, semantic, orphan, contradiction and requirement rules, each with a
 stable code and a navigable reference. The health bar opens the findings behind every count.
 
-![Evaluation](docs/images/evaluation.png)
+![Evaluation](apps/web/src/assets/screenshots/evaluation.png)
 
 **Compile.** One Blueprint, five harnesses: Claude Code, OpenAI Codex, GitHub Copilot, OpenCode
 and Pi. Each adapter maps what its harness can express and reports the rest as a compatibility
 issue naming what was lost and where the intent was written instead. Generation is
 deterministic: same Blueprint in, same bytes out.
 
-![Compatibility](docs/images/compatibility.png)
+![Compatibility](apps/web/src/assets/screenshots/compatibility.png)
 
 **Ship.** Export a deterministic ZIP of the source and the compiled output, write to a folder,
 or push to GitHub — one tree, one commit, never forced, with a preview of every path that would
@@ -54,7 +54,7 @@ Other useful commands:
 ```bash
 pnpm build                                        # production build of apps/web
 pnpm --filter web test:e2e                        # Playwright (once: playwright install chromium)
-pnpm --filter web screenshots                     # regenerate docs/images
+pnpm --filter web screenshots                     # regenerate the screenshots
 pnpm --filter @agent-blueprint/core test          # one package
 pnpm format                                       # prettier
 ```

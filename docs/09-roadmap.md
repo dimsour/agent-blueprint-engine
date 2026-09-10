@@ -753,7 +753,7 @@ something, it says what and where that thing still exists.
 - Acceptance: hovering any enabled button shows a pointer; hovering a disabled one does not; no element that is not clickable gains a pointer.
 - Verify: `pnpm --filter web test:e2e` with an assertion on the computed cursor of an enabled and a disabled button.
 
-### P9-06 A tutorial page
+### P9-06 A tutorial page (done)
 
 - Package: `apps/web/src/app/tutorial/`, `apps/web/e2e/screenshots.spec.ts`
 - Depends on: P9-01, P9-03
@@ -762,6 +762,10 @@ something, it says what and where that thing still exists.
 - Linked from the dashboard and from the header, and it must read as useful to somebody who has not created a project yet — which means every step says what to press, not only what happens.
 - Acceptance: `/tutorial` covers each step of the docs/00 story with a current screenshot; every image has an accessible description; the page works with no project stored.
 - Verify: `pnpm --filter web test:e2e accessibility`, `pnpm --filter web screenshots`
+- Built: `/tutorial` walks all eleven beats of the docs/00 story, each one naming the control to press before it says what happens, with fourteen screenshots. It is a server component that reads nothing — no project, no store — because the reader it exists for has not made one. Linked from the dashboard header, from `PageHeader` (which suppresses the link on the tutorial itself) and from the workspace top bar.
+- Built: the screenshot script grew from six shots to fourteen and now writes to `apps/web/src/assets/screenshots`, which the page imports through `next/image` and the README links. Two beats need credentials a reader may not have, and both are shown honestly rather than staged: **Review** is a template proposing a change, the same bargain as an AI proposal without needing an endpoint, and **Improve** is the assistant saying it has no endpoint yet.
+- Found and fixed, a P4-era bug the "Connect" screenshot exposed: `PanelSection`'s content wrapper was a block, so a `flex-1` child could not stretch and collapsed to its own content height. The workflow canvas was taking **416 of the 803 pixels** it was given — clipping its last step, cutting the step panel off mid-sentence, and leaving half the pane looking like empty canvas. Content that scrolls sizes itself and so never showed it. One class, plus an e2e case that measures the canvas against its pane (416 before, 735 after).
+- Found and fixed: the axe sweep's `document-title` failures were a race, not a page. React takes the title down and puts it back across a client transition and a later re-render, so a scan landing in the gap reports a missing title on a page that has one before and after. The rule is now asserted with `toHaveTitle`, which retries — the same check without the race, and stronger, because it says which title.
 
 ### Open questions
 

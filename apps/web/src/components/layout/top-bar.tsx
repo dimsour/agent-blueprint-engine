@@ -4,6 +4,7 @@ import Link from 'next/link'
 import {
   CheckIcon,
   SearchIcon,
+  BookOpenIcon,
   SettingsIcon,
   TriangleAlertIcon,
   CloudUploadIcon,
@@ -112,6 +113,12 @@ export function TopBar({
           <SparklesIcon />
           AI
           <Kbd>{mod}/</Kbd>
+        </Button>
+        {/* Icon-only, like Settings: the bar is 44px and already carries six controls. */}
+        <Button variant="ghost" size="icon-sm" asChild aria-label="How it works">
+          <Link href="/tutorial">
+            <BookOpenIcon />
+          </Link>
         </Button>
         <Button variant="ghost" size="icon-sm" asChild aria-label="Settings">
           <Link href="/settings">

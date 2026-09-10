@@ -13,7 +13,11 @@ import { emptyDraft, setIdentity } from '@/lib/wizard/draft'
 const push = vi.fn()
 const createProject = vi.fn()
 
-vi.mock('next/navigation', () => ({ useRouter: () => ({ push, back: vi.fn() }) }))
+// `PageHeader` reads the pathname to decide whether to link to the tutorial it might be on.
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push, back: vi.fn() }),
+  usePathname: () => '/new',
+}))
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 vi.mock('@/lib/storage', async (importOriginal) => ({
   // The real module is kept: the screen also reads StorageError from it.

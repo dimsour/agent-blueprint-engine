@@ -120,3 +120,69 @@ test.describe('getting back', () => {
     await expect(page.getByRole('heading', { level: 1 })).toContainText('Design once')
   })
 })
+
+/**
+ * The tutorial (P9-06).
+ *
+ * It exists for somebody who has not made a project, so the checks that matter are that they
+ * can find it from where they actually are, that it works with nothing stored, and that its
+ * pictures are the generated ones rather than something that drifted.
+ */
+test.describe('the tutorial', () => {
+  test('is reachable from the dashboard, the other routes and the workspace', async ({ page }) => {
+    await page.goto('/')
+    await page.getByRole('link', { name: 'How it works' }).click()
+    await expect(page).toHaveURL(/\/tutorial$/)
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('How it works')
+
+    // It uses the same header, so it must not offer a link to itself.
+    await expect(page.getByRole('link', { name: 'How it works' })).toHaveCount(0)
+
+    await page.goto('/settings')
+    await page.getByRole('link', { name: 'How it works' }).click()
+    await expect(page).toHaveURL(/\/tutorial$/)
+
+    await page.goto('/')
+    await page.getByRole('button', { name: /React Expert/ }).click()
+    await page.waitForURL(/\/p\//)
+    await page.getByRole('link', { name: 'How it works' }).click()
+    await expect(page).toHaveURL(/\/tutorial$/)
+  })
+
+  test('walks the whole story, with a picture of each step', async ({ page }) => {
+    await page.goto('/tutorial')
+
+    // Every beat of the docs/00 story, in order.
+    const steps = ['Start', 'Describe', 'Review', 'See the graph', 'Connect', 'Improve']
+    for (const step of steps) {
+      await expect(page.getByRole('heading', { level: 2, name: step })).toBeVisible()
+    }
+    for (const step of ['Validate', 'Save', 'Compile', 'Push', 'Use it']) {
+      await expect(page.getByRole('heading', { level: 2, name: step })).toBeVisible()
+    }
+
+    // Served through the optimizer, from the generated set, and every one of them described.
+    const shots = page.getByRole('main').getByRole('img')
+    const count = await shots.count()
+    expect(count).toBeGreaterThan(10)
+    for (let index = 0; index < count; index += 1) {
+      const shot = shots.nth(index)
+      expect(await shot.getAttribute('src')).toContain('/_next/image')
+      expect((await shot.getAttribute('alt'))?.length ?? 0).toBeGreaterThan(20)
+    }
+  })
+
+  test('works with nothing stored, which is who it is for', async ({ page }) => {
+    await page.goto('/tutorial')
+    await page.evaluate(() => {
+      localStorage.clear()
+      return indexedDB
+        .databases?.()
+        .then((all) => Promise.all(all.map((db) => db.name && indexedDB.deleteDatabase(db.name))))
+    })
+    await page.reload()
+
+    await expect(page.getByRole('heading', { level: 2, name: 'Start' })).toBeVisible()
+    await expect(page.getByRole('main').getByRole('img').first()).toBeVisible()
+  })
+})

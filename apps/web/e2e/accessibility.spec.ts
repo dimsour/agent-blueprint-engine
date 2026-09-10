@@ -44,13 +44,18 @@ async function expectTheme(page: Page, theme: Theme): Promise<void> {
  * 0.3" call for different fixes.
  */
 async function violations(page: Page, within?: string): Promise<string[]> {
-  // A client transition takes the document's title down and puts the new one up, and a scan
-  // that lands in that gap reports `document-title` against a page that has one before and
-  // after. Waiting for a title is waiting for the transition to finish; it is a race in the
-  // measurement, not something a reader could ever encounter.
+  /*
+   * `document-title` is asserted here rather than scanned for.
+   *
+   * React takes the title down and puts it back up across a client transition and a later
+   * re-render, so a scan that lands in one of those gaps reports a missing title against a
+   * page that has one before and after — a race in the measurement, not anything a reader
+   * could encounter. `toHaveTitle` retries until it is true, so this is the same check
+   * without the race, and a stronger one: it says which title, not merely that there is one.
+   */
   await expect(page).toHaveTitle(/Agent Blueprint/)
 
-  const builder = new AxeBuilder({ page }).withTags(TAGS)
+  const builder = new AxeBuilder({ page }).withTags(TAGS).disableRules(['document-title'])
   const result = await (within ? builder.include(within) : builder).analyze()
   return result.violations.flatMap((violation) =>
     violation.nodes.map((node) => {
@@ -115,6 +120,17 @@ for (const theme of ['light', 'dark'] as const) {
     test('the wizard has no violations', async ({ page }) => {
       await useTheme(page, theme)
       await page.goto('/new')
+      await expectTheme(page, theme)
+      await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
+
+      expect(await violations(page)).toEqual([])
+    })
+
+    // Fourteen screenshots, and an image without a description is a violation — which is the
+    // point of running axe over a page that is mostly pictures.
+    test('the tutorial has no violations', async ({ page }) => {
+      await useTheme(page, theme)
+      await page.goto('/tutorial')
       await expectTheme(page, theme)
       await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
 

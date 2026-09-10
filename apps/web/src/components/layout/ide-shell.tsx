@@ -148,7 +148,16 @@ export function PanelSection({
         </span>
         {actions}
       </div>
-      <div className={cn('min-h-0 flex-1', scroll && 'overflow-auto')}>{children}</div>
+      {/*
+        A column, not a block, when the content sizes itself. Content that scrolls has an
+        intrinsic height and stretches this box on its own; content that fills — the graph
+        editors, the export preview — asks for `flex-1`, which a block parent ignores, so it
+        collapsed to whatever height it happened to have. The workflow canvas was taking 416
+        of the 803 pixels it was given, clipping its own last step.
+      */}
+      <div className={cn('min-h-0 flex-1', scroll ? 'overflow-auto' : 'flex flex-col')}>
+        {children}
+      </div>
     </div>
   )
 }
