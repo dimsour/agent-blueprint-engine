@@ -11,6 +11,7 @@
  * misrepresent it, and shipping those is worse than refusing.
  */
 import {
+  type Blueprint,
   byteLength,
   type Diagnostic,
   type EntityRef,
@@ -32,14 +33,31 @@ import {
   type ProjectFiles,
   projectFilesOf,
 } from '@/lib/storage'
+import { blockedBySecrets, SecretFindings } from '@/components/secret-findings'
+import { scanForSecrets } from '@/lib/secret-scan'
 import { cn, formatBytes } from '@/lib/utils'
 import { useWorkspace } from '@/lib/state/workspace-store'
+
+/** Everything the archive would hold: the source project plus everything compiled from it. */
+function assembleArchive(blueprint: Blueprint, files: readonly GeneratedFile[]): ProjectFiles {
+  const everything: ProjectFiles = projectFilesOf(blueprint)
+  for (const file of files) {
+    // A compiled file quietly replacing a source file is the one way this archive could ship
+    // something other than what the screen showed.
+    if (file.path in everything && !sameFile(everything[file.path], file.content)) {
+      throw new Error(`Two different files want the path ${file.path}.`)
+    }
+    everything[file.path] = file.content
+  }
+  return everything
+}
 
 export function ExportView() {
   const blueprint = useWorkspace((state) => state.blueprint)
   const select = useWorkspace((state) => state.select)
   const [openPath, setOpenPath] = useState<string>()
   const [busy, setBusy] = useState(false)
+  const [accepted, setAccepted] = useState<Set<string>>(new Set())
 
   const compiled = useMemo(() => {
     if (!blueprint) return undefined
@@ -49,6 +67,19 @@ export function ExportView() {
       return { error: error instanceof Error ? error.message : String(error) }
     }
   }, [blueprint])
+
+  // The same scan the push runs, over the same files (P7-06). An archive is where a project
+  // leaves this browser, and a key in it travels wherever the archive does — usually to
+  // somebody else. A set of files that cannot even be assembled has its own error path, so a
+  // scan that cannot run reports nothing rather than blocking on a problem it did not find.
+  const findings = useMemo(() => {
+    if (!blueprint || !compiled || 'error' in compiled) return []
+    try {
+      return scanForSecrets(assembleArchive(blueprint, compiled.files))
+    } catch {
+      return []
+    }
+  }, [blueprint, compiled])
 
   if (!blueprint || !compiled) return null
 
@@ -90,18 +121,12 @@ export function ExportView() {
 
   const open = groups.flatMap((group) => group.files).find((file) => file.path === openPath)
 
+  const blockedBySecret = blockedBySecrets(findings, accepted)
+
   const download = async () => {
     setBusy(true)
     try {
-      const everything: ProjectFiles = { ...source }
-      for (const file of compiled.files) {
-        // A compiled file quietly replacing a source file is the one way this archive could
-        // ship something other than what the screen showed.
-        if (file.path in everything && !sameFile(everything[file.path], file.content)) {
-          throw new Error(`Two different files want the path ${file.path}.`)
-        }
-        everything[file.path] = file.content
-      }
+      const everything = assembleArchive(blueprint, compiled.files)
       downloadZip(await filesToZip(everything), `${blueprint.id}.zip`)
       toast.success(`Exported ${Object.keys(everything).length} files`, {
         description: 'Source and compiled output, ready to drop into a repository.',
@@ -126,7 +151,7 @@ export function ExportView() {
             variant="outline"
             size="sm"
             className="ml-auto"
-            disabled={busy || errors.length > 0}
+            disabled={busy || errors.length > 0 || blockedBySecret}
             onClick={() => void download()}
           >
             {busy ? (
@@ -187,6 +212,24 @@ export function ExportView() {
                 </li>
               ))}
             </ul>
+          </div>
+        ) : null}
+
+        {findings.length > 0 ? (
+          <div className="border-danger shrink-0 border-b p-3">
+            <SecretFindings
+              findings={findings}
+              accepted={accepted}
+              onToggle={(id) =>
+                setAccepted((current) => {
+                  const next = new Set(current)
+                  if (next.has(id)) next.delete(id)
+                  else next.add(id)
+                  return next
+                })
+              }
+              consequence="An archive travels wherever it is sent, and this one is about to leave the browser."
+            />
           </div>
         ) : null}
 

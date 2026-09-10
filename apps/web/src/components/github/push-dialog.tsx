@@ -18,7 +18,6 @@
  * - a plan with nothing in it offers nothing to press.
  */
 import {
-  AlertTriangleIcon,
   CheckIcon,
   CloudUploadIcon,
   ExternalLinkIcon,
@@ -54,6 +53,7 @@ import {
   parseRepoRef,
 } from '@/lib/github/repos'
 import { GitHubTreeFs, readRemoteTree, type RemoteTree } from '@/lib/github/tree'
+import { blockedBySecrets, Choice, Note, SecretFindings } from '@/components/secret-findings'
 import { scanForSecrets, type SecretFinding } from '@/lib/secret-scan'
 import { useWorkspace } from '@/lib/state/workspace-store'
 
@@ -251,9 +251,7 @@ function Push() {
   // Every finding blocks, including one in a file that is only a conflict. That is not
   // over-blocking: compiled content comes from the source, so anything key-shaped in a compiled
   // file is also in an artifact this push is carrying regardless.
-  const blockedBySecret = (prepared?.findings ?? []).some(
-    (finding) => !accepted.has(secretKey(finding)),
-  )
+  const blockedBySecret = blockedBySecrets(prepared?.findings ?? [], accepted)
   // A ticked conflict is a file this push carries, so it counts towards what the commit does.
   // Counting only `changes` left a repository that already holds the Blueprint, plus one
   // hand-written file the user had just chosen to overwrite, with the Push button disabled.
@@ -503,67 +501,12 @@ function Preview({
         </div>
       ) : null}
 
-      {findings.length > 0 ? (
-        <div className="flex flex-col gap-1.5">
-          <Note tone="danger">
-            Something in these files looks like a credential. Publishing a repository is where that
-            stops being recoverable.
-          </Note>
-          {findings.map((finding) => (
-            <Choice
-              key={secretKey(finding)}
-              id={secretKey(finding)}
-              checked={accepted.has(secretKey(finding))}
-              onToggle={onToggle}
-              label={`${finding.path}:${finding.line} — ${finding.kind}`}
-              detail={finding.excerpt}
-            />
-          ))}
-        </div>
-      ) : null}
+      <SecretFindings
+        findings={findings}
+        accepted={accepted}
+        onToggle={onToggle}
+        consequence="Publishing a repository is where that stops being recoverable."
+      />
     </div>
   )
-}
-
-function Choice({
-  id,
-  checked,
-  onToggle,
-  label,
-  detail,
-}: {
-  id: string
-  checked: boolean
-  onToggle: (id: string) => void
-  label: string
-  detail: string
-}) {
-  return (
-    <label className="flex items-start gap-2 text-sm">
-      <input type="checkbox" className="mt-1" checked={checked} onChange={() => onToggle(id)} />
-      <span className="min-w-0">
-        <span className="block font-mono text-xs break-all">{label}</span>
-        <span className="text-muted-foreground block text-xs">{detail}</span>
-      </span>
-    </label>
-  )
-}
-
-function Note({ tone, children }: { tone: 'danger' | 'warning'; children: React.ReactNode }) {
-  return (
-    <p
-      role="alert"
-      className={`flex items-start gap-2 border-l-2 pl-3 text-xs ${
-        tone === 'danger' ? 'text-danger border-danger' : 'text-warning border-warning'
-      }`}
-    >
-      <AlertTriangleIcon className="mt-0.5 size-3.5 shrink-0" />
-      <span>{children}</span>
-    </p>
-  )
-}
-
-/** A finding is identified by where it is, so ticking one does not tick another like it. */
-function secretKey(finding: SecretFinding): string {
-  return `${finding.path}:${finding.line}:${finding.kind}`
 }

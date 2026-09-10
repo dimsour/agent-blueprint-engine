@@ -518,7 +518,7 @@ Verification: `pnpm check` green; `pnpm --filter @agent-blueprint/core test` sho
 - Verify: `pnpm --filter web test`
 - Built: one tree, one commit, one move of the branch — the Contents API would write a commit per file and leave half a Blueprint behind on a failure. The branch is moved without `force`, so a push whose parent is no longer the head is refused rather than winning a race with whoever pushed meanwhile. The dialog previews before it offers a button: every path, the compiler's errors (which block), files this app did not write (skipped until each is ticked), and anything in the content shaped like a credential (blocks until each is ticked, shown masked — a screenshot of the warning must not be the leak). A manual push against a real repository has not been run; the checks are the mocked ones.
 
-### P7-06 Scan on export, not only on push
+### P7-06 Scan on export, not only on push (done)
 
 - Package: `apps/web/src/components/views/export-view.tsx`
 - Depends on: P7-04
@@ -526,6 +526,7 @@ Verification: `pnpm check` green; `pnpm --filter @agent-blueprint/core test` sho
 - Acceptance: a Blueprint carrying something key-shaped blocks the ZIP download until the finding is accepted; the fixture exports untouched.
 - Verify: `pnpm --filter web test`
 - Found by: building P7-04, which found docs/08 claiming a scan on export that was never built.
+- Built: the export view runs the same scan over the same files and blocks the download until every finding is accepted. Rather than a second implementation, the findings list, the per-finding override and the rule that nothing proceeds until each is ticked moved into one component both surfaces use, so they cannot drift apart. docs/08 no longer describes a scan that does not happen.
 
 ### P7-05 Open/clone from GitHub (done)
 

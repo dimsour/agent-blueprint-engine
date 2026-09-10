@@ -347,3 +347,64 @@ describe('ExportView', () => {
     expect(screen.getByRole('button', { name: /Download/ })).toBeEnabled()
   })
 })
+
+/**
+ * docs/08 says every generated and source file about to be committed is scanned. An archive is
+ * the other way a project leaves this browser, and it usually leaves it towards somebody else,
+ * so the export runs the same scan the push does and refuses on the same terms (P7-06).
+ */
+describe('ExportView: the secret scan', () => {
+  beforeEach(() => useWorkspace.getState().close())
+
+  /** Puts a line into the first agent's persona, which reaches the compiled files as well. */
+  async function withSecret(line: string) {
+    const blueprint = await load()
+    const [first, ...rest] = blueprint.agents
+    if (!first) throw new Error('The fixture has no agents.')
+    useWorkspace.getState().load('test', {
+      ...blueprint,
+      agents: [{ ...first, body: `${first.body}\n\n${line}\n` }, ...rest],
+    })
+  }
+
+  it('downloads a clean project without asking anything', async () => {
+    await load()
+    render(<ExportView />)
+
+    expect(screen.getByRole('button', { name: 'Download' })).toBeEnabled()
+    expect(screen.queryByText(/looks like a credential/)).not.toBeInTheDocument()
+  })
+
+  it('refuses while something in the files looks like a credential', async () => {
+    await withSecret('Use AKIAIOSFODNN7EXAMPLE when deploying.')
+    render(<ExportView />)
+
+    expect(await screen.findByText(/looks like a credential/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Download' })).toBeDisabled()
+  })
+
+  it('downloads once every finding has been accepted, one at a time', async () => {
+    const user = userEvent.setup()
+    await withSecret('Use AKIAIOSFODNN7EXAMPLE when deploying.')
+    render(<ExportView />)
+
+    // One pasted key becomes several findings: the artifact that carries it, and every file
+    // compiled from that artifact. Each is a separate decision to ship it.
+    const findings = screen.getAllByRole('checkbox', { name: /AWS access key/ })
+    expect(findings.length).toBeGreaterThan(1)
+    for (const finding of findings.slice(0, -1)) {
+      await user.click(finding)
+      expect(screen.getByRole('button', { name: 'Download' })).toBeDisabled()
+    }
+    await user.click(findings.at(-1)!)
+    expect(screen.getByRole('button', { name: 'Download' })).toBeEnabled()
+  })
+
+  it('never shows the credential it found', async () => {
+    await withSecret('key: sk-abcdefghijklmnopqrstuvwxyz01')
+    render(<ExportView />)
+
+    await screen.findByText(/looks like a credential/)
+    expect(document.body.textContent).not.toContain('sk-abcdefghijklmnopqrstuvwxyz01')
+  })
+})
