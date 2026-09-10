@@ -299,12 +299,12 @@ MemoryDefinition (`memoryDefinitionSchema`) = EntityBase +
 
 Requirement (`requirementSchema`) = EntityBase +
 
-| Field       | Type                 | Default  | Meaning                                                          |
-| ----------- | -------------------- | -------- | ---------------------------------------------------------------- |
-| `statement` | string               | required | The requirement in prose                                         |
-| `level`     | `'must' \| 'should'` | `'must'` | `REQUIREMENT_LEVELS`                                             |
-| `checks`    | RequirementCheck[]   | `[]`     | Declarative checks the validator evaluates (planned, roadmap P1) |
-| `body`      | Markdown             | `''`     | Notes                                                            |
+| Field       | Type                 | Default  | Meaning                                         |
+| ----------- | -------------------- | -------- | ----------------------------------------------- |
+| `statement` | string               | required | The requirement in prose                        |
+| `level`     | `'must' \| 'should'` | `'must'` | `REQUIREMENT_LEVELS`                            |
+| `checks`    | RequirementCheck[]   | `[]`     | Declarative checks the validator evaluates (P1) |
+| `body`      | Markdown             | `''`     | Notes                                           |
 
 RequirementCheck (`requirementCheckSchema`, discriminated on `type`):
 

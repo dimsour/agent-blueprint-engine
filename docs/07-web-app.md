@@ -1,6 +1,6 @@
 # Web App
 
-This document specifies `apps/web`: routes, layout, state model, persistence, the creation wizard, the ChangeSet review experience, keyboard interaction and the design language. Phases P3 to P7 are built: the dashboard, the workspace, the editors, the inspector, the command palette, the wizard, ZIP import and export, the overview graph and the workflow editor, the trust surfaces (health bar, diagnostics, evaluation, compatibility, export), the AI side — settings, the relay, the ChangeSet review and the assistant — and GitHub: the token, the push with its preview, and opening a project out of a repository. Each section says which phase owns it.
+This document specifies `apps/web`: routes, layout, state model, persistence, the creation wizard, the ChangeSet review experience, keyboard interaction and the design language. Phases P3 to P7 are built, and P8 has hardened them: the dashboard, the workspace, the editors, the inspector, the command palette, the wizard, ZIP import and export, the overview graph and the workflow editor, the trust surfaces (health bar, diagnostics, evaluation, compatibility, export), the AI side — settings, the relay, the ChangeSet review and the assistant — and GitHub: the token, the push with its preview, and opening a project out of a repository. Each section says which phase owns it.
 
 ## Status
 
@@ -12,6 +12,7 @@ This document specifies `apps/web`: routes, layout, state model, persistence, th
 | Health bar, diagnostics, evaluation, compatibility and export views             | present (P5) |
 | AI settings, relay, ChangeSet review, assistant, AI evaluation                  | present (P6) |
 | GitHub: token and sign-in, push with preview, open from a repository            | present (P7) |
+| Accessibility checked in both themes, reduced motion, measured performance      | present (P8) |
 
 ## Routes
 

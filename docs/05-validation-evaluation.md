@@ -1,8 +1,8 @@
 # 05 — Validation and evaluation
 
-Validation answers "is this Blueprint well-formed and coherent?" with a list of `Diagnostic`s. Evaluation (planned, roadmap P1) turns those findings plus heuristics into per-dimension scores with actionable items. Both are pure functions in `packages/core`; the UI only renders them.
+Validation answers "is this Blueprint well-formed and coherent?" with a list of `Diagnostic`s. Evaluation turns those findings plus heuristics into per-dimension scores with actionable items. Both are pure functions in `packages/core`; the UI only renders them.
 
-Implemented today: `packages/core/src/validation/` (types, context, engine, `rules/structural.ts`), `packages/core/src/dependencies/graph.ts`, and the reader diagnostics in `packages/core/src/project/read.ts`. Everything marked **planned** below is roadmap P1 and specified here so it can be built without further design.
+All of it is implemented: `packages/core/src/validation/` (types, context, engine, structural, semantic, orphan, contradiction and requirement rules), `packages/core/src/evaluation/`, `packages/core/src/dependencies/graph.ts`, and the reader diagnostics in `packages/core/src/project/read.ts`. `packages/core/tests/docs.test.ts` fails when a code this catalogue does not list can be emitted, so the two cannot drift.
 
 ## 1. Diagnostic
 
@@ -30,7 +30,7 @@ Severity semantics:
 
 Rules are pure `(ctx: ValidationContext) => Diagnostic[]` with a `code` and `description`; `ValidationContext` exposes `blueprint`, a lazy `index` (`EntityIndex`) and a lazy `graph` (`DependencyGraph`). `validateBlueprint(bp, rules = ALL_RULES)` runs them; `ruleByCode(code)` finds one.
 
-Code format: `BP-<AREA>-<nnn>`. Areas: `ID`, `REF`, `DESC`, `AGENT`, `WF`, `SKILL`, `LAW`, `TARGET`, `PROJECT`, and planned `ORPHAN`, `CONTRA`, `REQ`, `HOOK`, `GATE`, `PORT`. Numbers 001–009 are structural, 010+ semantic.
+Code format: `BP-<AREA>-<nnn>`. Areas: `ID`, `REF`, `DESC`, `AGENT`, `WF`, `SKILL`, `LAW`, `TARGET`, `PROJECT`, `ORPHAN`, `CONTRA`, `REQ`, `HOOK`, `GATE`, `PORT`. Numbers 001–009 are structural, 010+ semantic.
 
 ## 2. Code catalogue
 

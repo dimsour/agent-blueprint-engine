@@ -1,8 +1,9 @@
 # AI layer specification
 
 `packages/ai` turns natural language into reviewable Blueprint changes. The client, structured
-output, the prompt catalogue, the context builder and the operations are built (roadmap P6-01 to
-P6-04); the settings screen, the proxy route and the review UI are the web app's side of it. It
+output, the prompt catalogue, the context builder and the operations are built, and P6-09 checked
+them against four real endpoint implementations; the settings screen, the proxy route and the
+review UI are the web app's side of it. It
 depends only on `@agent-blueprint/core`, speaks the OpenAI-compatible chat completions protocol
 over `fetch`, and never modifies a Blueprint itself: every operation returns a `ChangeSet` or a
 report that the UI shows for review.

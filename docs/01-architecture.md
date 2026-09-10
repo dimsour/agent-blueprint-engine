@@ -26,7 +26,7 @@ ai-blueprint-engine/
 └── turbo.json                      task graph: build, dev, lint, typecheck, test
 ```
 
-Status: `core`, `fixtures`, `exporters` and `templates` are implemented (roadmap P0 to P2). `ai` still contains a placeholder entry point and a smoke test (P6). `apps/web` is the IDE (P3).
+Status: every package is implemented. `core`, `fixtures`, `exporters` and `templates` came from P0 to P2; `ai` from P6, including the live check against real endpoints; `apps/web` is the IDE, built across P3 to P8.
 
 `@agent-blueprint/templates` has two entry points. The root reads the starter blueprints from disk with `node:fs` and therefore requires Node; `@agent-blueprint/templates/artifacts` holds the per-artifact templates, which are pure data and safe to import in a browser. The IDE's "new from template" imports the second one, so the starter files never reach the client bundle.
 
@@ -68,7 +68,7 @@ All packages are ESM (`"type": "module"`) with `verbatimModuleSyntax`, `exactOpt
 
 ## Data flow
 
-### Authoring (roadmap P3; store and UI not yet implemented)
+### Authoring (P3)
 
 ```
 ┌────────────┐   actions / ChangeSets   ┌──────────────────┐   pure functions   ┌──────────────────┐
@@ -106,7 +106,7 @@ Key functions, all in `packages/core/src/project/`:
 | `stripDefaults(value, schema)`                                                                                                | `strip-defaults.ts` | Removes values equal to their Zod default before writing; the reader restores them       |
 | `entityMainPath`, `parseEntityPath`, `workflowGraphPath`, `skillResourcePath`                                                 | `layout.ts`         | Path conventions and their inverse                                                       |
 
-### Compile (roadmap P2; interface designed, see `docs/04-compiler.md`)
+### Compile (P2; see `docs/04-compiler.md`)
 
 ```
 Blueprint
@@ -120,7 +120,7 @@ Blueprint
                                 └─ writer over VirtualFs (ZIP, local folder, GitHub tree)
 ```
 
-### AI (roadmap P6; contract designed, see `docs/06-ai-layer.md`)
+### AI (P6; see `docs/06-ai-layer.md`)
 
 ```
 UI context (selection + blueprint summary)
@@ -149,10 +149,10 @@ Paths are POSIX-style and relative; `normalizePath` rejects `..`. Content is UTF
 | Backend                            | Status                                     | Used for                                             |
 | ---------------------------------- | ------------------------------------------ | ---------------------------------------------------- |
 | `MemoryFs`                         | implemented (`core/project/virtual-fs.ts`) | tests, in-memory editing, diffing before save        |
-| ZIP (`jszip`)                      | planned (P3)                               | import / export                                      |
-| IndexedDB (`idb`)                  | planned (P3)                               | browser persistence of projects and drafts           |
-| File System Access API             | planned (P3)                               | opening a real folder in Chromium; writes go to disk |
-| GitHub tree (Octokit Git Data API) | planned (P7)                               | preview and atomic push                              |
+| ZIP (`jszip`)                      | built (P3)                                 | import / export                                      |
+| IndexedDB (`idb`)                  | built (P3)                                 | browser persistence of projects and drafts           |
+| File System Access API             | built (P3)                                 | opening a real folder in Chromium; writes go to disk |
+| GitHub tree (Octokit Git Data API) | built (P7)                                 | preview and atomic push                              |
 | Node `fs`                          | planned (CLI, deferred)                    | `blueprint validate                                  | build | export` |
 
 Because every backend implements the same five methods, `readProject` and `writeProject` are backend-agnostic and tested once against `MemoryFs`.

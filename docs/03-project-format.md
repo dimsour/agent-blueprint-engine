@@ -26,11 +26,11 @@ Implementation: `packages/core/src/project/` (`layout.ts`, `read.ts`, `write.ts`
 │   ├── memory/<id>.md
 │   ├── requirements/<id>.md
 │   ├── scenarios/<id>.yaml
-│   └── build-manifest.json             compiler-owned outputs + hashes (written by exporters, planned P2)
-├── README.md                           generated once; owned only if the compiler created it (planned P2)
-├── CLAUDE.md, .claude/…                compiled for Claude Code (planned P2)
-├── AGENTS.md, .agents/skills/…, .codex/…   compiled for Codex; AGENTS.md shared with Copilot / OpenCode / Pi (planned P2)
-└── .github/…, opencode.json, .opencode/…, .pi/…   other targets (planned P2/P8)
+│   └── build-manifest.json             compiler-owned outputs + hashes (written by exporters)
+├── README.md                           generated once; owned only if the compiler created it
+├── CLAUDE.md, .claude/…                compiled for Claude Code
+├── AGENTS.md, .agents/skills/…, .codex/…   compiled for Codex; AGENTS.md shared with Copilot / OpenCode / Pi
+└── .github/…, opencode.json, .opencode/…, .pi/…   compiled for Copilot, OpenCode and Pi
 ```
 
 Path helpers in `layout.ts`: `manifestPath(sourceDir)`, `entityMainPath(sourceDir, kind, id)`, `workflowGraphPath`, `skillResourcePath`, `kindDir`, `buildManifestPath`, and the inverse `parseEntityPath(sourceDir, path)` which returns `{ kind, id, role: 'main' | 'graph' | 'resource' }` or `undefined` for non-artifact files. Constants: `MANIFEST_FILE = 'blueprint.yaml'`, `BUILD_MANIFEST_FILE = 'build-manifest.json'`, `SKILL_FILE = 'SKILL.md'`, `WORKFLOW_GRAPH_SUFFIX = '.workflow.json'`.
@@ -188,7 +188,7 @@ The reader lists everything under `skills/<id>/` other than `SKILL.md` and infer
 
 A resource may be binary — a diagram, a font, a screenshot. The reader reads bytes and decides from the content, not from the extension: a file that decodes as UTF-8 and holds no NUL byte is text, and `encoding` is `utf8` with `content` the file itself; anything else is `base64`. An extension list would get a `.dat` full of text wrong in one direction and a `.md` full of bytes wrong in the other. Text resources are written with a single trailing newline; a binary resource is written as its bytes, since a newline would corrupt it.
 
-The source SKILL.md uses the Blueprint field names (`name` is the display name, `whenToUse`, `activation`, …). The **compiled** SKILL.md emitted by adapters (planned P2) is Agent-Skills-spec conformant (`name` = slug, `description` ≤ 1024, `allowed-tools`, …); the two are different files.
+The source SKILL.md uses the Blueprint field names (`name` is the display name, `whenToUse`, `activation`, …). The **compiled** SKILL.md emitted by adapters is Agent-Skills-spec conformant (`name` = slug, `description` ≤ 1024, `allowed-tools`, …); the two are different files.
 
 ### 3.3 Workflows
 
@@ -371,7 +371,7 @@ compile error rather than a file quietly lost (P8-04).
 
 ## 8. `build-manifest.json`
 
-Written by the compiler (planned P2) at `<sourceDir>/build-manifest.json`; schema in `build-manifest.ts`:
+Written by the compiler at `<sourceDir>/build-manifest.json`; schema in `build-manifest.ts`:
 
 ```json
 {
@@ -483,7 +483,7 @@ checks:
 
 The fixture is kept canonical by `pnpm --filter @agent-blueprint/core fixtures:canonicalize` (reads, normalizes, rewrites). `packages/core/tests/project.test.ts` fails if the fixture drifts from canonical form.
 
-## 12. Future CLI (planned)
+## 12. A CLI, deferred by design
 
 The format is usable without the web app. A CLI is a thin wrapper over `core` and `exporters` with a Node `VirtualFs`:
 
@@ -496,11 +496,11 @@ print(all)
 process.exitCode = summarizeDiagnostics(all).errors > 0 ? 1 : 0
 
 // blueprint build / export <harness>
-const result = compileBlueprint(blueprint, { targets: ['claude-code'] }) // exporters, planned P2
+const result = compileBlueprint(blueprint, { targets: ['claude-code'] })
 await writeGeneratedFiles(result, fs) // honours build-manifest.json ownership
 
 // blueprint test
-runScenarios(blueprint, { mode: 'manual' | 'ai-judge' }) // planned P8+
+runScenarios(blueprint, { mode: 'manual' | 'ai-judge' }) // deferred: see the roadmap
 ```
 
 Nothing in `packages/core` or `packages/exporters` imports React, Next.js or browser APIs, so this needs only a `NodeFs` implementation and an argument parser.

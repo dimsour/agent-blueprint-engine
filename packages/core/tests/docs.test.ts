@@ -66,3 +66,69 @@ describe('diagnostic code catalogue', () => {
     }
   })
 })
+
+/**
+ * Documentation that describes finished work as planned.
+ *
+ * This is the drift that costs the most, because it is invisible: nothing breaks, and the next
+ * person to read the specification builds something that already exists or avoids an API they
+ * were told was a stub. The roadmap's own status table is the source of truth for what is
+ * done, so this stays correct on its own as phases land.
+ */
+describe('phase claims', () => {
+  const ROADMAP = readFileSync(join(REPO_ROOT, 'docs/09-roadmap.md'), 'utf8')
+
+  /** Phases the roadmap's status table marks `done`. */
+  const donePhases = new Set(
+    [...ROADMAP.matchAll(/^\|\s*(P\d)[^|]*\|\s*done\s*\|/gm)].map((match) => match[1]),
+  )
+
+  const DOCS = [
+    '00-vision.md',
+    '01-architecture.md',
+    '02-domain-model.md',
+    '03-project-format.md',
+    '04-compiler.md',
+    '05-validation-evaluation.md',
+    '06-ai-layer.md',
+    '07-web-app.md',
+    '08-security.md',
+    '10-decisions.md',
+    'harness/claude-code.md',
+    'harness/codex.md',
+    'harness/copilot.md',
+    'harness/opencode.md',
+    'harness/pi.md',
+  ]
+
+  it('the roadmap marks at least the early phases done, or this test proves nothing', () => {
+    expect(donePhases.size).toBeGreaterThanOrEqual(7)
+  })
+
+  it('does not call a finished phase planned', () => {
+    const stale: string[] = []
+    for (const name of DOCS) {
+      const text = readFileSync(join(REPO_ROOT, 'docs', name), 'utf8')
+      text.split('\n').forEach((line, index) => {
+        // "planned" and a phase number close together: "planned, roadmap P2", "planned P6".
+        for (const match of line.matchAll(/planned[^.\n]{0,30}?\b(P\d)\b/gi)) {
+          if (donePhases.has(match[1] ?? '')) stale.push(`${name}:${index + 1} ${line.trim()}`)
+        }
+      })
+    }
+    expect(stale).toEqual([])
+  })
+
+  it('does not describe built work as not yet built', () => {
+    const stale: string[] = []
+    for (const name of DOCS) {
+      const text = readFileSync(join(REPO_ROOT, 'docs', name), 'utf8')
+      text.split('\n').forEach((line, index) => {
+        if (/not yet implemented|MVP scope/i.test(line)) {
+          stale.push(`${name}:${index + 1} ${line.trim()}`)
+        }
+      })
+    }
+    expect(stale).toEqual([])
+  })
+})

@@ -1,7 +1,7 @@
 # Compiler specification
 
 The compiler turns a Blueprint into the files a specific AI coding harness reads. It lives in
-`packages/exporters` (planned, roadmap P2) and depends only on `@agent-blueprint/core`. It has no
+`packages/exporters` and depends only on `@agent-blueprint/core`. It has no
 UI, no network and no clock: same Blueprint in, same bytes out.
 
 ```
@@ -30,7 +30,7 @@ All from `@agent-blueprint/core` (existing code):
 | `buildManifestPath`, `DEFAULT_SOURCE_DIR`                                   | `src/project/layout.ts`, `src/schema/blueprint.ts` | Paths                           |
 | `normalizeBlueprint`, `validateBlueprint`, `readProject`, `migrateManifest` | various                                            | Pipeline stages 1–4             |
 
-## Adapter interface (planned)
+## Adapter interface
 
 ```ts
 import type { Blueprint, Diagnostic, EntityRef, HarnessId } from '@agent-blueprint/core'

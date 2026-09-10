@@ -62,7 +62,7 @@ Each record captures a decision that shapes the codebase, why it was taken, and 
 
 - **Status**: accepted
 - **Context**: No harness has a native workflow graph primitive; all support Agent-Skills-spec `SKILL.md` and slash-command invocation.
-- **Decision**: Each workflow compiles to an invocable skill describing ordered steps, delegation targets, parallel groups, gates and failure behaviour (planned, roadmap P2, `emitWorkflowSkill`).
+- **Decision**: Each workflow compiles to an invocable skill describing ordered steps, delegation targets, parallel groups, gates and failure behaviour (`emitWorkflowSkill`).
 - **Consequences**: Workflows become usable everywhere; capability matrices mark them "adapted", not "native". The graph's semantics must be serialisable to prose deterministically.
 - **Alternatives**: harness-specific orchestration code (rejected for MVP; possible per-adapter enhancement later).
 
@@ -94,7 +94,7 @@ Each record captures a decision that shapes the codebase, why it was taken, and 
 
 - **Status**: accepted
 - **Context**: The user wants to bring any key: OpenAI, Anthropic's compatibility endpoint, OpenRouter, or a local model (Ollama, LM Studio, vLLM).
-- **Decision**: `packages/ai` (planned, P6) uses `fetch` against a configurable base URL, with presets and a probe for JSON-schema support; structured output falls back to prompt-guided JSON plus Zod validation and one repair pass. No vendor SDK.
+- **Decision**: `packages/ai` uses `fetch` against a configurable base URL, with presets and a probe for JSON-schema support; structured output falls back to prompt-guided JSON plus Zod validation and one repair pass. No vendor SDK.
 - **Consequences**: Works in the browser and Node; local models are first-class. Provider-specific features (native tool use variants) are not exploited.
 - **Alternatives**: vendor SDKs per provider (rejected: bundle size, server-only assumptions).
 
@@ -102,7 +102,7 @@ Each record captures a decision that shapes the codebase, why it was taken, and 
 
 - **Status**: accepted
 - **Context**: The brief allowed either.
-- **Decision**: CodeMirror 6 behind an editor interface (planned, P3).
+- **Decision**: CodeMirror 6 behind an editor interface.
 - **Consequences**: Small bundle, SSR-friendly, good Markdown/YAML modes. Monaco could be swapped in behind the interface if users demand VS Code parity.
 - **Alternatives**: Monaco (rejected: several MB, worker setup, weaker SSR story).
 
@@ -110,7 +110,7 @@ Each record captures a decision that shapes the codebase, why it was taken, and 
 
 - **Status**: accepted
 - **Context**: No database; the project must be reopenable and portable.
-- **Decision**: File System Access API for real folders (Chromium), IndexedDB for projects and drafts elsewhere, ZIP import/export everywhere; all through `VirtualFs` (planned, P3).
+- **Decision**: File System Access API for real folders (Chromium), IndexedDB for projects and drafts elsewhere, ZIP import/export everywhere; all through `VirtualFs`.
 - **Consequences**: The same reader/writer serves every tier. Non-Chromium browsers lose direct folder editing but keep ZIP.
 - **Alternatives**: browser storage only (rejected: brief forbids browser state as the only source of truth).
 
@@ -118,7 +118,7 @@ Each record captures a decision that shapes the codebase, why it was taken, and 
 
 - **Status**: accepted
 - **Context**: The app is not the runtime, so it cannot observe agent work directly.
-- **Decision**: "Turn this into reusable knowledge" takes pasted notes, a transcript or a diff and returns a ChangeSet (planned, P6).
+- **Decision**: "Turn this into reusable knowledge" takes pasted notes, a transcript or a diff and returns a ChangeSet.
 - **Consequences**: Works with any harness today. Automatic capture is deferred to CI or telemetry integrations.
 - **Alternatives**: harness plugins that stream sessions (deferred).
 
