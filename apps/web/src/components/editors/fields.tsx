@@ -8,7 +8,7 @@
  * `upsertEntity`, which is a schema parse of one entity and cheap enough per keystroke.
  */
 import { InfoIcon, PlusIcon, XIcon } from 'lucide-react'
-import { useId, useRef, useState, type ReactNode, type RefObject } from 'react'
+import { useId, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from 'react'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -126,7 +126,6 @@ function HelpPanel({
   example,
   hasContent,
   onInsertExample,
-  onDismiss,
 }: {
   id: string
   label: string
@@ -134,7 +133,6 @@ function HelpPanel({
   example?: string
   hasContent: boolean
   onInsertExample?: ((example: string) => void) | undefined
-  onDismiss: () => void
 }) {
   const [confirming, setConfirming] = useState(false)
   const insert = (text: string) => {
@@ -143,15 +141,7 @@ function HelpPanel({
   }
 
   return (
-    <div
-      id={id}
-      className="bg-muted/50 flex flex-col gap-2 rounded-md border p-2.5 text-xs"
-      onKeyDown={(event) => {
-        if (event.key !== 'Escape') return
-        event.stopPropagation()
-        onDismiss()
-      }}
-    >
+    <div id={id} className="bg-muted/50 flex flex-col gap-2 rounded-md border p-2.5 text-xs">
       {help ? <p className="text-muted-foreground">{help}</p> : null}
       {example ? (
         <>
@@ -220,8 +210,29 @@ export function Field({
   const [open, setOpen] = useState(false)
   const explained = Boolean(help ?? example)
 
+  const dismiss = () => {
+    setOpen(false)
+    // Escape must not cost a keyboard user their place in the form.
+    trigger.current?.focus()
+  }
+
   return (
-    <div className={cn('flex flex-col gap-1.5', className)}>
+    <div
+      className={cn('flex flex-col gap-1.5', className)}
+      // On the whole field, not on the panel: pressing the info button leaves focus on the
+      // button, which is outside the panel, so a handler there would never see the Escape a
+      // keyboard user presses from the one place they actually are. Only mounted while the
+      // panel is open, so Escape still reaches the dialog behind it the rest of the time.
+      {...(open
+        ? {
+            onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => {
+              if (event.key !== 'Escape') return
+              event.stopPropagation()
+              dismiss()
+            },
+          }
+        : {})}
+    >
       <div className="flex items-center gap-1.5">
         <Label htmlFor={htmlFor}>{label}</Label>
         {explained ? (
@@ -244,11 +255,6 @@ export function Field({
           {...(example ? { example } : {})}
           hasContent={hasContent}
           onInsertExample={onInsertExample}
-          onDismiss={() => {
-            setOpen(false)
-            // Escape must not cost a keyboard user their place in the form.
-            trigger.current?.focus()
-          }}
         />
       ) : null}
       {children}

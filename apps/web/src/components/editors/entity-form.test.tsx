@@ -227,6 +227,22 @@ describe('EntityForm', () => {
       expect(screen.getByText(FIELD_EXAMPLES['skill.whenToUse'] ?? '')).toBeInTheDocument()
     })
 
+    it('closes on Escape from where the keyboard actually is', async () => {
+      await load()
+      const user = userEvent.setup()
+      render(<EntityForm selection={{ kind: 'skill', id: 'react-testing' }} />)
+
+      // Opening it leaves focus on the button, which is outside the panel. Escape pressed
+      // there has to close it, or the only way out of the panel is the mouse.
+      const info = screen.getByRole('button', { name: 'About When to use' })
+      await user.click(info)
+      expect(info).toHaveAttribute('aria-expanded', 'true')
+
+      await user.keyboard('{Escape}')
+      expect(info).toHaveAttribute('aria-expanded', 'false')
+      expect(info).toHaveFocus()
+    })
+
     it('fills an empty field without asking', async () => {
       await load()
       const user = userEvent.setup()
