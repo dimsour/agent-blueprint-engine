@@ -13,7 +13,7 @@ import { executableCriteria, hookPrompt, hookStatusMessage, isCommandAction } fr
 import type { CompatibilityIssue } from '../types'
 
 /** Copilot tool aliases (docs/harness/copilot.md). */
-export type ToolAlias = 'read' | 'edit' | 'execute' | 'search' | 'web' | 'agent' | 'todo'
+type ToolAlias = 'read' | 'edit' | 'execute' | 'search' | 'web' | 'agent' | 'todo'
 
 const ALIAS_ORDER: ToolAlias[] = ['read', 'edit', 'search', 'execute', 'web', 'agent', 'todo']
 
@@ -120,7 +120,7 @@ function matcherFor(kinds: readonly ToolKind[]): string | undefined {
   return [...aliases].sort().join('|')
 }
 
-export function lowerTrigger(hook: Hook): { event: string; matcher?: string } {
+function lowerTrigger(hook: Hook): { event: string; matcher?: string } {
   switch (hook.trigger) {
     case 'session-start':
       return { event: 'sessionStart' }

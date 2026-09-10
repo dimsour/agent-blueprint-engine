@@ -556,6 +556,18 @@ Verification: `pnpm check` green; `pnpm --filter @agent-blueprint/core test` sho
 - The care went into order: OpenCode reads a pattern object last-match-wins, so the catch-all is written first, the derived rules next and the author's own patterns last. Canonical JSON would have sorted the keys and silently inverted the precedence, so the config is written with `stableJson` and a test asserts the order in the serialized bytes.
 - Not built, and reported instead: hooks and gates, which need a TypeScript plugin (P8-10); a primary agent file and `default_agent`, because `AGENTS.md` already carries that persona and a second copy would be in context twice; `.opencode/rules/` plus `instructions`, because `instructions` adds always-loaded files rather than scoping them. `permissions` moved from `adapted` to `native`.
 
+### P8-12 Review of P8 (done)
+
+- Package: `packages/exporters`, `apps/web`
+- Depends on: P8-01 to P8-09
+- Description: Read everything P8 built, looking for unhandled cases, unused code and claims that do not hold.
+- Verify: `pnpm check`
+- Found three real defects, all in the permission and storage work, none caught by the suites that existed:
+  - **Pi compiled an unconstrained agent into a crippled one.** An agent that declares no permissions is not an agent that denies everything, but `defaultTools` was derived the same way for both, and `defaultTools: []` means _no built-in tools_ to Pi. A Blueprint that simply never mentioned permissions produced an agent that could not read a file. The key is omitted now, which is what "unspecified" means.
+  - **OpenCode put a path where a command goes.** An `fs.delete` pattern is a path glob; it was being written into the `bash` rules, where it matches no command ever while reading as though the rule were honoured. Patterns whose operation has no shape in OpenCode — `fs.delete`, `net.*`, `mcp` — are reported now instead.
+  - **The folder tier still read every file as text**, so a binary asset opened from disk came back decoded and saving wrote that back over it. This is the one P8-04 was supposed to make impossible, and the reason it survived is worth keeping: the union type makes _consuming_ a value without handling bytes a compile error, but a string is a perfectly good `ProjectFile`, so _producing_ one is not. Reading is the direction the type system does not check.
+- Also: un-exported three symbols nothing outside their module read, and added a check that measures every severity colour pair directly rather than relying on a page happening to render one. That check passes — the suspicion behind it was wrong — but the sweep only ever measured the success badge, because the starter it sweeps is clean.
+
 ### P8-10 OpenCode hook plugin
 
 - Package: `packages/exporters/src/opencode/`

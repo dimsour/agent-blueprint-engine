@@ -256,3 +256,46 @@ test.describe('reduced motion', () => {
     expect(Number.parseFloat(duration)).toBeLessThan(0.001)
   })
 })
+
+/**
+ * The palette itself, measured directly.
+ *
+ * Sweeping pages only measures the colours those pages happened to render, and the severity
+ * pairs are exactly the ones a healthy project never shows: the sweep above found the success
+ * badge because the starter is clean, and would not have found the warning or danger badge at
+ * all. So this renders every pair on its own ground and asks axe about that, which is a
+ * question about the palette rather than about a fixture.
+ */
+test.describe('severity colours', () => {
+  const PAIRS = [
+    { name: 'success', fg: 'var(--success)', bg: 'var(--success-muted)' },
+    { name: 'warning', fg: 'var(--warning)', bg: 'var(--warning-muted)' },
+    { name: 'danger', fg: 'var(--danger)', bg: 'var(--danger-muted)' },
+    { name: 'accent', fg: 'var(--accent)', bg: 'var(--accent-muted)' },
+    { name: 'accent-on-page', fg: 'var(--accent)', bg: 'var(--background)' },
+    { name: 'muted-text', fg: 'var(--muted-foreground)', bg: 'var(--background)' },
+    { name: 'accent-foreground', fg: 'var(--accent-foreground)', bg: 'var(--accent)' },
+  ]
+
+  for (const theme of ['light', 'dark'] as const) {
+    test(`every severity pair is readable in the ${theme} theme`, async ({ page }) => {
+      await useTheme(page, theme)
+      await page.goto('/')
+      await expectTheme(page, theme)
+
+      await page.evaluate((pairs) => {
+        const host = document.createElement('div')
+        host.id = 'palette-probe'
+        for (const pair of pairs) {
+          const swatch = document.createElement('p')
+          swatch.textContent = `${pair.name} at the size a badge uses`
+          swatch.style.cssText = `color:${pair.fg};background:${pair.bg};font-size:12px;font-weight:500;padding:4px`
+          host.append(swatch)
+        }
+        document.body.prepend(host)
+      }, PAIRS)
+
+      expect(await violations(page, '#palette-probe')).toEqual([])
+    })
+  }
+})

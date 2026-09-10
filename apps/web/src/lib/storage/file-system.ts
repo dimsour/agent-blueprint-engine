@@ -9,6 +9,8 @@
  * Handles are kept in IndexedDB so a folder opened yesterday is still listed today. The
  * browser still asks for permission again on a new session; `open` requests it.
  */
+import { decodeUtf8 } from '@agent-blueprint/core'
+
 import { db } from './indexeddb'
 import {
   type ProjectFiles,
@@ -136,6 +138,10 @@ async function ensurePermission(
 /** Directories the compiler and the editor never need to read. */
 const SKIPPED = new Set(['node_modules', '.git', '.next', 'dist', 'coverage', '.turbo'])
 
+/** Exposed for tests: a real directory handle needs a browser, the reading logic does not. */
+export const readDirectoryForTests = (handle: DirectoryHandle): Promise<ProjectFiles> =>
+  readDirectory(handle)
+
 async function readDirectory(handle: DirectoryHandle, prefix = ''): Promise<ProjectFiles> {
   const files: ProjectFiles = {}
   for await (const [name, child] of handle.entries()) {
@@ -144,8 +150,11 @@ async function readDirectory(handle: DirectoryHandle, prefix = ''): Promise<Proj
     if (child.kind === 'directory') {
       Object.assign(files, await readDirectory(child as DirectoryHandle, path))
     } else {
+      // Read the bytes and decode only what is text. `file.text()` on a skill's asset returns
+      // a string that is no longer the file, and saving would then write that back over it.
       const file = await (child as FileHandle).getFile()
-      files[path] = await file.text()
+      const bytes = new Uint8Array(await file.arrayBuffer())
+      files[path] = decodeUtf8(bytes) ?? bytes
     }
   }
   return files

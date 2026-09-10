@@ -192,3 +192,29 @@ describe('pi adapter', () => {
     expect(files.map((file) => file.path)).not.toContain('.pi/settings.json')
   })
 })
+
+/**
+ * The difference between "denied" and "not mentioned".
+ *
+ * `defaultTools: []` means *no built-in tools* to Pi. A Blueprint that never declared
+ * permissions has not asked for that, and compiling it into an agent that cannot read a file
+ * would be the adapter inventing a policy nobody wrote.
+ */
+describe('an agent that declares no permissions', () => {
+  it('gets Pi defaults rather than an empty tool list', async () => {
+    const blueprint = await withPermissions({ operations: {}, patterns: [] })
+    const { files } = compileBlueprint(blueprint, { targets: ['pi'] })
+
+    expect(files.map((file) => file.path)).not.toContain('.pi/settings.json')
+  })
+
+  it('still gets an empty list when everything really is denied', async () => {
+    const blueprint = await withPermissions({
+      operations: { 'fs.read': 'deny', 'fs.write': 'deny', 'shell.mutating': 'deny' },
+      patterns: [],
+    })
+    const { files } = compileBlueprint(blueprint, { targets: ['pi'] })
+
+    expect(settingsOf(files).defaultTools).toEqual([])
+  })
+})

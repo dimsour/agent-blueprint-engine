@@ -122,9 +122,17 @@ const issue = (
 /**
  * The built-in tools the primary agent's permissions leave open. Pi has no `ask`, so anything
  * not denied is enabled and the approval the author asked for is reported as lost.
+ *
+ * Returns undefined when the agent declares no permissions at all, which is not the same as
+ * declaring that everything is denied. `defaultTools: []` means *no built-in tools* to Pi, so
+ * emitting it for a Blueprint that simply never mentioned permissions would compile a
+ * perfectly ordinary agent into one that cannot read a file. Omitting the key leaves Pi's own
+ * defaults, which is what "unspecified" means.
  */
-export function defaultTools(agent: Agent): PiTool[] {
+function defaultTools(agent: Agent): PiTool[] | undefined {
   const operations = agent.permissions.operations
+  if (Object.keys(operations).length === 0) return undefined
+
   const open = (...names: (keyof typeof operations)[]): boolean =>
     names.some((name) => operations[name] !== undefined && operations[name] !== 'deny')
 
@@ -361,9 +369,13 @@ export const piAdapter: HarnessAdapter<PiOptions> = {
 
     if (options.emitSettings && primary) {
       const tools = defaultTools(primary)
-      files.push(
-        generatedFile(SETTINGS_FILE, stableJson({ defaultTools: tools }), 'json', 'pi', []),
-      )
+      // No permissions declared, nothing else to put in the file: writing an empty settings
+      // file would be a claim about Pi's configuration that the Blueprint never made.
+      if (tools) {
+        files.push(
+          generatedFile(SETTINGS_FILE, stableJson({ defaultTools: tools }), 'json', 'pi', []),
+        )
+      }
 
       const asked = Object.entries(primary.permissions.operations)
         .filter(([, decision]) => decision === 'ask')

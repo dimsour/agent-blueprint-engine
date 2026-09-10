@@ -250,3 +250,53 @@ describe('opencode adapter', () => {
     expect(files.map((file) => file.path)).not.toContain('opencode.json')
   })
 })
+
+/**
+ * A pattern is shaped by its operation: `shell.mutating` carries a command, `fs.write` a path,
+ * `net.docs` a domain. Putting one in the wrong place is worse than dropping it, because the
+ * config then reads as though the rule were honoured while matching nothing at all.
+ */
+describe('patterns that are not commands', () => {
+  async function withPattern(operation: string, pattern: string): Promise<Blueprint> {
+    const blueprint = structuredClone(await loadFixture())
+    blueprint.agents[0]!.permissions.patterns = [
+      {
+        operation,
+        pattern,
+        decision: 'allow',
+      } as (typeof blueprint.agents)[0]['permissions']['patterns'][0],
+    ]
+    return blueprint
+  }
+
+  it('keeps a delete path out of the command rules', async () => {
+    const { files, issues } = compileBlueprint(await withPattern('fs.delete', 'tmp/**'), {
+      targets: ['opencode'],
+    })
+    const bash = configOf(files).permission?.bash as Record<string, Decision>
+
+    // A path in `bash` matches no command ever.
+    expect(Object.keys(bash)).not.toContain('tmp/**')
+    expect(issues.some((issue) => issue.message.includes('no rule shape for fs.delete'))).toBe(true)
+  })
+
+  it('says a domain rule is not enforced rather than dropping it in silence', async () => {
+    const { issues } = compileBlueprint(await withPattern('net.docs', 'docs.example.com'), {
+      targets: ['opencode'],
+    })
+    const reported = issues.find((issue) => issue.message.includes('no rule shape for net.docs'))
+
+    expect(reported?.support).toBe('limited')
+    expect(reported?.message).toContain('The blanket decision still applies')
+  })
+
+  it('still lowers the patterns it does have a shape for', async () => {
+    const { files, issues } = compileBlueprint(await withPattern('shell.mutating', 'pnpm test *'), {
+      targets: ['opencode'],
+    })
+    const bash = configOf(files).permission?.bash as Record<string, Decision>
+
+    expect(bash['pnpm test *']).toBe('allow')
+    expect(issues.some((issue) => issue.message.includes('no rule shape'))).toBe(false)
+  })
+})

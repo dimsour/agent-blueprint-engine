@@ -297,3 +297,48 @@ describe('a project this version cannot read', () => {
     expect((error as StorageError).message).toContain('Update the application')
   })
 })
+
+/**
+ * The folder tier, which the sweep above could not reach: `FileSystemAccessStore` needs a
+ * directory handle, and jsdom has none. A fake one is enough — what is being checked is how
+ * the store reads a file, not whether Chromium implements the API.
+ *
+ * This is where the binary support was still missing after P8-04: every other tier failed to
+ * compile until it handled bytes, but reading is the direction the type system does not catch,
+ * because a string is a perfectly good `ProjectFile`.
+ */
+describe('a folder on disk', () => {
+  const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0xff, 0xfe])
+
+  function fakeDirectory(entries: Record<string, Uint8Array | string>) {
+    return {
+      name: 'project',
+      entries: async function* () {
+        for (const [name, content] of Object.entries(entries)) {
+          yield [
+            name,
+            {
+              kind: 'file' as const,
+              name,
+              getFile: () =>
+                Promise.resolve(
+                  new File([typeof content === 'string' ? content : new Uint8Array(content)], name),
+                ),
+            },
+          ] as const
+        }
+      },
+      queryPermission: () => Promise.resolve('granted' as const),
+    }
+  }
+
+  it('reads a binary file as its bytes and a text file as text', async () => {
+    const { readDirectoryForTests } = await import('./file-system')
+    const files = await readDirectoryForTests(
+      fakeDirectory({ 'logo.png': PNG, 'notes.md': '# Notes\n' }) as never,
+    )
+
+    expect(Array.from(files['logo.png'] as Uint8Array)).toEqual(Array.from(PNG))
+    expect(files['notes.md']).toBe('# Notes\n')
+  })
+})

@@ -54,8 +54,10 @@ function bashPatterns(permissions: PermissionSet): Record<string, PermissionDeci
   set('git push -f *', operations['git.force-push'])
   set('rm *', operations['fs.delete'])
 
-  // The author's own rules are the most specific thing they wrote, so they go last.
-  for (const operation of ['shell.readonly', 'shell.mutating', 'fs.delete'] as const) {
+  // The author's own rules are the most specific thing they wrote, so they go last. Only the
+  // operations whose patterns *are* commands: an `fs.delete` pattern is a path, and a path in
+  // a command rule matches no command ever while reading as though the rule were honoured.
+  for (const operation of ['shell.readonly', 'shell.mutating'] as const) {
     for (const pattern of patternsFor(permissions, operation)) {
       rules[pattern.pattern] = pattern.decision
     }
@@ -63,6 +65,14 @@ function bashPatterns(permissions: PermissionSet): Record<string, PermissionDeci
 
   return rules
 }
+
+/** Operations whose patterns this adapter can express: commands in `bash`, paths in `read`/`edit`. */
+const LOWERED_PATTERN_OPERATIONS = new Set([
+  'shell.readonly',
+  'shell.mutating',
+  'fs.read',
+  'fs.write',
+])
 
 /** Path patterns for a file operation, or a single decision when there are none. */
 function pathValue(
@@ -127,6 +137,24 @@ export function lowerPermissions(agent: Agent): {
       permissions.webfetch = any ?? docs ?? 'ask'
     }
     if (any !== undefined) permissions.websearch = any
+  }
+
+  // A pattern this adapter has nowhere to put is the kind of loss that is only visible if it
+  // is said out loud: an `fs.delete` path, a `net.docs` domain, an `mcp` rule. The blanket
+  // decision for those operations still applies; the exception the author wrote does not.
+  const dropped = agent.permissions.patterns.filter(
+    (pattern) => !LOWERED_PATTERN_OPERATIONS.has(pattern.operation),
+  )
+  if (dropped.length > 0) {
+    const operations = [...new Set(dropped.map((pattern) => pattern.operation))].sort()
+    issues.push(
+      issue(
+        'permissions',
+        'limited',
+        `OpenCode has no rule shape for ${operations.join(', ')}, so the ${dropped.length} pattern(s) on "${agent.name}" for those operations are not enforced. The blanket decision still applies; the exception does not. They are in the AGENTS.md command policy.`,
+        { ref: { kind: 'agent', id: agent.id }, adaptation: 'AGENTS.md "Command policy" section' },
+      ),
+    )
   }
 
   return { permissions, issues }
