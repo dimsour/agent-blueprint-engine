@@ -1,15 +1,15 @@
 'use client'
 
 /**
- * "Draft with AI" on the first step of the wizard.
+ * "Draft with AI" on `/new`.
  *
- * The wizard is ten questions, which is the right shape for someone who knows what they want
- * and a lot to face with a blank page. This fills the page in — and then hands it to the same
- * review as everywhere else, so what arrives is a proposal the author reads rather than a
- * project someone else wrote.
+ * A name and a description is the right shape for someone who knows what they want, and a
+ * blank page for someone who does not. This fills it in from a sentence about the work — and
+ * then hands what came back to the same review as everywhere else, so it arrives as a
+ * proposal the author reads rather than a project someone else wrote.
  *
- * It is deliberately not a shortcut past the remaining steps. Applying leaves the draft where
- * it was, on step one, with everything the model proposed now in it to be corrected.
+ * Applying it does not create anything. The draft stays on this screen, with everything the
+ * model proposed now in it to be corrected before Create.
  */
 import { applyChangeSet, type Blueprint, type ChangeOp } from '@agent-blueprint/core'
 import { AIError, generateBlueprint } from '@agent-blueprint/ai'

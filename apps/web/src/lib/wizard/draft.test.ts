@@ -1,32 +1,18 @@
-import { blueprintSchema, validateBlueprint } from '@agent-blueprint/core'
-import { templatesForKind } from '@agent-blueprint/templates/artifacts'
+import { blueprintSchema } from '@agent-blueprint/core'
 import { describe, expect, it } from 'vitest'
 
 import { enabledTargetIds } from '@/lib/targets'
 import {
-  addBlank,
-  addFromTemplate,
   blockingReason,
   DRAFT_PLACEHOLDER_NAME,
   emptyDraft,
-  primaryAgent,
-  removeArtifact,
-  setAgent,
   setIdentity,
   setTargets,
-  WIZARD_STEPS,
 } from '@/lib/wizard/draft'
 
-const firstSkillTemplate = () => templatesForKind('skill')[0]?.id ?? ''
-
-describe('the wizard draft', () => {
+describe('the new-project draft', () => {
   it('starts as a valid Blueprint', () => {
     expect(blueprintSchema.safeParse(emptyDraft()).success).toBe(true)
-  })
-
-  it('asks the ten questions in docs/07', () => {
-    expect(WIZARD_STEPS).toHaveLength(10)
-    expect(WIZARD_STEPS[0]?.prompt).toBe('What are you building?')
   })
 
   it('starts on the two harnesses that have a complete adapter', () => {
@@ -74,85 +60,12 @@ describe('the wizard draft', () => {
     expect(blueprintSchema.safeParse(draft).success).toBe(true)
   })
 
-  it('creates the agent on first edit and makes it primary', () => {
-    const draft = setAgent(setIdentity(emptyDraft(), { name: 'Docs Bot' }), {
-      name: 'Docs Writer',
-      role: 'worker',
-    })
-
-    expect(draft.agents).toHaveLength(1)
-    expect(primaryAgent(draft)?.name).toBe('Docs Writer')
-    expect(draft.settings.primaryAgentId).toBe(draft.agents[0]?.id)
-  })
-
-  it('does not throw when a required agent field is cleared to be retyped', () => {
-    const draft = setAgent(emptyDraft(), { name: 'Reviewer' })
-
-    expect(() => setAgent(draft, { name: '' })).not.toThrow()
-    // The draft keeps its last valid agent; the field keeps what was typed.
-    expect(primaryAgent(setAgent(draft, { name: '' }))?.name).toBe('Reviewer')
-  })
-
   it('turns on a target that arrived disabled', () => {
     const imported = {
       ...emptyDraft(),
       targets: [{ harnessId: 'pi' as const, enabled: false, options: {} }],
     }
     expect(enabledTargetIds(setTargets(imported, ['pi']))).toEqual(['pi'])
-  })
-
-  it('edits the same agent rather than adding another', () => {
-    let draft = setAgent(emptyDraft(), { name: 'Reviewer' })
-    draft = setAgent(draft, { role: 'reviewer', expertise: ['rust'] })
-
-    expect(draft.agents).toHaveLength(1)
-    expect(primaryAgent(draft)?.role).toBe('reviewer')
-    expect(primaryAgent(draft)?.name).toBe('Reviewer')
-  })
-
-  it('adds a skill from a template and links it to the agent', () => {
-    const base = setAgent(emptyDraft(), { name: 'Reviewer' })
-    const added = addFromTemplate(base, firstSkillTemplate())
-
-    expect(added).toBeDefined()
-    expect(added?.draft.skills).toHaveLength(1)
-    expect(primaryAgent(added!.draft)?.skillIds).toEqual([added?.ref.id])
-  })
-
-  it('gives a second copy of a template its own id', () => {
-    const base = setAgent(emptyDraft(), { name: 'Reviewer' })
-    const once = addFromTemplate(base, firstSkillTemplate())!
-    const twice = addFromTemplate(once.draft, firstSkillTemplate())!
-
-    expect(twice.ref.id).not.toBe(once.ref.id)
-    expect(twice.draft.skills).toHaveLength(2)
-    expect(primaryAgent(twice.draft)?.skillIds).toHaveLength(2)
-  })
-
-  it('ignores a template id that does not exist', () => {
-    expect(addFromTemplate(emptyDraft(), 'no-such-template')).toBeUndefined()
-  })
-
-  it('adds a blank artifact and links the kinds an agent can reach', () => {
-    const base = setAgent(emptyDraft(), { name: 'Reviewer' })
-    const { draft, ref } = addBlank(base, 'tool', 'Ripgrep')
-
-    expect(ref).toEqual({ kind: 'tool', id: 'ripgrep' })
-    expect(primaryAgent(draft)?.toolIds).toEqual(['ripgrep'])
-  })
-
-  it('adds an artifact even when no agent exists to link it to', () => {
-    const { draft } = addBlank(emptyDraft(), 'skill', 'Anything')
-    expect(draft.skills).toHaveLength(1)
-  })
-
-  it('removes the artifact and the reference to it together', () => {
-    const base = setAgent(emptyDraft(), { name: 'Reviewer' })
-    const { draft, ref } = addBlank(base, 'skill', 'Testing')
-    const after = removeArtifact(draft, ref)
-
-    expect(after.skills).toHaveLength(0)
-    expect(primaryAgent(after)?.skillIds).toEqual([])
   })
 
   it('records only the chosen harnesses, in the order the model lists them', () => {
@@ -164,32 +77,25 @@ describe('the wizard draft', () => {
     expect(setTargets(emptyDraft(), []).targets).toEqual([])
   })
 
-  it('will not leave step one without a name, or step two without an agent', () => {
-    const blank = emptyDraft()
-    expect(blockingReason(blank, 'about')).toMatch(/name/i)
-    expect(blockingReason(blank, 'agent')).toMatch(/agent/i)
-
-    const named = setAgent(setIdentity(blank, { name: 'Docs Bot' }), { name: 'Writer' })
-    expect(blockingReason(named, 'about')).toBeUndefined()
-    expect(blockingReason(named, 'agent')).toBeUndefined()
+  it('will not create anything without a name', () => {
+    expect(blockingReason(emptyDraft())).toMatch(/name/i)
+    expect(blockingReason(setIdentity(emptyDraft(), { name: 'Docs Bot' }))).toBeUndefined()
   })
 
-  it('produces a Blueprint the validator accepts, end to end', () => {
-    let draft = setIdentity(emptyDraft(), {
+  /**
+   * The draft is the whole of what `/new` produces now, so what matters is that a project
+   * made from one keystroke of it is something the workspace can open and go on editing —
+   * not that it is finished. It is not: it has no agent yet, which the health bar says the
+   * moment the workspace opens.
+   */
+  it('produces a Blueprint the schema accepts, with nothing in it yet', () => {
+    const draft = setIdentity(emptyDraft(), {
       name: 'Rust Review Crew',
       description: 'Reviews Rust changes before they merge.',
     })
-    draft = setAgent(draft, { name: 'Rust Reviewer', role: 'reviewer', expertise: ['rust'] })
-    draft = addFromTemplate(draft, firstSkillTemplate())!.draft
-    draft = addFromTemplate(draft, templatesForKind('workflow')[0]!.id)!.draft
-    draft = addFromTemplate(draft, templatesForKind('iron-law')[0]!.id)!.draft
-    draft = setTargets(draft, ['claude-code'])
 
     expect(blueprintSchema.safeParse(draft).success).toBe(true)
-    expect(validateBlueprint(draft).filter((d) => d.severity === 'error')).toEqual([])
-    expect(draft.agents).toHaveLength(1)
-    expect(draft.skills.length).toBeGreaterThan(0)
-    expect(draft.workflows.length).toBeGreaterThan(0)
-    expect(draft.ironLaws.length).toBeGreaterThan(0)
+    expect(draft.agents).toEqual([])
+    expect(draft.skills).toEqual([])
   })
 })

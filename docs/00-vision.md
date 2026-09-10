@@ -111,7 +111,7 @@ The user-facing summary of this pipeline is **Design → Connect → Validate �
 This is the reference scenario the product is optimised for. Everything that is not on this path is secondary.
 
 1. **Start.** A new user opens the app and sees _Create your first Blueprint_, templates, recent projects, import, and GitHub.
-2. **Describe.** They enter "Create an expert .NET unit-testing agent." With an AI endpoint configured, the wizard offers _Generate first draft with AI_. The AI returns a ChangeSet: one agent (`testing-expert`), three skills (`xunit`, `test-design`, `fluent-assertions`), two workflows (`write-tests`, `review-tests`), three iron laws, one gate (`tests-pass`). Nothing is applied yet.
+2. **Describe.** `/new` asks one question: what are you building? They name it "Rust Review Crew" and press Create, and the editor opens on it. With an AI endpoint configured they can instead enter "Create an expert .NET unit-testing agent" and press _Draft this with AI_, and the model returns a ChangeSet: one agent (`testing-expert`), three skills (`xunit`, `test-design`, `fluent-assertions`), two workflows (`write-tests`, `review-tests`), three iron laws, one gate (`tests-pass`). Nothing is applied yet, and nothing is created until Create.
 3. **Review.** The ChangeSet review shows every proposed create as a diff. The user accepts all.
 4. **See the graph.** The overview graph is derived from typed references: agent → skills, agent → workflows, workflow nodes → gate. No layout is stored; it is computed.
 5. **Connect.** In the workflow editor the user wires _Understand → Design → Implement → Run tests → Gate → Done_ with a retry edge from the verification node back to implementation.

@@ -14,13 +14,14 @@ This document specifies `apps/web`: routes, layout, state model, persistence, th
 | GitHub: token and sign-in, push with preview, open from a repository            | present (P7) |
 | Accessibility checked in both themes, reduced motion, measured performance      | present (P8) |
 | The mark in the tab and every header; a way back from every route but `/`       | present (P9) |
+| One screen to create a project, replacing the ten-step wizard                   | present (P9) |
 
 ## Routes
 
 | Route                                                   | Phase                              | Purpose                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | ------------------------------------------------------- | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `/`                                                     | P3                                 | Dashboard: Create Blueprint (primary CTA), Templates, Recent Projects, Import (ZIP, folder, JSON manifest), GitHub (open or clone)                                                                                                                                                                                                                                                                                                              |
-| `/new`                                                  | P3 (steps), P6-07 (AI draft)       | Creation wizard, 10 steps, editing one draft Blueprint in memory                                                                                                                                                                                                                                                                                                                                                                                |
+| `/new`                                                  | P3, P6-07 (AI draft), P9-03        | Name the Blueprint and create it; one screen, editing one draft in memory                                                                                                                                                                                                                                                                                                                                                                       |
 | `/p/[projectId]`                                        | P3                                 | Workspace. `?view=` selects the centre panel: `overview`, or one entity kind spelled as its project directory (`agents`, `skills`, `laws`, …); `&id=` selects an artifact. `evaluation`, `compatibility` and `export` are the three reports about the whole Blueprint; the rest name one kind. The URL is replaced rather than pushed, so back leaves the workspace instead of walking every artifact clicked on the way in.                    |
 | `/settings`                                             | P3 (storage), P6 (AI), P7 (GitHub) | What this browser is holding: stored projects, space used, and a way to remove them. The AI endpoint sits here — provider preset, base URL, model, key, where the key is kept, and a Save-and-test that really calls the endpoint and reports what came back. The GitHub token sits beside it on the same terms, with a Save-and-check that asks GitHub who the token belongs to, and Sign in with GitHub when the deployment has an OAuth app. |
 | `/api/ai/proxy`                                         | P6-05, optional                    | Relays to the configured OpenAI-compatible base URL for endpoints without CORS, and only to hosts the deployment allows                                                                                                                                                                                                                                                                                                                         |
@@ -182,26 +183,22 @@ The preview also answers two questions a project from elsewhere raises before it
 
 Everything outside the source directory is skipped: it is compiler output, which the compiler owns and rewrites on its own terms, and the build manifest describes the repository the files came from rather than this copy.
 
-## Wizard (`/new`, P3 for steps, P6-07 for the AI draft)
+## Creating a project (`/new`, P3, P6-07 for the AI draft, collapsed in P9-03)
 
-| Step | Prompt                  | Creates or edits                                                                       |
-| ---- | ----------------------- | -------------------------------------------------------------------------------------- |
-| 1    | What are you building?  | Blueprint `name`, `id` (slugified, editable), `description`                            |
-| 2    | Who is the agent?       | one `Agent`: name, role, expertise, responsibilities; set as `settings.primaryAgentId` |
-| 3    | What should it know?    | `Skill`s from templates or blank; links `agent.skillIds`                               |
-| 4    | How should it work?     | `Workflow`s from templates; links `agent.workflowIds`                                  |
-| 5    | What must never happen? | `IronLaw`s from category templates; links `agent.ironLawIds`                           |
-| 6    | What tools can it use?  | `Tool`s and `agent.permissions`                                                        |
-| 7    | How should it remember? | `MemoryDefinition` with scope and categories; links `agent.memoryIds`                  |
-| 8    | Where should it run?    | `targets[]` with a harness compatibility preview                                       |
-| 9    | Evaluate                | runs `validateBlueprint` and the evaluation report on the draft                        |
-| 10   | Finish                  | summary of the draft; Create writes the project                                        |
+One screen, one question — _What are you building?_ — and then the workspace:
 
-The draft is a real Blueprint from the first keystroke: every step is a pure function in `lib/wizard/draft` that goes through the same schemas and the same `upsertEntity` as the workspace, so the wizard cannot produce something the editor would refuse. Artifacts added in steps 3 to 7 are linked to the primary agent as they are created.
+| Field         | Writes                                                         |
+| ------------- | -------------------------------------------------------------- |
+| Name          | Blueprint `name`. The only thing Create waits for              |
+| Id            | `id`, slugified from the name until the author edits it        |
+| Description   | `description`                                                  |
+| Draft with AI | a reviewed ChangeSet that fills all three in, and more (P6-07) |
 
-Only steps 1 and 2 block: a Blueprint needs a name, and the system needs the agent it is built around. Everything after that is optional, so the wizard can be finished early and the rest added in the workspace. Step 8 records only the chosen harnesses as targets, which is how the starters read on disk; step 9 scores the draft with `evaluateBlueprint` and the exporters' portability provider; step 10 is a summary rather than the overview graph, which is a view of a stored project.
+The draft is a real Blueprint from the first keystroke: `lib/wizard/draft` is pure functions over the same schemas the workspace uses, so `/new` cannot produce something the editor would then refuse. A new project keeps the `claude-code` + `codex` defaults, and is created with nothing in it.
 
-Step 1 offers _Draft this with AI_ when an endpoint is configured, and a link to Settings when there is not. The draft comes back as a ChangeSet reviewed artifact by artifact; applying it fills step 1 in and leaves the wizard where it was, because drafting fills the page in rather than skipping the questions.
+It used to ask ten questions, and nine of them were artifact creation — a second, smaller editor with no tree, no inspector, no "new from template" and no health bar, standing in front of the one that has all four. Those nine are the workspace now. The two things only the later steps offered are elsewhere and were already: **targets** are toggled from the command palette and the compatibility view, and the **evaluate** step is the evaluation view, which scores the stored project rather than a draft.
+
+_Draft this with AI_ appears when an endpoint is configured, and a link to Settings when there is not. What comes back is a ChangeSet reviewed artifact by artifact; applying it fills the screen in and creates nothing, because drafting fills the page in rather than pressing the button.
 
 ## ChangeSet review (P6-06)
 

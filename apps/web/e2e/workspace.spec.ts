@@ -644,62 +644,35 @@ test.describe('settings', () => {
   })
 })
 
-test.describe('creation wizard', () => {
-  test('walks the ten steps and creates the project it showed', async ({ page }) => {
+test.describe('creating a project', () => {
+  test('is one screen, and lands in the editor (P9-03)', async ({ page }) => {
     await page.goto('/')
     await page.getByRole('link', { name: 'Create Blueprint' }).click()
     await page.waitForURL(/\/new/)
 
-    // 1 · the project. The id follows the name until it is edited.
-    await expect(page.getByRole('button', { name: /^Next/ })).toBeDisabled()
+    // One question. The id follows the name until it is edited.
+    await expect(page.getByRole('button', { name: /Create project/ })).toBeDisabled()
     await page.getByLabel('Name', { exact: true }).fill('Rust Review Crew')
     await expect(page.getByLabel('Id', { exact: true })).toHaveValue('rust-review-crew')
-    await page.getByRole('button', { name: /^Next/ }).click()
+    await page
+      .getByLabel('Description', { exact: true })
+      .fill('Reviews Rust changes before they merge.')
 
-    // 2 · the agent.
-    await expect(page.getByRole('button', { name: /^Next/ })).toBeDisabled()
-    await page.getByLabel('Agent name', { exact: true }).fill('Rust Reviewer')
-    await page.getByRole('button', { name: /^Next/ }).click()
+    // Nothing between the question and the answer: no stepper, and nothing to press Next on.
+    await expect(page.getByRole('navigation', { name: 'Wizard steps' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: /^Next/ })).toHaveCount(0)
 
-    // 3, 4, 5 · one artifact each, from a template.
-    await page.getByRole('button', { name: 'Add Domain expertise' }).click()
-    await page.getByRole('button', { name: /^Next/ }).click()
-    await page.getByRole('button', { name: 'Add Code review' }).click()
-    await page.getByRole('button', { name: /^Next/ }).click()
-    await page.getByRole('button', { name: 'Add Security: never expose secrets' }).click()
-    await page.getByRole('button', { name: /^Next/ }).click()
-
-    // 6 · tools, 7 · memory: both optional here.
-    await page.getByRole('button', { name: /^Next/ }).click()
-    await page.getByRole('button', { name: /^Next/ }).click()
-
-    // 8 · targets. Compile for Claude Code only.
-    await expect(page.getByRole('heading', { name: 'Where should it run?' })).toBeVisible()
-    await page.getByRole('checkbox', { name: 'Codex' }).uncheck()
-    await page.getByRole('button', { name: /^Next/ }).click()
-
-    // 9 · the score, computed on the draft.
-    await expect(page.getByRole('list', { name: 'Scores by dimension' })).toBeVisible()
-    await page.getByRole('button', { name: /^Next/ }).click()
-
-    // 10 · the summary, then create.
-    await expect(page.getByRole('heading', { name: 'Rust Review Crew' })).toBeVisible()
     await page.getByRole('button', { name: /Create project/ }).click()
     await page.waitForURL(/\/p\//)
 
-    // The workspace opens on the Blueprint the wizard built.
-    await expect(kindGroup(page, 'Agents 1')).toBeVisible()
-    await expect(kindGroup(page, 'Skills 1')).toBeVisible()
-    await expect(kindGroup(page, 'Workflows 1')).toBeVisible()
-    await expect(kindGroup(page, 'Iron Laws 1')).toBeVisible()
+    // The workspace opens on it: empty, and the place the artifacts are added from now on.
+    await expect(page.getByRole('banner')).toContainText('Rust Review Crew')
+    await expect(kindGroup(page, 'Agents 0')).toBeVisible()
+    await expect(page.getByRole('contentinfo')).toContainText('0 artifacts')
 
-    // Only the chosen harness is a target.
+    // The defaults a new project keeps, because the wizard no longer asks.
     await expect(page.getByText('claude-code')).toBeVisible()
-    await expect(page.getByText('codex')).toHaveCount(0)
-
-    // The agent owns what the wizard added.
-    await artifact(page, 'Rust Reviewer').click()
-    await expect(page.getByRole('list', { name: 'Depends on' })).toContainText('Domain expertise')
+    await expect(page.getByText('codex')).toBeVisible()
   })
 
   test('a half-finished draft is offered again on the next visit', async ({ page }) => {
@@ -716,18 +689,23 @@ test.describe('creation wizard', () => {
     await expect(page.getByLabel('Name', { exact: true })).toHaveValue('Half Finished')
   })
 
-  test('a project made by the wizard survives a reload', async ({ page }) => {
+  test('a new project survives a reload, and can be filled in from the editor', async ({
+    page,
+  }) => {
     await page.goto('/new')
     await page.getByLabel('Name', { exact: true }).fill('Minimal Crew')
-    await page.getByRole('button', { name: /^Next/ }).click()
-    await page.getByLabel('Agent name', { exact: true }).fill('Only Agent')
-
-    // Every step after the second is optional, so the wizard can be finished early.
-    for (let step = 0; step < 8; step += 1) {
-      await page.getByRole('button', { name: /^Next/ }).click()
-    }
     await page.getByRole('button', { name: /Create project/ }).click()
     await page.waitForURL(/\/p\//)
+
+    // What the removed steps used to do, done where it is done better.
+    await page.keyboard.press('ControlOrMeta+k')
+    const palette = page.getByRole('dialog')
+    await palette.getByRole('combobox').fill('Create Agent')
+    await palette.getByRole('option', { name: /Create Agent/ }).click()
+    await page.getByLabel('Name', { exact: true }).fill('Only Agent')
+
+    // Autosave commits it; the badge is what says the write finished, not the click.
+    await expect(page.getByText('Saved', { exact: true })).toBeVisible({ timeout: 10_000 })
 
     await page.reload()
     await expect(kindGroup(page, 'Agents 1')).toBeVisible()

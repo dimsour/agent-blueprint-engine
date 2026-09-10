@@ -704,7 +704,7 @@ something, it says what and where that thing still exists.
 - The honest cost: reloading `/settings` forgets the project it was opened from and offers `/` instead. Going somewhere sensible beats going somewhere surprising, and the alternative was a control that sometimes leaves the app.
 - `e2e/header.spec.ts` covers both halves: `/settings` reached from a project returns to that project, and `/settings` opened after a page on another origin goes to `/` rather than back to it.
 
-### P9-03 One step to a project
+### P9-03 One step to a project (done)
 
 - Package: `apps/web/src/components/wizard/`, `apps/web/src/lib/wizard/draft.ts`, `apps/web/e2e/workspace.spec.ts`
 - Depends on: P9-02
@@ -714,6 +714,19 @@ something, it says what and where that thing still exists.
 - docs/00 §"End-to-end experience" step 2 describes the ten-step wizard and has to be rewritten, along with docs/07's wizard section. The `creation wizard` e2e block asserts "walks the ten steps".
 - Acceptance: `/new` is one screen; naming a project and pressing Create opens the workspace with that project stored; the AI draft still works from it; no route still references a removed step.
 - Verify: `pnpm --filter web test:e2e`, `pnpm check`
+- Built: `/new` is `PageHeader`, three fields and _Draft this with AI_, and Create. `steps.tsx` is gone — 514 lines — along with `WIZARD_STEPS`, `WizardStepId`, the stepper, `setAgent`, `addFromTemplate`, `addBlank`, `removeArtifact`, `primaryAgent` and the linking table behind them. `blockingReason` no longer takes a step; the one thing that blocks is a name.
+- A project is now created with nothing in it, and that is the point: the artifacts are added in the editor, from the tree and the palette, where the inspector and the health bar can see them. The e2e case walks it — create, palette, Create Agent, save, reload.
+- Found: an empty Blueprint scores **93** and the health bar reports "No findings. This Blueprint is clean." Nothing in the validator says a Blueprint with no agents is unfinished, because until now the wizard made that state unreachable. See P9-07.
+
+### P9-07 A new Blueprint is not clean
+
+- Package: `packages/core/src/validation/rules/`, `packages/core/src/evaluation/`
+- Depends on: P9-03
+- Description: P9-03 makes an empty Blueprint the ordinary starting point, and the trust surfaces say it is fine: health 93, no errors, no warnings, "This Blueprint is clean." The three infos it does report are about gates and hooks. Nothing says there is no agent, no skill and no primary agent — the three things that make a Blueprint compile into anything at all.
+- The scoring reads the same way: a dimension with nothing in it to penalise scores near full marks, so an empty project outscores a real one with a few honest warnings. A score that rewards emptiness is worse than no score.
+- Structural rules for the missing entities, and a coverage floor that an empty dimension cannot pass. Both belong in `core`, where every other rule is, and both need a diagnostic code and a docs/05 entry.
+- Acceptance: a Blueprint straight out of `/new` reports what it is missing, and scores well below one that is finished; the fixture and the ten starters keep their current scores; every new code is in the catalogue.
+- Verify: `pnpm --filter @agent-blueprint/core test`, `pnpm --filter web test:e2e`
 
 ### P9-04 What this field is for (done)
 
@@ -753,7 +766,7 @@ something, it says what and where that thing still exists.
 ### Open questions
 
 1. ~~**The logo needs a mark-only export.**~~ Settled: rather than crop by CSS, the cut is a script. `pnpm --filter web logo` measures nothing at run time — the rectangles live in `e2e/logo-assets.spec.ts`, taken from the artwork's alpha channel — and writes the three assets the app imports. A redrawn logo needs that one command and a re-measurement, and no component changes.
-2. **P9-03 removes the guided path**, which is the one thing in the product aimed at someone who has never built an agent system. P9-06 is the replacement, which is why it depends on it. If the tutorial is not wanted, the wizard is worth keeping as an optional route rather than the default one.
+2. **P9-03 removed the guided path**, which was the one thing in the product aimed at someone who has never built an agent system. P9-06 is the replacement and now has to carry it: until the tutorial exists, a first-time user reaches an empty editor with no idea what to add. Restoring the old wizard is not the fallback — it was a second, worse editor — but P9-06 is no longer optional polish. The steps are in the git history if the decision is ever revisited.
 
 ## Deferred by design
 

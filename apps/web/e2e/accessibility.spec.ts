@@ -44,6 +44,12 @@ async function expectTheme(page: Page, theme: Theme): Promise<void> {
  * 0.3" call for different fixes.
  */
 async function violations(page: Page, within?: string): Promise<string[]> {
+  // A client transition takes the document's title down and puts the new one up, and a scan
+  // that lands in that gap reports `document-title` against a page that has one before and
+  // after. Waiting for a title is waiting for the transition to finish; it is a race in the
+  // measurement, not something a reader could ever encounter.
+  await expect(page).toHaveTitle(/Agent Blueprint/)
+
   const builder = new AxeBuilder({ page }).withTags(TAGS)
   const result = await (within ? builder.include(within) : builder).analyze()
   return result.violations.flatMap((violation) =>
