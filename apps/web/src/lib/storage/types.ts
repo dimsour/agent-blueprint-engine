@@ -5,8 +5,14 @@
  * `renderProjectFiles` produces, so a store never has to understand the Blueprint model: it
  * moves files. That is what lets the same code path serve IndexedDB, a real folder on disk
  * and a ZIP archive.
+ *
+ * A value is text except for a skill resource that is not text, which is the bytes
+ * themselves. Every tier has to carry both: a store that decoded a font as UTF-8 would hand
+ * back something that is no longer the file.
  */
-export type ProjectFiles = Record<string, string>
+import type { ProjectFile } from '@agent-blueprint/core'
+
+export type ProjectFiles = Record<string, ProjectFile>
 
 export type ProjectStoreKind = 'indexeddb' | 'file-system'
 

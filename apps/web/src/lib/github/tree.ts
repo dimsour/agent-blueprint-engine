@@ -13,7 +13,13 @@
  * cache without a request. Only the files that actually differ are downloaded, and those in
  * parallel. On a second push of an unchanged project that is one request in total.
  */
-import type { VirtualFs } from '@agent-blueprint/core'
+import {
+  decodeUtf8,
+  encodeUtf8,
+  fromBase64,
+  type ProjectFile,
+  type VirtualFs,
+} from '@agent-blueprint/core'
 
 import { githubRequest } from './client'
 import { getBranch, type RepoRef } from './repos'
@@ -69,7 +75,8 @@ export async function readRemoteTree(
 const FETCH_CONCURRENCY = 8
 
 export class GitHubTreeFs implements VirtualFs {
-  private readonly contents = new Map<string, string>()
+  /** Blobs already fetched, as bytes: what a file is, before anyone decides it is text. */
+  private readonly contents = new Map<string, Uint8Array>()
 
   constructor(
     private readonly token: string,
@@ -90,14 +97,15 @@ export class GitHubTreeFs implements VirtualFs {
    * Settles, for a set of files this app is about to write, which of them the branch already
    * has byte for byte — without downloading those — and downloads the rest in parallel.
    */
-  async prime(files: Record<string, string>): Promise<void> {
+  async prime(files: Record<string, ProjectFile>): Promise<void> {
     if (!this.tree) return
     const differing: string[] = []
 
     for (const [path, content] of Object.entries(files)) {
       const entry = this.tree.entries.get(path)
       if (!entry || this.contents.has(path)) continue
-      if (entry.sha === (await gitBlobSha(content))) this.contents.set(path, content)
+      if (entry.sha === (await gitBlobSha(content)))
+        this.contents.set(path, typeof content === 'string' ? encodeUtf8(content) : content)
       else differing.push(path)
     }
 
@@ -110,11 +118,11 @@ export class GitHubTreeFs implements VirtualFs {
   }
 
   /** Several files at once, for when the whole point is to read them all. */
-  async readAll(paths: readonly string[]): Promise<Record<string, string>> {
-    const files: Record<string, string> = {}
+  async readAll(paths: readonly string[]): Promise<Record<string, ProjectFile>> {
+    const files: Record<string, ProjectFile> = {}
     for (let index = 0; index < paths.length; index += FETCH_CONCURRENCY) {
       const batch = paths.slice(index, index + FETCH_CONCURRENCY)
-      const contents = await Promise.all(batch.map((path) => this.read(path)))
+      const contents = await Promise.all(batch.map((path) => this.readFile(path)))
       batch.forEach((path, position) => {
         const content = contents[position]
         if (content !== undefined) files[path] = content
@@ -124,10 +132,22 @@ export class GitHubTreeFs implements VirtualFs {
   }
 
   async read(path: string): Promise<string | undefined> {
+    const bytes = await this.readBinary(path)
+    return bytes === undefined ? undefined : decodeUtf8(bytes)
+  }
+
+  async readBinary(path: string): Promise<Uint8Array | undefined> {
     const cached = this.contents.get(path)
     if (cached !== undefined) return cached
     if (!this.tree?.entries.has(path)) return undefined
     return this.fetchBlob(path)
+  }
+
+  /** The file as the project would hold it: text where it is text, bytes where it is not. */
+  private async readFile(path: string): Promise<ProjectFile | undefined> {
+    const bytes = await this.readBinary(path)
+    if (bytes === undefined) return undefined
+    return decodeUtf8(bytes) ?? bytes
   }
 
   exists(path: string): Promise<boolean> {
@@ -143,20 +163,28 @@ export class GitHubTreeFs implements VirtualFs {
     return Promise.reject(new Error('A GitHub branch is read here; a push is a commit.'))
   }
 
+  writeBinary(): Promise<void> {
+    return Promise.reject(new Error('A GitHub branch is read here; a push is a commit.'))
+  }
+
   delete(): Promise<void> {
     return Promise.reject(new Error('A GitHub branch is read here; a push is a commit.'))
   }
 
-  private async fetchBlob(path: string): Promise<string | undefined> {
+  private async fetchBlob(path: string): Promise<Uint8Array | undefined> {
     const entry = this.tree?.entries.get(path)
     if (!entry) return undefined
 
     const { data } = await githubRequest<{ content: string; encoding: string }>(this.token, {
       path: `/repos/${this.repo.owner}/${this.repo.name}/git/blobs/${entry.sha}`,
     })
-    const text = data.encoding === 'base64' ? decodeBase64(data.content) : data.content
-    this.contents.set(path, text)
-    return text
+    // GitHub wraps base64 at 60 characters, so the newlines have to go before decoding.
+    const bytes =
+      data.encoding === 'base64'
+        ? fromBase64(data.content.replace(/\s/g, ''))
+        : encodeUtf8(data.content)
+    this.contents.set(path, bytes)
+    return bytes
   }
 }
 
@@ -167,8 +195,8 @@ export class GitHubTreeFs implements VirtualFs {
  * makes a local string comparable to a tree entry without downloading anything. SHA-1 is
  * Git's choice of identifier here, not a security decision of ours.
  */
-export async function gitBlobSha(content: string): Promise<string> {
-  const body = new TextEncoder().encode(content)
+export async function gitBlobSha(content: ProjectFile): Promise<string> {
+  const body = typeof content === 'string' ? encodeUtf8(content) : content
   const header = new TextEncoder().encode(`blob ${body.length}\0`)
   const bytes = new Uint8Array(header.length + body.length)
   bytes.set(header)
@@ -176,10 +204,4 @@ export async function gitBlobSha(content: string): Promise<string> {
 
   const digest = await crypto.subtle.digest('SHA-1', bytes)
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('')
-}
-
-function decodeBase64(base64: string): string {
-  const binary = atob(base64.replace(/\s/g, ''))
-  const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0))
-  return new TextDecoder().decode(bytes)
 }

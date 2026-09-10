@@ -4,7 +4,13 @@
  * Adapters are pure: they take a normalized Blueprint and return files and compatibility
  * issues. They never touch a file system, a clock, a random source or the network.
  */
-import type { Blueprint, Diagnostic, EntityRef, HarnessId } from '@agent-blueprint/core'
+import type {
+  Blueprint,
+  Diagnostic,
+  EntityRef,
+  HarnessId,
+  ProjectFile,
+} from '@agent-blueprint/core'
 import type { ZodType } from 'zod'
 
 /** The Blueprint concepts whose support differs between harnesses. */
@@ -55,12 +61,16 @@ export interface Capability {
 
 export type CapabilityMatrix = Record<Concept, Capability>
 
-export type FileFormat = 'markdown' | 'json' | 'yaml' | 'toml' | 'typescript' | 'text'
+export type FileFormat = 'markdown' | 'json' | 'yaml' | 'toml' | 'typescript' | 'text' | 'binary'
 
-/** A file the compiler produced. `path` is repository-relative and POSIX-style. */
+/**
+ * A file the compiler produced. `path` is repository-relative and POSIX-style. `content` is
+ * text except for a `binary` file — a skill asset that is not text — which is the bytes
+ * themselves, so a diagram or a font reaches the harness unchanged.
+ */
 export interface GeneratedFile {
   path: string
-  content: string
+  content: ProjectFile
   format: FileFormat
   /** The harness that produced it, or `shared` when several harnesses read the same file. */
   owner: HarnessId | 'shared'
@@ -106,7 +116,7 @@ export type AnyHarnessAdapter = HarnessAdapter<any>
 
 export function generatedFile(
   path: string,
-  content: string,
+  content: ProjectFile,
   format: FileFormat,
   owner: HarnessId | 'shared',
   sourceRefs: EntityRef[] = [],

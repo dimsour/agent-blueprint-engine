@@ -9,12 +9,12 @@
 import { type Agent, type Blueprint, type PermissionSet, type Rule } from '@agent-blueprint/core'
 import { describe, expect, it } from 'vitest'
 
-import { adapterFor, compileBlueprint } from '../src/index'
-import { loadFixture } from './helpers'
+import { adapterFor, compileBlueprint, type GeneratedFile } from '../src/index'
+import { loadFixture, textOf } from './helpers'
 
-function settingsOf(files: { path: string; content: string }[]): { defaultTools: string[] } {
+function settingsOf(files: GeneratedFile[]): { defaultTools: string[] } {
   const file = files.find((candidate) => candidate.path === '.pi/settings.json')
-  return JSON.parse(file!.content) as { defaultTools: string[] }
+  return JSON.parse(textOf(file)) as { defaultTools: string[] }
 }
 
 /** The fixture with the primary agent's permissions replaced. */
@@ -114,10 +114,10 @@ describe('pi adapter', () => {
     const { files, issues } = compileBlueprint(await withSecondAgent(), { targets: ['pi'] })
     const prompt = files.find((file) => file.path === '.pi/prompts/reviewer.md')!
 
-    expect(prompt.content).toContain('Adopt the `reviewer` persona')
+    expect(textOf(prompt)).toContain('Adopt the `reviewer` persona')
     // The template takes the task as its argument rather than assuming one.
-    expect(prompt.content).toContain('$ARGUMENTS')
-    expect(prompt.content).toContain('argument-hint: <task>')
+    expect(textOf(prompt)).toContain('$ARGUMENTS')
+    expect(textOf(prompt)).toContain('argument-hint: <task>')
 
     const unsupported = issues.find(
       (issue) => issue.concept === 'agents' && issue.ref?.id === 'reviewer',
@@ -136,7 +136,7 @@ describe('pi adapter', () => {
     const appended = files.find((file) => file.path === '.pi/APPEND_SYSTEM.md')!
 
     for (const law of blueprint.ironLaws) {
-      expect(appended.content.includes(law.name), law.name).toBe(law.severity === 'critical')
+      expect(textOf(appended).includes(law.name), law.name).toBe(law.severity === 'critical')
     }
   })
 

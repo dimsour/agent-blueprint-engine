@@ -81,7 +81,11 @@ export function normalizeBlueprint(input: unknown): Blueprint {
     skill.resources = [...skill.resources].sort((a, b) =>
       a.path < b.path ? -1 : a.path > b.path ? 1 : 0,
     )
-    for (const resource of skill.resources) resource.content = normalizeMarkdown(resource.content)
+    for (const resource of skill.resources) {
+      // Base64 is not text to be tidied; trimming or re-wrapping it would change the file.
+      if (resource.encoding === 'base64') continue
+      resource.content = normalizeMarkdown(resource.content)
+    }
   }
 
   for (const workflow of bp.workflows) {

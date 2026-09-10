@@ -184,7 +184,9 @@ You are a senior .NET engineer who specialises in unit testing.
 | `scripts/`                        | `script`                                            |
 | anything else under the skill dir | `asset` when under `assets/`, otherwise `reference` |
 
-The reader lists everything under `skills/<id>/` other than `SKILL.md` and infers `kind` from the first path segment (`inferResourceKind`). Resource content is written with a single trailing newline. Resource paths must be relative and must not contain `..` (`relativePathSchema`).
+The reader lists everything under `skills/<id>/` other than `SKILL.md` and infers `kind` from the first path segment (`inferResourceKind`). Resource paths must be relative and must not contain `..` (`relativePathSchema`).
+
+A resource may be binary — a diagram, a font, a screenshot. The reader reads bytes and decides from the content, not from the extension: a file that decodes as UTF-8 and holds no NUL byte is text, and `encoding` is `utf8` with `content` the file itself; anything else is `base64`. An extension list would get a `.dat` full of text wrong in one direction and a `.md` full of bytes wrong in the other. Text resources are written with a single trailing newline; a binary resource is written as its bytes, since a newline would corrupt it.
 
 The source SKILL.md uses the Blueprint field names (`name` is the display name, `whenToUse`, `activation`, …). The **compiled** SKILL.md emitted by adapters (planned P2) is Agent-Skills-spec conformant (`name` = slug, `description` ≤ 1024, `allowed-tools`, …); the two are different files.
 
@@ -343,16 +345,29 @@ Order of operations: read manifest → `migrateManifest` → parse → for each 
 ## 7. VirtualFs
 
 ```ts
+type ProjectFile = string | Uint8Array
+
 interface VirtualFs {
-  read(path): Promise<string | undefined>
-  write(path, content): Promise<void>
+  read(path): Promise<string | undefined> // undefined when the bytes are not text
+  readBinary(path): Promise<Uint8Array | undefined>
+  write(path, content: string): Promise<void>
+  writeBinary(path, content: Uint8Array): Promise<void>
   delete(path): Promise<void>
   exists(path): Promise<boolean>
   list(prefix?): Promise<string[]> // sorted
 }
 ```
 
-`MemoryFs` is the in-memory implementation (`new MemoryFs(files)`, `toRecord()`). Planned backends (roadmap P3/P7): `ZipFs` (jszip), `IndexedDbFs`, `FileSystemAccessFs` (Chromium directory handle), `GitHubTreeFs` (read-only view of a remote tree), `NodeFs` (CLI). Core has no Node or browser dependency; content is text only (binary assets are roadmap P8).
+`MemoryFs` is the in-memory implementation (`new MemoryFs(files)`). The web app's backends are
+`filesToZip` / `zipToFiles` (jszip), `IndexedDbStore`, `FileSystemAccessStore` (Chromium
+directory handle) and `GitHubTreeFs` (read-only view of a remote tree); a `NodeFs` for the CLI
+is deferred. Core has no Node or browser dependency.
+
+Most of a project is text, and `read`/`write` are what nearly everything uses. `readBinary` and
+`writeBinary` exist for a skill's `assets/`: a font or a diagram read as UTF-8 comes back as
+something that is no longer the file. `renderProjectFiles` therefore returns
+`Record<string, ProjectFile>` — a union, so that a backend which ignores the byte case is a
+compile error rather than a file quietly lost (P8-04).
 
 ## 8. `build-manifest.json`
 

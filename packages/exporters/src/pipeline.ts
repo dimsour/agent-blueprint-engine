@@ -18,8 +18,10 @@ import {
   type Diagnostic,
   type EntityRef,
   type HarnessId,
+  type ProjectFile,
   readProject,
   refKey,
+  sameFile,
   sha256Hex,
   sortDiagnostics,
   validateBlueprint,
@@ -29,6 +31,16 @@ import {
 import { adapterFor } from './registry'
 import { emitReadme } from './shared/readme'
 import type { CompatibilityIssue, GeneratedFile } from './types'
+
+/** Reads whichever way the file was written, so a comparison is between like and like. */
+async function readFile(fs: VirtualFs, path: string): Promise<ProjectFile | undefined> {
+  const text = await fs.read(path)
+  return text ?? (await fs.readBinary(path))
+}
+
+function writeFile(fs: VirtualFs, path: string, content: ProjectFile): Promise<void> {
+  return typeof content === 'string' ? fs.write(path, content) : fs.writeBinary(path, content)
+}
 
 /** Version recorded for files that several harnesses share. Bump with the shared emitters. */
 export const COMPILER_VERSION = '1.0.0'
@@ -154,8 +166,7 @@ export function mergeFileSets(files: readonly GeneratedFile[]): {
       continue
     }
 
-    const contents = new Set(group.map((file) => file.content))
-    if (contents.size > 1) {
+    if (group.some((file) => !sameFile(file.content, first.content))) {
       const owners = [...new Set(group.map((file) => file.owner))].sort()
       diagnostics.push({
         code: 'BP-COMPILE-001',
@@ -264,13 +275,13 @@ export async function writeCompiled(
   }
 
   for (const file of result.files) {
-    const existing = await fs.read(file.path)
+    const existing = await readFile(fs, file.path)
     if (existing === undefined) {
-      await fs.write(file.path, file.content)
+      await writeFile(fs, file.path, file.content)
       written.push(file.path)
       continue
     }
-    if (existing === file.content) {
+    if (sameFile(existing, file.content)) {
       unchanged.push(file.path)
       continue
     }
@@ -281,7 +292,7 @@ export async function writeCompiled(
       continue
     }
     if (owned !== `sha256:${await sha256Hex(existing)}`) modifiedSinceBuild.push(file.path)
-    await fs.write(file.path, file.content)
+    await writeFile(fs, file.path, file.content)
     written.push(file.path)
   }
 

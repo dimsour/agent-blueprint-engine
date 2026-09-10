@@ -18,6 +18,7 @@
  * `packages/ai` carries its own patterns for redacting model output, which is a different job
  * on a different kind of text; they are deliberately not shared.
  */
+import type { ProjectFile } from '@agent-blueprint/core'
 
 interface SecretPattern {
   kind: string
@@ -59,11 +60,15 @@ export interface SecretFinding {
  * A file is scanned line by line rather than whole, because a line number is what makes a
  * finding actionable and because a match spanning lines is not a credential.
  */
-export function scanForSecrets(files: Record<string, string>): SecretFinding[] {
+export function scanForSecrets(files: Record<string, ProjectFile>): SecretFinding[] {
   const findings: SecretFinding[] = []
 
   for (const path of Object.keys(files).sort()) {
-    const lines = (files[path] ?? '').split('\n')
+    // A file that is not text has no lines to read. A key pasted into an image is not
+    // something this scan can find, and looking anyway would only pretend otherwise.
+    const content = files[path]
+    if (typeof content !== 'string') continue
+    const lines = content.split('\n')
     lines.forEach((line, index) => {
       for (const { kind, pattern } of PATTERNS) {
         pattern.lastIndex = 0

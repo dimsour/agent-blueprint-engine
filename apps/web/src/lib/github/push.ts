@@ -11,10 +11,16 @@
  * correct answer: the plan the user approved was made against a repository that has since
  * changed, and the honest response is to look again.
  */
+import { byteLength, type ProjectFile, toBase64 } from '@agent-blueprint/core'
+
 import { GitHubError, githubRequest } from './client'
 import { encodeBranch, type RepoRef } from './repos'
 
-/** GitHub's documented ceiling for one tree request. Text projects are nowhere near it. */
+/**
+ * GitHub's documented ceiling for one tree request. Only inline text counts against it: a
+ * file that is not text is uploaded as its own blob first, where GitHub's much larger blob
+ * limit applies instead.
+ */
 const MAX_TREE_BYTES = 7_000_000
 
 export interface PushInput {
@@ -24,7 +30,7 @@ export interface PushInput {
   message: string
   /** The commit the plan was made against. Absent when the branch does not exist yet. */
   parentCommit?: string
-  writes: Record<string, string>
+  writes: Record<string, ProjectFile>
   deletes: readonly string[]
 }
 
@@ -41,7 +47,8 @@ interface TreeItem {
   mode: '100644'
   type: 'blob'
   content?: string
-  sha?: null
+  /** A blob already uploaded (binary), or `null` to remove the path. */
+  sha?: string | null
 }
 
 export async function pushToGitHub(input: PushInput): Promise<PushResult> {
@@ -49,7 +56,7 @@ export async function pushToGitHub(input: PushInput): Promise<PushResult> {
   const base = `/repos/${repo.owner}/${repo.name}`
 
   const size = Object.values(input.writes).reduce(
-    (total, content) => total + new TextEncoder().encode(content).length,
+    (total, content) => total + (typeof content === 'string' ? byteLength(content) : 0),
     0,
   )
   if (size > MAX_TREE_BYTES) {
@@ -59,9 +66,22 @@ export async function pushToGitHub(input: PushInput): Promise<PushResult> {
     )
   }
 
-  const items: TreeItem[] = Object.keys(input.writes)
-    .sort()
-    .map((path) => ({ path, mode: '100644', type: 'blob', content: input.writes[path] ?? '' }))
+  // A tree item carries inline `content` only for text: the field is UTF-8, so bytes have to
+  // become a blob of their own first and be named by sha.
+  const items: TreeItem[] = []
+  for (const path of Object.keys(input.writes).sort()) {
+    const content = input.writes[path] ?? ''
+    if (typeof content === 'string') {
+      items.push({ path, mode: '100644', type: 'blob', content })
+      continue
+    }
+    const { data: blob } = await githubRequest<{ sha: string }>(token, {
+      method: 'POST',
+      path: `${base}/git/blobs`,
+      body: { content: toBase64(content), encoding: 'base64' },
+    })
+    items.push({ path, mode: '100644', type: 'blob', sha: blob.sha })
+  }
 
   // Removing a path means naming it with a null sha against the tree it is being removed from,
   // so a delete only means anything when there is a base tree to remove it from.
@@ -117,7 +137,7 @@ export async function pushToGitHub(input: PushInput): Promise<PushResult> {
   return {
     commitSha: commit.sha,
     url: commit.html_url ?? `https://github.com/${repo.owner}/${repo.name}/commit/${commit.sha}`,
-    written: items.filter((item) => item.content !== undefined).length,
+    written: Object.keys(input.writes).length,
     deleted: items.length - Object.keys(input.writes).length,
   }
 }

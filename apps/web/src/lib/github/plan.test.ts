@@ -125,3 +125,50 @@ describe('planning a push', () => {
     expect(plan.truncated).toBe(true)
   })
 })
+
+/**
+ * The consequence recorded when P7 was reviewed: a push deletes anything under the source
+ * directory the project writer does not produce, and before P8-04 a binary asset was exactly
+ * such a file. Now the writer produces it, so it survives — and the test that proves it is the
+ * one that would have caught the loss.
+ */
+describe('a binary asset in the source directory', () => {
+  const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0xff, 0xfe])
+  const ASSET = 'blueprint/skills/xunit/assets/diagram.png'
+
+  async function blueprintWithAsset() {
+    const files: ProjectFiles = { ...readFixtureFiles('dotnet-testing-expert'), [ASSET]: PNG }
+    const { blueprint } = await parseProject(files)
+    return blueprint
+  }
+
+  it('is pushed, byte for byte, rather than dropped', async () => {
+    const blueprint = await blueprintWithAsset()
+    const plan = await planPush(blueprint, undefined)
+
+    const change = plan.changes.find((candidate) => candidate.path === ASSET)
+    expect(change?.kind).toBe('add')
+    expect(change?.content).toEqual(PNG)
+  })
+
+  it('is not deleted from a branch that already has it', async () => {
+    const blueprint = await blueprintWithAsset()
+    const first = await planPush(blueprint, undefined)
+    const remote = applied({}, first)
+
+    const second = await planPush(blueprint, branch(remote))
+
+    expect(second.changes.filter((change) => change.kind === 'delete')).toEqual([])
+    expect(second.changes).toEqual([])
+  })
+
+  it('still deletes a file under the source directory that is not part of the project', async () => {
+    const blueprint = await blueprintWithAsset()
+    const first = await planPush(blueprint, undefined)
+    const remote = { ...applied({}, first), 'blueprint/leftover.txt': 'from an older layout' }
+
+    const second = await planPush(blueprint, branch(remote))
+
+    expect(second.changes).toEqual([{ path: 'blueprint/leftover.txt', kind: 'delete' }])
+  })
+})

@@ -27,6 +27,7 @@ function github(): void {
     if (path.includes('/git/commits/') && (init.method ?? 'GET') === 'GET') {
       return Promise.resolve(Response.json({ tree: { sha: 'base-tree' } }))
     }
+    if (path.endsWith('/git/blobs')) return Promise.resolve(Response.json({ sha: 'blob-sha' }))
     if (path.endsWith('/git/trees')) return Promise.resolve(Response.json({ sha: 'new-tree' }))
     if (path.endsWith('/git/commits')) {
       return Promise.resolve(
@@ -161,5 +162,48 @@ describe('pushing', () => {
       }),
     ).rejects.toMatchObject({ code: 'invalid' })
     expect(calls).toEqual([])
+  })
+})
+
+describe('a file that is not text', () => {
+  const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x00, 0xff, 0xfe])
+
+  it('is uploaded as its own blob and named by sha, not inlined', async () => {
+    await pushToGitHub({
+      token: TOKEN,
+      repo: REPO,
+      branch: 'main',
+      message: 'Add a diagram',
+      parentCommit: 'head',
+      writes: { 'blueprint/skills/x/assets/d.png': PNG, 'CLAUDE.md': '# Text\n' },
+      deletes: [],
+    })
+
+    // A tree item's inline `content` is UTF-8, so bytes have to become a blob first.
+    const blob = calls.find((call) => call.url.endsWith('/git/blobs'))
+    expect(blob?.method).toBe('POST')
+    expect(blob?.body).toEqual({ content: 'iVBORwD//g==', encoding: 'base64' })
+
+    const tree = calls.find((call) => call.url.endsWith('/git/trees'))!
+    const items = tree.body.tree as { path: string; sha?: string; content?: string }[]
+    const asset = items.find((item) => item.path.endsWith('d.png'))!
+    expect(asset.sha).toBe('blob-sha')
+    expect(asset.content).toBeUndefined()
+    // Text is still inlined: one request instead of two, for the overwhelmingly common case.
+    expect(items.find((item) => item.path === 'CLAUDE.md')?.content).toBe('# Text\n')
+  })
+
+  it('counts it as written', async () => {
+    const result = await pushToGitHub({
+      token: TOKEN,
+      repo: REPO,
+      branch: 'main',
+      message: 'Add a diagram',
+      parentCommit: 'head',
+      writes: { 'blueprint/skills/x/assets/d.png': PNG },
+      deletes: ['gone.md'],
+    })
+    expect(result.written).toBe(1)
+    expect(result.deleted).toBe(1)
   })
 })

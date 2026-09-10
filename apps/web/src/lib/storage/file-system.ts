@@ -33,7 +33,10 @@ interface DirectoryHandle {
 interface FileHandle {
   readonly name: string
   getFile(): Promise<File>
-  createWritable(): Promise<{ write(data: string): Promise<void>; close(): Promise<void> }>
+  createWritable(): Promise<{
+    write(data: string | Uint8Array): Promise<void>
+    close(): Promise<void>
+  }>
 }
 
 type FileSystemHandleLike = (DirectoryHandle | FileHandle) & { kind: 'file' | 'directory' }
@@ -160,7 +163,9 @@ async function writeDirectory(handle: DirectoryHandle, files: ProjectFiles): Pro
     }
     const fileHandle = await directory.getFileHandle(filename, { create: true })
     const writable = await fileHandle.createWritable()
-    await writable.write(files[path] ?? '')
+    // A Uint8Array is written as its bytes; only a string is encoded as UTF-8.
+    const content = files[path]
+    await writable.write(content === undefined ? '' : content)
     await writable.close()
   }
 }

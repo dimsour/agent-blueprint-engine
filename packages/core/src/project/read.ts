@@ -12,6 +12,7 @@ import {
 } from '../schema/index'
 import type { Diagnostic } from '../validation/types'
 import { entityMainPath, kindDir, manifestPath, parseEntityPath, workflowGraphPath } from './layout'
+import { decodeUtf8, toBase64 } from './binary'
 import { decodeFrontmatter, fromYaml, isJsonValue } from './serialize'
 import type { VirtualFs } from './virtual-fs'
 
@@ -284,11 +285,16 @@ async function readSkillResources(
   for (const path of await fs.list(`${kindDir(sourceDir, 'skill')}/${skillId}`)) {
     const parsed = parseEntityPath(sourceDir, path)
     if (parsed?.kind !== 'skill' || parsed.role !== 'resource' || parsed.id !== skillId) continue
-    const content = (await fs.read(path)) ?? ''
+    // Read the bytes and let the content decide: an extension list would get a `.dat` full of
+    // text wrong in one direction and a `.md` full of bytes wrong in the other.
+    const bytes = (await fs.readBinary(path)) ?? new Uint8Array()
+    const text = decodeUtf8(bytes)
     resources.push({
       path: parsed.resourcePath,
       kind: inferResourceKind(parsed.resourcePath),
-      content,
+      ...(text === undefined
+        ? { encoding: 'base64' as const, content: toBase64(bytes) }
+        : { encoding: 'utf8' as const, content: text }),
     })
   }
   return resources

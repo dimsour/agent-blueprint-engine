@@ -23,6 +23,7 @@ export * from './blueprint/rename'
 export * from './blueprint/delete'
 
 // Project format
+export * from './project/binary'
 export * from './project/virtual-fs'
 export * from './project/serialize'
 export * from './project/strip-defaults'

@@ -10,6 +10,7 @@
  * entry unless it is given a date, which would both break the determinism rule and put the
  * author's clock inside a file they share.
  */
+import { decodeUtf8 } from '@agent-blueprint/core'
 import JSZip from 'jszip'
 
 import { MANIFEST_PATH } from './paths'
@@ -59,7 +60,10 @@ export async function zipToFiles(data: Blob | ArrayBuffer | Uint8Array): Promise
     // macOS resource forks are real entries, not directories, so they survive the filter
     // above and would otherwise make every archive look like it has two roots.
     if (isArchiverNoise(path)) continue
-    files[path] = await entry.async('string')
+    // Read the bytes and decode only what is text, so a skill's binary asset survives the
+    // round trip instead of arriving as replacement characters.
+    const bytes = await entry.async('uint8array')
+    files[path] = decodeUtf8(bytes) ?? bytes
   }
 
   if (Object.keys(files).length === 0) throw new StorageError('The archive is empty.', 'invalid')

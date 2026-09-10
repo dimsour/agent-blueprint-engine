@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { fileSystemStore } from './file-system'
 import { IndexedDbStore, resetDbForTests } from './indexeddb'
 import { importProject, openProject, parseProject, saveProject, summaryOf } from './project'
-import { StorageError } from './types'
+import { type ProjectFiles, StorageError } from './types'
 import { previewImport, readUpload } from './import'
 import { filesToZip, zipToFiles } from './zip'
 
@@ -240,5 +240,43 @@ describe('FileSystemAccessStore', () => {
     expect(fileSystemStore.available).toBe(false)
     expect(await fileSystemStore.list()).toEqual([])
     await expect(fileSystemStore.pickDirectory()).rejects.toThrow(StorageError)
+  })
+})
+
+/**
+ * A skill's assets may be binary. Every tier has to carry them: a store that decoded a font
+ * as UTF-8 would hand back something that is no longer the file, and the loss would only show
+ * up much later, in whatever opened it.
+ */
+describe('binary files through every tier', () => {
+  const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0xff, 0xfe])
+  const files = (): ProjectFiles => ({
+    ...readStarterFiles(starterIds[0]!),
+    'blueprint/skills/anything/assets/logo.png': PNG,
+  })
+
+  it('survives a ZIP export and import', async () => {
+    const back = await zipToFiles(await filesToZip(files()))
+    expect(back['blueprint/skills/anything/assets/logo.png']).toEqual(PNG)
+  })
+
+  it('is still text on the other side when it was text', async () => {
+    const original = files()
+    const back = await zipToFiles(await filesToZip(original))
+    expect(back['blueprint/blueprint.yaml']).toBe(original['blueprint/blueprint.yaml'])
+  })
+
+  it('survives IndexedDB', async () => {
+    const store = new IndexedDbStore()
+    const summary = await store.importFiles(files(), {
+      name: 'Binary',
+      blueprintId: 'binary',
+      artifacts: 1,
+    })
+    const opened = await store.open(summary.id)
+    const stored = opened?.['blueprint/skills/anything/assets/logo.png']
+    // Compared as numbers: a structured clone comes back from another realm, so the arrays
+    // hold the same bytes while failing an identity-sensitive deep equal.
+    expect(Array.from(stored as Uint8Array)).toEqual(Array.from(PNG))
   })
 })

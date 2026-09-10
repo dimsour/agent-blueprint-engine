@@ -28,10 +28,19 @@ export const skillActivationSchema = z.object({
 
 export const SKILL_RESOURCE_KINDS = ['reference', 'script', 'asset'] as const
 
-/** A file that ships alongside SKILL.md (references/, scripts/, assets/). */
+export const SKILL_RESOURCE_ENCODINGS = ['utf8', 'base64'] as const
+
+/**
+ * A file that ships alongside SKILL.md (references/, scripts/, assets/).
+ *
+ * `content` is the file itself for text and base64 for anything else, because the model has to
+ * stay JSON-serializable: it travels through ChangeSets, undo history and IndexedDB. The bytes
+ * on disk are the real bytes either way — only this representation is encoded.
+ */
 export const skillResourceSchema = z.object({
   path: relativePathSchema,
   kind: z.enum(SKILL_RESOURCE_KINDS),
+  encoding: z.enum(SKILL_RESOURCE_ENCODINGS).default('utf8'),
   content: z.string(),
 })
 

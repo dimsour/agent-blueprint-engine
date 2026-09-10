@@ -30,7 +30,7 @@ The backlog for building Agent Blueprint. Phases follow the plan; tasks inside a
 | P5 Trust surfaces | done        | P5-01 to P5-05: the health bar opens its findings, the evaluation and compatibility views, the export view with compiled output, and the rename dialog with a slug preview. P5-06 reviewed P4 and P5 end to end and fixed what it found.                                                             |
 | P6 AI             | done        | P6-01 to P6-09: the AI package, the settings screen and relay, the ChangeSet review, the assistant, the AI draft in the wizard, a model second opinion in the evaluation view, and the live check against real endpoints that found and fixed seven bugs. P6-10 to P6-12 are follow-ups it recorded. |
 | P7 GitHub         | done        | P7-01 to P7-05: the token and sign-in, repository and branch selection, the push preview against the remote tree, the atomic push with a secret scan in front of it, and opening a project out of a repository. P7-06 is a follow-up it recorded.                                                    |
-| P8 Hardening      | in progress | P8-01 to P8-03 are done: Copilot, OpenCode and Pi have full adapters, so every harness now maps what it can. P8-04 to P8-09 are specified below and not started, plus P8-10 and P8-11, the two hook runtimes those adapters recorded.                                                                |
+| P8 Hardening      | in progress | P8-01 to P8-04 are done: every harness has a full adapter, and a project can hold a binary asset. P8-05 to P8-09 are specified below and not started, plus P8-10 and P8-11, the two hook runtimes those adapters recorded.                                                                           |
 
 ## P0 — Foundation (done)
 
@@ -581,10 +581,15 @@ Verification: `pnpm check` green; `pnpm --filter @agent-blueprint/core test` sho
 - Acceptance: hooks and gates from the fixture produce an extension that loads in a real Pi session; a gate that fails blocks the turn; goldens.
 - Found by: building P8-03.
 
-### P8-04 Binary assets in projects
+### P8-04 Binary assets in projects (done)
 
+- Package: `packages/core/src/project/`, `packages/exporters`, `apps/web/src/lib/{storage,github}`
+- Depends on: P0, P7-04
 - Description: `VirtualFs` gains `readBinary`/`writeBinary`; skill `assets/` may be binary; ZIP and GitHub backends updated.
-- Also fixes a consequence found reviewing P7: a push deletes anything under `blueprint/` that the project writer does not produce, and a binary asset is exactly such a file, so pushing a project whose repository holds one removes it. The push preview lists every deletion, so it is disclosed rather than silent, and a commit is recoverable from history — but a file the app cannot represent should not be a file it removes.
+- Verify: `pnpm check`
+- Built: `VirtualFs` gained `readBinary`/`writeBinary`, and `ProjectFile = string | Uint8Array` is now the value type of every file map — `renderProjectFiles`, `ProjectFiles`, `GeneratedFile.content`. A union rather than a second field, so that a backend which ignores the byte case is a compile error instead of a file quietly lost. A skill resource carries `encoding: 'utf8' | 'base64'`, because the model has to stay JSON-serializable for ChangeSets, undo history and IndexedDB, while the bytes on disk stay the bytes. The reader decides from the content, not the extension: valid UTF-8 with no NUL byte is text. Every tier carries it — ZIP, IndexedDB, File System Access, the compiler, the build manifest, and the push, where bytes become their own blob first because a tree item's inline `content` is UTF-8.
+- Closed the consequence P7's review recorded: a push deletes anything under `blueprint/` the project writer does not produce, and a binary asset used to be exactly such a file. The writer produces it now, so it survives; a test asserts the deletion that would otherwise have happened, and another asserts that a genuinely stale file is still removed.
+- Found while building it: the secret scan reads lines, so it skips a file that is not text rather than searching it. Recorded in docs/08 rather than pretended otherwise.
 
 ### P8-05 Migrations UI
 

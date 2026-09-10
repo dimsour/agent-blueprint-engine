@@ -10,6 +10,7 @@ import { starterBlueprints } from '@agent-blueprint/templates'
 import { beforeAll, describe, expect, it } from 'vitest'
 
 import { compileBlueprint, GENERATED_HEADER_RE, portabilityOf } from '../src/index'
+import { textOf } from './helpers'
 
 const blueprints = new Map<string, Blueprint>()
 
@@ -61,9 +62,10 @@ describe('starter blueprints compile', () => {
       for (const file of files) {
         expect(file.path, file.path).not.toMatch(/^[/\\]|\\/)
         expect(file.path.split('/'), file.path).not.toContain('..')
-        expect(file.content.endsWith('\n'), file.path).toBe(true)
+        if (file.format === 'binary') continue
+        expect(textOf(file).endsWith('\n'), file.path).toBe(true)
         if (file.format === 'markdown') {
-          expect(GENERATED_HEADER_RE.test(file.content), `${id} ${file.path}`).toBe(true)
+          expect(GENERATED_HEADER_RE.test(textOf(file)), `${id} ${file.path}`).toBe(true)
         }
       }
     },
@@ -86,9 +88,9 @@ describe('starter blueprints compile', () => {
     const workflowSkill = files.find(
       (file) => file.path === '.claude/skills/deliver-feature/SKILL.md',
     )
-    expect(workflowSkill?.content).toContain('Use the Agent tool to run the `architect` subagent')
-    expect(workflowSkill?.content).toContain('Run these branches at the same time')
-    expect(workflowSkill?.content).toContain('Do not continue unless every criterion below holds')
+    expect(textOf(workflowSkill)).toContain('Use the Agent tool to run the `architect` subagent')
+    expect(textOf(workflowSkill)).toContain('Run these branches at the same time')
+    expect(textOf(workflowSkill)).toContain('Do not continue unless every criterion below holds')
   })
 
   it('scores every starter as portable to its own targets', () => {

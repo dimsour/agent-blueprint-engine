@@ -43,9 +43,13 @@ export function entityOf(blueprint: Blueprint, ref: EntityRef): AnyEntity | unde
   return findEntity(blueprint, ref.kind, ref.id)
 }
 
-/** The file the writer would produce for this artifact, byte for byte. */
+/**
+ * The file the writer would produce for this artifact, byte for byte. Always text: every
+ * artifact main file is Markdown, YAML or JSON, and a skill resource is not an artifact.
+ */
 export function renderEntitySource(blueprint: Blueprint, ref: EntityRef): string {
-  return renderProjectFiles(blueprint)[sourcePathFor(blueprint, ref)] ?? ''
+  const content = renderProjectFiles(blueprint)[sourcePathFor(blueprint, ref)]
+  return typeof content === 'string' ? content : ''
 }
 
 /** The Markdown body alone, for the preview. */

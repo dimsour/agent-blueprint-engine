@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   canonicalJson,
+  fromBase64,
   countEntities,
   decodeFrontmatter,
   encodeFrontmatter,
@@ -156,5 +157,83 @@ describe('writeProject', () => {
     const second = await writeProject(edited, fs)
     expect(second.written).toEqual(['blueprint/skills/xunit/SKILL.md'])
     expect(second.deleted).toEqual([])
+  })
+})
+
+/**
+ * A skill's `assets/` may hold a diagram or a font. Nothing in the model is bytes — it has to
+ * survive a ChangeSet, undo history and IndexedDB — so a binary resource carries base64 and an
+ * `encoding` field, and the bytes on disk stay the bytes. These tests are about the seam
+ * between those two facts, which is the only place the file can be lost.
+ */
+describe('binary skill resources', () => {
+  /** A one-pixel PNG: a real header, a NUL byte, and not valid UTF-8. */
+  const PNG = new Uint8Array([
+    0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
+    0xff, 0xfe, 0x00, 0x01,
+  ])
+
+  async function projectWithAsset(): Promise<MemoryFs> {
+    const fs = fixtureFs()
+    await fs.writeBinary('blueprint/skills/xunit/assets/diagram.png', PNG)
+    return fs
+  }
+
+  it('reads bytes as base64 and text as itself', async () => {
+    const { blueprint } = await readProject(await projectWithAsset())
+    const skill = blueprint.skills.find((candidate) => candidate.id === 'xunit')!
+
+    const asset = skill.resources.find((r) => r.path === 'assets/diagram.png')!
+    expect(asset.encoding).toBe('base64')
+    expect(asset.kind).toBe('asset')
+    expect(fromBase64(asset.content)).toEqual(PNG)
+
+    // The reference beside it is text and stays text: the decision is per file, not per skill.
+    const reference = skill.resources.find((r) => r.path.endsWith('.md'))!
+    expect(reference.encoding).toBe('utf8')
+    expect(reference.content).toContain('#')
+  })
+
+  it('writes back the bytes it read, with nothing appended', async () => {
+    const source = await projectWithAsset()
+    const { blueprint } = await readProject(source)
+
+    const target = new MemoryFs()
+    await writeProject(blueprint, target)
+
+    // A trailing newline is added to text resources and would corrupt this one.
+    expect(await target.readBinary('blueprint/skills/xunit/assets/diagram.png')).toEqual(PNG)
+  })
+
+  it('round-trips byte for byte, twice', async () => {
+    const source = await projectWithAsset()
+    const first = await readProject(source)
+    const target = new MemoryFs()
+    await writeProject(first.blueprint, target)
+    const second = await readProject(target)
+
+    expect(second.blueprint).toEqual(first.blueprint)
+    expect(second.diagnostics.filter((d) => d.severity === 'error')).toEqual([])
+  })
+
+  it('does not rewrite an asset that has not changed', async () => {
+    const fs = await projectWithAsset()
+    const { blueprint } = await readProject(fs)
+
+    const result = await writeProject(blueprint, fs)
+    expect(result.written).toEqual([])
+  })
+
+  it('reads a text file with an unfamiliar extension as text', async () => {
+    const fs = fixtureFs()
+    await fs.write('blueprint/skills/xunit/assets/notes.dat', 'plain text\n')
+    const { blueprint } = await readProject(fs)
+    const asset = blueprint.skills
+      .find((candidate) => candidate.id === 'xunit')!
+      .resources.find((r) => r.path === 'assets/notes.dat')!
+
+    // The content decides, not the extension: an extension list gets this exact case wrong.
+    expect(asset.encoding).toBe('utf8')
+    expect(asset.content).toBe('plain text')
   })
 })

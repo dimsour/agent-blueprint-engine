@@ -84,7 +84,12 @@ describe('parseEntitySource', () => {
           ? {
               ...skill,
               resources: [
-                { path: 'references/notes.md', kind: 'reference' as const, content: '# Notes' },
+                {
+                  path: 'references/notes.md',
+                  kind: 'reference' as const,
+                  encoding: 'utf8' as const,
+                  content: '# Notes',
+                },
               ],
             }
           : skill,

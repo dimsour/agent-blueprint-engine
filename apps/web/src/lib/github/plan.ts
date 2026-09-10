@@ -23,7 +23,11 @@ import {
   buildManifestPath,
   canonicalJson,
   DEFAULT_SOURCE_DIR,
+  decodeUtf8,
   type Diagnostic,
+  encodeUtf8,
+  type ProjectFile,
+  sameFile,
   type VirtualFs,
 } from '@agent-blueprint/core'
 import {
@@ -40,8 +44,8 @@ export type ChangeKind = 'add' | 'update' | 'delete'
 export interface FileChange {
   path: string
   kind: ChangeKind
-  /** What to write. Absent for a delete. */
-  content?: string
+  /** What to write: text, or the bytes for a file that is not text. Absent for a delete. */
+  content?: ProjectFile
   /**
    * The branch's copy differs from what the manifest recorded, so someone edited it there
    * after the last push. Pushing replaces it, which the user should be told before it happens.
@@ -82,18 +86,34 @@ export interface RemoteBranch {
  * enforces is enforced here too, and nothing leaves the browser.
  */
 class RecordingFs implements VirtualFs {
-  readonly writes = new Map<string, string>()
+  readonly writes = new Map<string, ProjectFile>()
   readonly deletes = new Set<string>()
 
   constructor(private readonly base: VirtualFs | undefined) {}
 
   async read(path: string): Promise<string | undefined> {
-    if (this.writes.has(path)) return this.writes.get(path)
+    const written = this.writes.get(path)
+    if (written !== undefined) return typeof written === 'string' ? written : decodeUtf8(written)
     if (this.deletes.has(path)) return undefined
     return this.base?.read(path)
   }
 
+  async readBinary(path: string): Promise<Uint8Array | undefined> {
+    const written = this.writes.get(path)
+    if (written !== undefined) return typeof written === 'string' ? encodeUtf8(written) : written
+    if (this.deletes.has(path)) return undefined
+    return this.base?.readBinary(path)
+  }
+
   write(path: string, content: string): Promise<void> {
+    return this.put(path, content)
+  }
+
+  writeBinary(path: string, content: Uint8Array): Promise<void> {
+    return this.put(path, content)
+  }
+
+  private put(path: string, content: ProjectFile): Promise<void> {
     this.deletes.delete(path)
     this.writes.set(path, content)
     return Promise.resolve()
@@ -106,7 +126,9 @@ class RecordingFs implements VirtualFs {
   }
 
   async exists(path: string): Promise<boolean> {
-    return (await this.read(path)) !== undefined
+    if (this.writes.has(path)) return true
+    if (this.deletes.has(path)) return false
+    return (await this.base?.exists(path)) ?? false
   }
 
   async list(prefix?: string): Promise<string[]> {
@@ -141,7 +163,10 @@ export async function planPush(
 
   // The project source: everything under the source directory is the Blueprint's own, so it is
   // written whole, and anything the branch has there that the Blueprint no longer produces goes.
-  for (const [path, content] of Object.entries(source)) await fs.write(path, content)
+  for (const [path, content] of Object.entries(source)) {
+    if (typeof content === 'string') await fs.write(path, content)
+    else await fs.writeBinary(path, content)
+  }
   const manifestPath = buildManifestPath(sourceDir)
   for (const path of (await remote?.fs.list(sourceDir)) ?? []) {
     if (path in source || path === manifestPath) continue
@@ -161,8 +186,8 @@ export async function planPush(
   let unchanged = written.unchanged.length
 
   for (const [path, content] of fs.writes) {
-    const before = await remote?.fs.read(path)
-    if (before === content) {
+    const before = await readRemote(remote?.fs, path)
+    if (sameFile(before, content)) {
       unchanged += 1
       continue
     }
@@ -193,6 +218,15 @@ export async function planPush(
     diagnostics: compiled.diagnostics,
     ok: compiled.ok,
   }
+}
+
+/** The branch as the project would hold it: text where it is text, bytes where it is not. */
+async function readRemote(
+  fs: VirtualFs | undefined,
+  path: string,
+): Promise<ProjectFile | undefined> {
+  const bytes = await fs?.readBinary(path)
+  return bytes === undefined ? undefined : (decodeUtf8(bytes) ?? bytes)
 }
 
 function byPath(a: FileChange, b: FileChange): number {

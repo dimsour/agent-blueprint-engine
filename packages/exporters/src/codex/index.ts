@@ -19,6 +19,7 @@ import {
   PORTABLE_INSTRUCTIONS_MAX_BYTES,
   PORTABLE_REFERENCES_DIR,
   PORTABLE_SKILLS_DIR,
+  portableInstructions,
 } from '../shared/portable'
 import { withHeader } from '../shared/header'
 import { toToml } from '../shared/toml'
@@ -169,8 +170,7 @@ export const codexAdapter: HarnessAdapter<CodexOptions> = {
       }
     }
 
-    const { file } = emitPortableInstructionFile(blueprint)
-    const size = new TextEncoder().encode(file.content).length
+    const size = new TextEncoder().encode(portableInstructions(blueprint).content).length
     if (size > options.instructionsMaxBytes) {
       diagnostics.push({
         code: 'BP-CODEX-002',

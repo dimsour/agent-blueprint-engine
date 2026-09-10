@@ -10,8 +10,8 @@
 import { type Agent, type Blueprint, fromYaml, type Tool } from '@agent-blueprint/core'
 import { describe, expect, it } from 'vitest'
 
-import { adapterFor, compileBlueprint } from '../src/index'
-import { loadFixture } from './helpers'
+import { adapterFor, compileBlueprint, type GeneratedFile } from '../src/index'
+import { loadFixture, textOf } from './helpers'
 
 interface HookHandler {
   type: string
@@ -21,9 +21,9 @@ interface HookHandler {
   matcher?: string
 }
 
-function hooksOf(files: { path: string; content: string }[]): Record<string, HookHandler[]> {
+function hooksOf(files: GeneratedFile[]): Record<string, HookHandler[]> {
   const file = files.find((candidate) => candidate.path === '.github/hooks/blueprint.json')
-  return (JSON.parse(file!.content) as { hooks: Record<string, HookHandler[]> }).hooks
+  return (JSON.parse(textOf(file)) as { hooks: Record<string, HookHandler[]> }).hooks
 }
 
 function frontmatterOf(content: string): Record<string, unknown> {
@@ -106,8 +106,8 @@ describe('copilot adapter', () => {
     )!
 
     // Several globs are one comma-separated value; a YAML list would not be read as applyTo.
-    expect(frontmatterOf(file.content).applyTo).toBe('**/*.csproj, **/*Tests.cs')
-    expect(file.content).toContain('applyTo: "**/*.csproj, **/*Tests.cs"')
+    expect(frontmatterOf(textOf(file)).applyTo).toBe('**/*.csproj, **/*Tests.cs')
+    expect(textOf(file)).toContain('applyTo: "**/*.csproj, **/*Tests.cs"')
   })
 
   it('makes a gate refuse the stop rather than only mentioning it', async () => {
@@ -145,7 +145,7 @@ describe('copilot adapter', () => {
     expect(paths).not.toContain('.github/agents/testing-expert.agent.md')
 
     const reviewer = frontmatterOf(
-      files.find((file) => file.path === '.github/agents/reviewer.agent.md')!.content,
+      textOf(files.find((file) => file.path === '.github/agents/reviewer.agent.md')),
     )
     // Writing is denied, so `edit` goes; reading and running commands are not, so they stay.
     expect(reviewer.tools).toEqual(['read', 'execute', 'agent'])
@@ -156,7 +156,7 @@ describe('copilot adapter', () => {
   it('does not hand off to the primary agent, which has no agent file', async () => {
     const { files, issues } = compileBlueprint(await withTeam(), { targets: ['copilot'] })
     const researcher = frontmatterOf(
-      files.find((file) => file.path === '.github/agents/researcher.agent.md')!.content,
+      textOf(files.find((file) => file.path === '.github/agents/researcher.agent.md')),
     )
 
     expect(researcher.agents).toBeUndefined()
@@ -173,7 +173,7 @@ describe('copilot adapter', () => {
       targets: ['copilot'],
     })
     const config = JSON.parse(
-      files.find((file) => file.path === '.vscode/mcp.json')!.content,
+      textOf(files.find((file) => file.path === '.vscode/mcp.json')),
     ) as Record<string, Record<string, Record<string, unknown>>>
 
     expect(config.servers?.['issue-tracker']).toEqual({

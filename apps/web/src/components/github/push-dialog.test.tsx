@@ -12,6 +12,8 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { PushDialog } from '@/components/github/push-dialog'
+import { byteLength, encodeUtf8, type ProjectFile, toBase64 } from '@agent-blueprint/core'
+
 import { gitBlobSha } from '@/lib/github/tree'
 import { parseProject } from '@/lib/storage'
 import { useWorkspace } from '@/lib/state/workspace-store'
@@ -22,7 +24,7 @@ const realFetch = globalThis.fetch
 
 /** What GitHub answers. Repository and branches exist; the tree is empty unless one is given. */
 async function github(
-  options: { tree?: { path: string; content: string }[]; missingUntilCreated?: boolean } = {},
+  options: { tree?: { path: string; content: ProjectFile }[]; missingUntilCreated?: boolean } = {},
 ): Promise<{
   requests: { method: string; url: string; body: Record<string, unknown> }[]
 }> {
@@ -91,7 +93,7 @@ async function github(
             path: file.path,
             type: 'blob',
             sha: shas.get(file.path),
-            size: file.content.length,
+            size: byteLength(file.content),
           })),
         }),
       )
@@ -100,7 +102,10 @@ async function github(
       const sha = path.split('/git/blobs/')[1] ?? ''
       const file = files.find((entry) => shas.get(entry.path) === sha)
       return Promise.resolve(
-        Response.json({ content: btoa(file?.content ?? ''), encoding: 'base64' }),
+        Response.json({
+          content: toBase64(encodeUtf8(String(file?.content ?? ''))),
+          encoding: 'base64',
+        }),
       )
     }
     if (path.includes('/git/commits/'))

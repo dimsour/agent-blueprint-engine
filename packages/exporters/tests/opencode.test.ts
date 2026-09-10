@@ -10,8 +10,8 @@
 import { type Agent, type Blueprint, fromYaml, type Rule, type Tool } from '@agent-blueprint/core'
 import { describe, expect, it } from 'vitest'
 
-import { adapterFor, compileBlueprint } from '../src/index'
-import { loadFixture } from './helpers'
+import { adapterFor, compileBlueprint, type GeneratedFile } from '../src/index'
+import { loadFixture, textOf } from './helpers'
 
 type Decision = 'allow' | 'ask' | 'deny'
 type PermissionValue = Decision | Record<string, Decision>
@@ -23,8 +23,8 @@ interface Config {
   mcp?: Record<string, Record<string, unknown>>
 }
 
-function configOf(files: { path: string; content: string }[]): Config {
-  return JSON.parse(files.find((file) => file.path === 'opencode.json')!.content) as Config
+function configOf(files: GeneratedFile[]): Config {
+  return JSON.parse(textOf(files.find((file) => file.path === 'opencode.json'))) as Config
 }
 
 function frontmatterOf(content: string): Record<string, unknown> {
@@ -98,7 +98,7 @@ describe('opencode adapter', () => {
 
   it('keeps the order it wrote when the file is serialized', async () => {
     const { files } = compileBlueprint(await loadFixture(), { targets: ['opencode'] })
-    const text = files.find((file) => file.path === 'opencode.json')!.content
+    const text = textOf(files.find((file) => file.path === 'opencode.json'))
 
     // Canonical JSON would sort these keys and silently invert the precedence.
     expect(text.indexOf('"*": "ask"')).toBeLessThan(text.indexOf('"dotnet test *"'))
@@ -123,7 +123,7 @@ describe('opencode adapter', () => {
   it('closes glob and grep with read, which would otherwise walk the tree anyway', async () => {
     const { files } = compileBlueprint(await withReviewer(), { targets: ['opencode'] })
     const reviewer = frontmatterOf(
-      files.find((file) => file.path === '.opencode/agents/reviewer.md')!.content,
+      textOf(files.find((file) => file.path === '.opencode/agents/reviewer.md')),
     )
     const permission = reviewer.permission as Record<string, PermissionValue>
 
@@ -144,7 +144,7 @@ describe('opencode adapter', () => {
     })
     const { files } = compileBlueprint(blueprint, { targets: ['opencode'] })
     const permission = frontmatterOf(
-      files.find((file) => file.path === '.opencode/agents/reviewer.md')!.content,
+      textOf(files.find((file) => file.path === '.opencode/agents/reviewer.md')),
     ).permission as Record<string, PermissionValue>
 
     expect(permission.edit).toEqual({ '*': 'deny', 'docs/**': 'allow' })
@@ -160,11 +160,11 @@ describe('opencode adapter', () => {
     const pinnedFile = compileBlueprint(pinned, { targets: ['opencode'] }).files.find(
       (file) => file.path === '.opencode/agents/reviewer.md',
     )!
-    expect(frontmatterOf(pinnedFile.content).model).toBe('anthropic/claude-x')
+    expect(frontmatterOf(textOf(pinnedFile)).model).toBe('anthropic/claude-x')
 
     const bareResult = compileBlueprint(bare, { targets: ['opencode'] })
     const bareFile = bareResult.files.find((file) => file.path === '.opencode/agents/reviewer.md')!
-    expect(frontmatterOf(bareFile.content).model).toBeUndefined()
+    expect(frontmatterOf(textOf(bareFile)).model).toBeUndefined()
     expect(bareResult.issues.some((issue) => issue.message.includes('provider/id'))).toBe(true)
   })
 
@@ -183,7 +183,7 @@ describe('opencode adapter', () => {
 
     expect(nested).toHaveLength(1)
     expect(nested[0]?.owner).toBe('shared')
-    expect(nested[0]?.content).toContain('Rules for src')
+    expect(textOf(nested[0])).toContain('Rules for src')
   })
 
   it('says which rules it cannot scope', async () => {

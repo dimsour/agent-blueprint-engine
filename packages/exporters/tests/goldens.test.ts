@@ -12,7 +12,13 @@ import { mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync }
 import { dirname, join, relative, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { type HarnessId, HARNESS_IDS } from '@agent-blueprint/core'
+import {
+  decodeUtf8,
+  type HarnessId,
+  HARNESS_IDS,
+  type ProjectFile,
+  sameFile,
+} from '@agent-blueprint/core'
 import { describe, expect, it } from 'vitest'
 
 import { compileBlueprint } from '../src/index'
@@ -36,13 +42,18 @@ const CASES: GoldenCase[] = [
   { name: 'dotnet-testing-expert.pi', targets: ['pi'] },
 ]
 
-function readTree(root: string): Record<string, string> {
-  const files: Record<string, string> = {}
+function readTree(root: string): Record<string, ProjectFile> {
+  const files: Record<string, ProjectFile> = {}
   const walk = (dir: string): void => {
     for (const entry of readdirSync(dir).sort()) {
       const full = join(dir, entry)
       if (statSync(full).isDirectory()) walk(full)
-      else files[relative(root, full).split(sep).join('/')] = readFileSync(full, 'utf8')
+      else {
+        // Read as bytes and decode only if it is text, so a binary asset compares byte for byte.
+        const bytes = new Uint8Array(readFileSync(full))
+        const text = decodeUtf8(bytes)
+        files[relative(root, full).split(sep).join('/')] = text ?? bytes
+      }
     }
   }
   try {
@@ -53,12 +64,13 @@ function readTree(root: string): Record<string, string> {
   return files
 }
 
-function writeTree(root: string, files: Record<string, string>): void {
+function writeTree(root: string, files: Record<string, ProjectFile>): void {
   rmSync(root, { recursive: true, force: true })
   for (const [path, content] of Object.entries(files)) {
     const full = join(root, path)
     mkdirSync(dirname(full), { recursive: true })
-    writeFileSync(full, content, 'utf8')
+    if (typeof content === 'string') writeFileSync(full, content, 'utf8')
+    else writeFileSync(full, content)
   }
 }
 
@@ -87,7 +99,9 @@ describe('golden files', () => {
       ).toBeGreaterThan(0)
       expect(Object.keys(produced).sort()).toEqual(Object.keys(expected).sort())
       for (const [path, content] of Object.entries(expected)) {
-        expect(produced[path], path).toBe(content)
+        // Strings compare as strings so a diff is readable; bytes compare byte for byte.
+        if (typeof content === 'string') expect(produced[path], path).toBe(content)
+        else expect(sameFile(produced[path], content), path).toBe(true)
       }
     })
   }

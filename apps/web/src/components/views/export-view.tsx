@@ -10,7 +10,13 @@
  * Errors block the download. A Blueprint the validator rejects would compile to files that
  * misrepresent it, and shipping those is worse than refusing.
  */
-import { type Diagnostic, type EntityRef, HARNESS_LABELS } from '@agent-blueprint/core'
+import {
+  byteLength,
+  type Diagnostic,
+  type EntityRef,
+  HARNESS_LABELS,
+  sameFile,
+} from '@agent-blueprint/core'
 import { compileBlueprint, type GeneratedFile } from '@agent-blueprint/exporters'
 import { CheckIcon, CopyIcon, DownloadIcon, FileIcon, LoaderIcon } from 'lucide-react'
 import { useMemo, useState } from 'react'
@@ -19,7 +25,13 @@ import { toast } from 'sonner'
 import { DiagnosticRow } from '@/components/views/diagnostic-row'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/primitives'
-import { downloadBlob, downloadZip, filesToZip, projectFilesOf } from '@/lib/storage'
+import {
+  downloadBlob,
+  downloadZip,
+  filesToZip,
+  type ProjectFiles,
+  projectFilesOf,
+} from '@/lib/storage'
 import { cn, formatBytes } from '@/lib/utils'
 import { useWorkspace } from '@/lib/state/workspace-store'
 
@@ -81,11 +93,11 @@ export function ExportView() {
   const download = async () => {
     setBusy(true)
     try {
-      const everything: Record<string, string> = { ...source }
+      const everything: ProjectFiles = { ...source }
       for (const file of compiled.files) {
         // A compiled file quietly replacing a source file is the one way this archive could
         // ship something other than what the screen showed.
-        if (file.path in everything && everything[file.path] !== file.content) {
+        if (file.path in everything && !sameFile(everything[file.path], file.content)) {
           throw new Error(`Two different files want the path ${file.path}.`)
         }
         everything[file.path] = file.content
@@ -182,7 +194,7 @@ export function ExportView() {
           <>
             <div className="flex h-9 shrink-0 items-center gap-2 border-b px-3">
               <span className="min-w-0 flex-1 truncate font-mono text-xs">{open.path}</span>
-              <Badge variant="outline">{formatBytes(new Blob([open.content]).size)}</Badge>
+              <Badge variant="outline">{formatBytes(byteLength(open.content))}</Badge>
               <Button
                 variant="ghost"
                 size="sm"
@@ -210,7 +222,9 @@ export function ExportView() {
                 disabled={errors.length > 0}
                 onClick={() =>
                   downloadBlob(
-                    new Blob([open.content], { type: 'text/plain;charset=utf-8' }),
+                    typeof open.content === 'string'
+                      ? new Blob([open.content], { type: 'text/plain;charset=utf-8' })
+                      : new Blob([new Uint8Array(open.content)]),
                     open.path.split('/').at(-1) ?? 'file.txt',
                   )
                 }
@@ -236,9 +250,16 @@ export function ExportView() {
               </p>
             ) : null}
 
-            <pre className="min-h-0 flex-1 overflow-auto p-3 font-mono text-xs whitespace-pre-wrap">
-              {open.content}
-            </pre>
+            {typeof open.content === 'string' ? (
+              <pre className="min-h-0 flex-1 overflow-auto p-3 font-mono text-xs whitespace-pre-wrap">
+                {open.content}
+              </pre>
+            ) : (
+              <p className="text-muted-foreground p-3 text-sm">
+                This file is not text. It is copied from the Blueprint byte for byte; save it to see
+                it.
+              </p>
+            )}
           </>
         ) : (
           <div className="flex flex-col gap-2 p-4">

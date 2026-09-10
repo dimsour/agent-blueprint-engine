@@ -61,12 +61,13 @@ export interface Capability {
 }
 export type CapabilityMatrix = Record<Concept, Capability>
 
-export type FileFormat = 'markdown' | 'json' | 'yaml' | 'toml' | 'typescript' | 'text'
+export type FileFormat = 'markdown' | 'json' | 'yaml' | 'toml' | 'typescript' | 'text' | 'binary'
 
 export interface GeneratedFile {
   /** Repository-relative POSIX path, e.g. `.claude/skills/xunit/SKILL.md`. */
   path: string
-  content: string
+  /** Text, or the bytes themselves for a `binary` file (a skill asset that is not text). */
+  content: ProjectFile
   format: FileFormat
   /** Harness that produced the file, or `shared` for files several harnesses read (AGENTS.md, .agents/skills). */
   owner: HarnessId | 'shared'
@@ -624,3 +625,24 @@ as OpenCode applies, and one more: a generated file is compiler-owned, so a stub
 would be overwritten on the next export. Handing someone a starting point that their own work
 disappears from is worse than handing them nothing. Roadmap P8-11 covers generating a real one,
 after the event payloads are verified against a running Pi.
+
+## Implementation notes (P8-04, binary assets)
+
+### `GeneratedFile.content` is a union, on purpose
+
+A skill's `assets/` may hold a diagram or a font, and the compiler copies resources into every
+harness that gets the skill. `content` is `string | Uint8Array` with a `binary` format rather
+than a second field or a second list, because a union makes ignoring the byte case a compile
+error. That is the property worth having: the failure mode being fixed here is a file quietly
+becoming something else, which no test notices until someone opens it.
+
+The consequences ripple exactly as far as they should. `mergeFileSets` compares with `sameFile`
+instead of `Set` identity; `sha256Hex` takes bytes, so a binary file is hashed into the build
+manifest like anything else the compiler owns; and `writeCompiled` reads back the way it wrote,
+because reading a PNG as text would report it as changed on every build.
+
+### A binary asset gets no header and no newline
+
+The generated-file header is a comment, and a comment in a PNG is a corrupt PNG. Scripts and
+non-Markdown text resources already skipped the header for that reason; binary skips the
+trailing newline as well.

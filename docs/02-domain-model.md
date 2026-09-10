@@ -163,7 +163,7 @@ SkillActivation (`skillActivationSchema`), every list ORed with the others:
 | `agentRoles`   | AgentRole[] | Roles that activate the skill          |
 | `workflowIds`  | Slug[]      | Workflows in which the skill is active |
 
-SkillResource: `{ path: relative path (no leading `/`, no drive letter, no `..`), kind: 'reference' \| 'script' \| 'asset', content: string }`. The reader infers `kind` from the first path segment (`scripts/` → script, `assets/` → asset, otherwise reference). `SKILL_DESCRIPTION_MAX_LENGTH` = 1024 (Agent Skills limit; validation `BP-SKILL-001`).
+SkillResource: `{ path: relative path (no leading `/`, no drive letter, no `..`), kind: 'reference' \| 'script' \| 'asset', encoding: 'utf8' \| 'base64', content: string }`. The reader infers `kind` from the first path segment (`scripts/` → script, `assets/` → asset, otherwise reference) and `encoding` from the bytes: a file that decodes as UTF-8 and holds no NUL byte is text, and `content` is the file; anything else is `base64`. The model stays JSON-serializable — it travels through ChangeSets, undo history and IndexedDB — while the bytes on disk stay the bytes. `SKILL_DESCRIPTION_MAX_LENGTH` = 1024 (Agent Skills limit; validation `BP-SKILL-001`).
 
 ## 6. Workflow
 

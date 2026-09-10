@@ -319,7 +319,9 @@ describe('ExportView', () => {
     await user.click(screen.getByRole('button', { name: /CLAUDE\.md/ }))
 
     // The preview is the content, not a rendering of it.
-    expect(screen.getByText(file.content.slice(0, 40), { exact: false })).toBeInTheDocument()
+    expect(
+      screen.getByText(String(file.content).slice(0, 40), { exact: false }),
+    ).toBeInTheDocument()
   })
 
   it('blocks the download while an error stands, and links to it', async () => {

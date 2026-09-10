@@ -6,7 +6,14 @@
  * references are copied into the skill's own `references/` directory so a skill stays
  * self-contained: a harness that loads only that directory still has everything.
  */
-import type { Blueprint, EntityRef, HarnessId, Reference, Skill } from '@agent-blueprint/core'
+import {
+  type Blueprint,
+  type EntityRef,
+  fromBase64,
+  type HarnessId,
+  type Reference,
+  type Skill,
+} from '@agent-blueprint/core'
 
 import { generatedFile, type GeneratedFile } from '../types'
 import { type Frontmatter, markdownWithFrontmatter } from './frontmatter'
@@ -80,7 +87,20 @@ export function emitSkillDir(
   ]
 
   for (const resource of skill.resources) {
-    // Scripts and assets are copied verbatim: an HTML comment would corrupt them.
+    // Scripts and assets are copied verbatim: an HTML comment would corrupt them. A resource
+    // that is not text is copied as its bytes, for the same reason and more so.
+    if (resource.encoding === 'base64') {
+      files.push(
+        generatedFile(
+          `${dir}/${resource.path}`,
+          fromBase64(resource.content),
+          'binary',
+          options.owner,
+          [ref],
+        ),
+      )
+      continue
+    }
     const isMarkdown = resource.path.endsWith('.md')
     const source = `blueprint/skills/${skill.id}/${resource.path}`
     files.push(

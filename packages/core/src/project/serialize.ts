@@ -5,6 +5,7 @@
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml'
 
 import type { JsonValue } from '../model/json'
+import type { ProjectFile } from './virtual-fs'
 
 /** JSON with sorted object keys, 2-space indent and a trailing newline. */
 export function canonicalJson(value: unknown): string {
@@ -112,8 +113,10 @@ export function isJsonValue(value: unknown): value is JsonValue {
 }
 
 /** SHA-256 hex digest via Web Crypto (available in browsers and Node ≥ 20). */
-export async function sha256Hex(text: string): Promise<string> {
-  const bytes = new TextEncoder().encode(text)
-  const digest = await crypto.subtle.digest('SHA-256', bytes)
+export async function sha256Hex(content: ProjectFile): Promise<string> {
+  // Copied into a fresh array: Web Crypto wants an ArrayBuffer-backed view, and a Uint8Array
+  // handed in from elsewhere may sit on a shared buffer.
+  const bytes = typeof content === 'string' ? new TextEncoder().encode(content) : content
+  const digest = await crypto.subtle.digest('SHA-256', new Uint8Array(bytes))
   return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('')
 }

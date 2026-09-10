@@ -11,9 +11,10 @@ import {
   skillResourcePath,
   workflowGraphPath,
 } from './layout'
+import { fromBase64, sameBytes } from './binary'
 import { encodeFrontmatter, pruneEmpty, stableJson, toYaml } from './serialize'
 import { stripDefaults } from './strip-defaults'
-import type { VirtualFs } from './virtual-fs'
+import type { ProjectFile, VirtualFs } from './virtual-fs'
 
 /** Keys that never go into a file's data section: the id is the file name, the body is the file body. */
 const EXCLUDED_KEYS = new Set(['id', 'body'])
@@ -43,20 +44,23 @@ const SKILL_EXCLUDED = new Set([...EXCLUDED_KEYS, 'resources'])
 const WORKFLOW_MD_EXCLUDED = new Set([...EXCLUDED_KEYS, 'entryNodeId', 'nodes', 'edges'])
 const WORKFLOW_GRAPH_KEYS = ['entryNodeId', 'nodes', 'edges'] as const
 
-function renderSkill(sourceDir: string, skill: Skill, files: Record<string, string>): void {
+function renderSkill(sourceDir: string, skill: Skill, files: Record<string, ProjectFile>): void {
   files[entityMainPath(sourceDir, 'skill', skill.id)] = encodeFrontmatter(
     entityData('skill', skill, SKILL_EXCLUDED),
     skill.body,
   )
   for (const resource of skill.resources) {
-    files[skillResourcePath(sourceDir, skill.id, resource.path)] = `${resource.content}\n`
+    // A binary resource is written as the bytes it came from, not as the base64 the model
+    // carries; a trailing newline would corrupt it, so only text gets one.
+    files[skillResourcePath(sourceDir, skill.id, resource.path)] =
+      resource.encoding === 'base64' ? fromBase64(resource.content) : `${resource.content}\n`
   }
 }
 
 function renderWorkflow(
   sourceDir: string,
   workflow: Workflow,
-  files: Record<string, string>,
+  files: Record<string, ProjectFile>,
 ): void {
   files[entityMainPath(sourceDir, 'workflow', workflow.id)] = encodeFrontmatter(
     entityData('workflow', workflow, WORKFLOW_MD_EXCLUDED),
@@ -112,15 +116,16 @@ function orderLike(
 
 /**
  * Pure function: Blueprint → { path: content }. Normalizes first, so the output is identical
- * for any two Blueprints that are semantically equal.
+ * for any two Blueprints that are semantically equal. Values are text except for a skill
+ * resource that is not text, which is the bytes themselves.
  */
 export function renderProjectFiles(
   input: Blueprint,
   options: { sourceDir?: string } = {},
-): Record<string, string> {
+): Record<string, ProjectFile> {
   const bp = normalizeBlueprint(input)
   const sourceDir = options.sourceDir ?? bp.settings.sourceDir
-  const files: Record<string, string> = {}
+  const files: Record<string, ProjectFile> = {}
 
   files[manifestPath(sourceDir)] = renderManifest(bp)
 
@@ -175,12 +180,19 @@ export async function writeProject(
   const deleted: string[] = []
 
   for (const [path, content] of Object.entries(files)) {
-    const existing = await fs.read(path)
-    if (existing === content) {
-      unchanged.push(path)
-      continue
+    if (typeof content === 'string') {
+      if ((await fs.read(path)) === content) {
+        unchanged.push(path)
+        continue
+      }
+      await fs.write(path, content)
+    } else {
+      if (sameBytes(await fs.readBinary(path), content)) {
+        unchanged.push(path)
+        continue
+      }
+      await fs.writeBinary(path, content)
     }
-    await fs.write(path, content)
     written.push(path)
   }
 
