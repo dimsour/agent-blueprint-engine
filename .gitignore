@@ -30,3 +30,4 @@ playwright-report/
 # toolkit scratch dirs (kept out of the repo)
 .claude/scratchpad/
 .claude/skill-metrics/
+.claude/worktrees/

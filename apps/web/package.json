@@ -11,8 +11,9 @@
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
-    "test:e2e": "playwright test --grep-invert screenshots",
-    "screenshots": "playwright test --grep screenshots"
+    "test:e2e": "playwright test --grep-invert \"screenshots|logo-assets\"",
+    "screenshots": "playwright test --grep screenshots",
+    "logo": "playwright test --grep logo-assets"
   },
   "dependencies": {
     "@agent-blueprint/ai": "workspace:*",
