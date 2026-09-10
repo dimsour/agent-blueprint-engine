@@ -1,6 +1,9 @@
 {
-  "note": "Three findings from the fixture, fixed. The first answer renames the skill on the way past, which the operation must not let through. The second answers a Blueprint-level finding with a new Iron Law. The third answers with two skills for a finding about one, which is the case where no id may be assumed.",
-  "recordedAgainst": { "operation": "fix-finding", "promptVersion": 1 },
+  "note": "Findings from the fixture, fixed. The first answer renames the skill on the way past, which the operation must not let through. The second answers a Blueprint-level finding with a new Iron Law. The third answers with two skills for a finding about one, which is the case where no id may be assumed. The last pair is a first attempt that does not clear the finding and the second attempt that does, which is the round trip the validator triggers.",
+  "recordedAgainst": {
+    "operation": "fix-finding",
+    "promptVersion": 1
+  },
   "answers": [
     {
       "artifacts": [
@@ -60,6 +63,37 @@
         }
       ],
       "note": "Split it in two."
+    },
+    {
+      "artifacts": [
+        {
+          "kind": "skill",
+          "artifact": {
+            "id": "test-design",
+            "name": "Test design",
+            "whenToUse": "When deciding what a test should assert.",
+            "body": "## Instructions\n\nName the test for the behaviour, not the method."
+          },
+          "note": "Tidied the body."
+        }
+      ],
+      "note": "Improved the skill."
+    },
+    {
+      "artifacts": [
+        {
+          "kind": "skill",
+          "artifact": {
+            "id": "test-design",
+            "name": "Test design",
+            "description": "Decide what a test should assert, and name it for the behaviour it pins down.",
+            "whenToUse": "When deciding what a test should assert.",
+            "body": "## Instructions\n\nName the test for the behaviour, not the method."
+          },
+          "note": "Added the description the finding asked for."
+        }
+      ],
+      "note": "Filled in the description, which is what the rule was asking for."
     }
   ]
 }

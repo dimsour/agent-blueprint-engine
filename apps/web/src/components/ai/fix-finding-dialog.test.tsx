@@ -12,7 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { FixFindingDialog } from '@/components/ai/fix-finding-dialog'
 import { AI_SETTINGS_KEY } from '@/lib/ai/settings'
-import { stubEndpoint } from '@/lib/ai/stub-endpoint'
+import { answerFor, stubEndpoint } from '@/lib/ai/stub-endpoint'
 import { CREDENTIAL_KEYS } from '@/lib/credentials'
 import { parseProject } from '@/lib/storage'
 import { useWorkspace } from '@/lib/state/workspace-store'
@@ -134,5 +134,44 @@ describe('FixFindingDialog', () => {
     expect(await screen.findByRole('alert')).toBeVisible()
     expect(screen.getByText(/Nothing was changed/)).toBeVisible()
     expect(screen.getByRole('button', { name: 'Fix it' })).toBeEnabled()
+  })
+})
+
+describe('feeding the model more than the catalogue knows (P9-13)', () => {
+  it('sends what the user adds, so a finding it read wrong can be corrected', async () => {
+    const user = userEvent.setup()
+    configure()
+    await loadFixture()
+    const sent: string[] = []
+    // Through the same stub the other tests use, so the request is answered in the shape it
+    // was asked for; this one only keeps a copy of what went out.
+    globalThis.fetch = ((_url: string, init?: RequestInit) => {
+      sent.push(String(init?.body ?? ''))
+      return Promise.resolve(answerFor(ANSWER, init))
+    }) as unknown as typeof globalThis.fetch
+
+    render(<FixFindingDialog diagnostic={MISSING_DESCRIPTION} open onOpenChange={() => {}} />)
+    await user.type(
+      screen.getByLabelText('Anything else it should know'),
+      'It is about xUnit v3 specifically.',
+    )
+    await user.click(screen.getByRole('button', { name: 'Fix it' }))
+    await screen.findByRole('button', { name: /Apply/ })
+
+    expect(sent.join('\n')).toContain('xUnit v3 specifically')
+  })
+
+  it('says whether the fix actually clears the finding', async () => {
+    const user = userEvent.setup()
+    configure()
+    await loadFixture()
+    stubEndpoint(ANSWER)
+
+    render(<FixFindingDialog diagnostic={MISSING_DESCRIPTION} open onOpenChange={() => {}} />)
+    await user.click(screen.getByRole('button', { name: 'Fix it' }))
+    await screen.findByRole('button', { name: /Apply/ })
+
+    // Checked against the validator before the user is shown it, not asserted.
+    expect(screen.getByText(/clears BP-DESC-001/)).toBeVisible()
   })
 })

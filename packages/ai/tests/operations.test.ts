@@ -28,6 +28,7 @@ import {
   findMissing,
   fixabilityOf,
   fixFinding,
+  invariantFor,
   generateArtifact,
   generateBlueprint,
   assembleChangeSet,
@@ -524,4 +525,130 @@ describe('fixFinding', () => {
       expect(entry.remedy.length, entry.code).toBeGreaterThan(40)
     }
   })
+})
+
+/**
+ * Checking the fix before the user sees it (P9-13).
+ *
+ * "The AI fix does not always work" has an answer the product can give itself: apply the
+ * proposal to a throwaway Blueprint, run the same rules the IDE runs, and see whether the
+ * finding is still there. If it is, ask again with the validator's own words. If it still is,
+ * say so in the review rather than letting the user find out after applying.
+ */
+describe('fixFinding, checked against the validator', () => {
+  /** A real finding, not a synthetic one: the rule has to be able to raise it again. */
+  function withoutDescription(): Blueprint {
+    return {
+      ...fixture,
+      skills: fixture.skills.map((skill) =>
+        skill.id === 'test-design' ? { ...skill, description: '' } : skill,
+      ),
+    }
+  }
+
+  const finding = {
+    code: 'BP-DESC-001',
+    severity: 'warning' as const,
+    message: 'Skill "test-design" has no description.',
+    ref: { kind: 'skill' as const, id: 'test-design' },
+  }
+
+  it('asks again when the first attempt leaves the finding standing', async () => {
+    const blueprint = withoutDescription()
+    const result = await fixFinding(
+      depsFor('fix-finding', [3, 5]),
+      { blueprint },
+      {
+        diagnostic: finding,
+      },
+    )
+
+    // The recording's first answer omits the description; the second supplies it. Keeping the
+    // first would have handed the user a diff that changes nothing the finding was about.
+    const applied = applyChangeSet(blueprint, result.changeSet).blueprint
+    expect(findEntity(applied, 'skill', 'test-design')!.description).not.toBe('')
+    expect(validateBlueprint(applied).map((found) => found.code)).not.toContain('BP-DESC-001')
+    expect(result.notes.join(' ')).toContain('applying this clears BP-DESC-001')
+  })
+
+  it('says so when the fix does not close the finding', async () => {
+    const blueprint = withoutDescription()
+    // The same answer twice: neither attempt supplies the description, so neither clears it.
+    const stubborn = recording('fix-finding')[3]!
+    const result = await fixFinding(
+      { client: replayClient([stubborn, stubborn]).client },
+      { blueprint },
+      { diagnostic: finding },
+    )
+
+    expect(result.notes.join(' ')).toContain('is still raised after this change')
+  })
+
+  it('does not claim to have checked a code the validator cannot raise', async () => {
+    const withoutLaws = { ...fixture, ironLaws: [] }
+    const result = await fixFinding(
+      depsFor('fix-finding', [1, 2]),
+      { blueprint: withoutLaws },
+      {
+        diagnostic: {
+          code: 'BP-SAFETY-003',
+          severity: 'info',
+          message: 'No Iron Law covers security.',
+        },
+      },
+    )
+
+    // BP-SAFETY-003 comes from the evaluation pass, so re-running the validator proves
+    // nothing about it. Saying "cleared" would be a lie by omission.
+    expect(result.notes.join(' ')).toContain('Not re-checked')
+    expect(result.notes.join(' ')).not.toContain('clears BP-SAFETY-003')
+  })
+})
+
+describe('what the model is told about a finding', () => {
+  it('sends the invariant, the evidence, the fields and the artifact itself', async () => {
+    // An empty answer: the prompt is built in full, and with no ops there is no second
+    // attempt to consume an answer this test does not have.
+    const client = replayClient([JSON.stringify({ artifacts: [], note: 'Nothing to change.' })])
+    await fixFinding(
+      { client: client.client },
+      { blueprint: fixture },
+      {
+        diagnostic: {
+          code: 'BP-WF-005',
+          severity: 'warning',
+          message: 'Step "review" in workflow "write-tests" has no agent assigned.',
+          ref: { kind: 'workflow', id: 'write-tests' },
+          data: { nodeId: 'review' },
+        },
+      },
+    )
+
+    const sent = client.sent[0]!.messages.map((message) => message.content).join('\n')
+    // The invariant is the exit condition, from the rule's own description.
+    expect(sent).toContain('The rule enforces this:')
+    // The evidence names the step, so the model does not have to guess which of nine it is.
+    expect(sent).toContain('nodeId')
+    // The fields say what to change and, by omission, what to return untouched.
+    expect(sent).toContain('The finding is about these fields: nodes')
+    // And the artifact is repeated next to the ask, not only thousands of tokens earlier.
+    expect(sent).toContain('## The artifact as it stands')
+  })
+})
+
+/**
+ * The steering tables have to cover the catalogue between them.
+ *
+ * Two sources supply the invariant — the rule's own description where the code has a rule,
+ * and a table where one rule emits several codes. A code that falls between them is asked to
+ * be fixed with no statement of what "fixed" means, which is the model guessing.
+ */
+it('has an invariant for every validation code a model is offered', () => {
+  const uncovered = DIAGNOSTIC_CODES.filter(
+    (entry) =>
+      entry.source === 'validation' &&
+      fixabilityOf({ code: entry.code, severity: 'warning', message: '' }).fixable &&
+      invariantFor(entry.code) === undefined,
+  )
+  expect(uncovered.map((entry) => entry.code)).toEqual([])
 })

@@ -16,7 +16,7 @@ import { type Diagnostic, diagnosticCode } from '@agent-blueprint/core'
 import { aiDiagnosticCode, AIError, fixabilityOf, fixFinding } from '@agent-blueprint/ai'
 import { ArrowRightIcon, Loader2Icon, SparklesIcon, SquareIcon } from 'lucide-react'
 import Link from 'next/link'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { ChangeSetReview, RejectedOps, type RejectedOp } from '@/components/ai/changeset-review'
@@ -29,7 +29,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/overlays'
-import { Badge, Card } from '@/components/ui/primitives'
+import { Badge, Card, Textarea } from '@/components/ui/primitives'
 import { configuredClient, structuredFor } from '@/lib/ai/settings'
 import { useWorkspace } from '@/lib/state/workspace-store'
 
@@ -52,6 +52,7 @@ export function FixFindingDialog({
   const diagnostics = useWorkspace((state) => state.diagnostics)
   const apply = useWorkspace((state) => state.apply)
 
+  const [instruction, setInstruction] = useState('')
   const [busy, setBusy] = useState(false)
   const [progress, setProgress] = useState<Progress | undefined>()
   const [proposal, setProposal] = useState<Proposal | undefined>()
@@ -60,6 +61,7 @@ export function FixFindingDialog({
   // Held across renders rather than in state: stopping must not wait for one.
   const inFlight = useRef<AbortController | undefined>(undefined)
 
+  const instructionId = useId()
   const configured = useMemo(() => (open ? configuredClient() : undefined), [open])
 
   const stop = () => inFlight.current?.abort()
@@ -88,6 +90,7 @@ export function FixFindingDialog({
             blueprint,
             ...(diagnostic.ref ? { selection: diagnostic.ref } : {}),
             ...(diagnostics.length > 0 ? { diagnostics } : {}),
+            ...(instruction.trim() ? { instruction: instruction.trim() } : {}),
           },
           { diagnostic },
         ),
@@ -154,6 +157,22 @@ export function FixFindingDialog({
                 {remedyOf(diagnostic)}
               </p>
             </Card>
+
+            {/* The escape hatch for the finding the model reads the wrong way. Everything
+                else in this dialog is derived; this is the one place the person who knows
+                the project can say what the catalogue could not. */}
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor={instructionId} className="text-xs font-medium">
+                Anything else it should know
+              </label>
+              <Textarea
+                id={instructionId}
+                rows={2}
+                placeholder="Optional. What the artifact is really for, a constraint, or what a previous attempt got wrong."
+                value={instruction}
+                onChange={(event) => setInstruction(event.target.value)}
+              />
+            </div>
 
             <div className="flex flex-wrap items-center gap-2">
               <Button disabled={busy || !blueprint} onClick={() => void run()}>
