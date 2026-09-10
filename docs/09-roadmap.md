@@ -31,6 +31,7 @@ The backlog for building Agent Blueprint. Phases follow the plan; tasks inside a
 | P6 AI             | done  | P6-01 to P6-09: the AI package, the settings screen and relay, the ChangeSet review, the assistant, the AI draft in the wizard, a model second opinion in the evaluation view, and the live check against real endpoints that found and fixed seven bugs. P6-10 to P6-12 are follow-ups it recorded.                                                                                                  |
 | P7 GitHub         | done  | P7-01 to P7-05: the token and sign-in, repository and branch selection, the push preview against the remote tree, the atomic push with a secret scan in front of it, and opening a project out of a repository. P7-06 is a follow-up it recorded.                                                                                                                                                     |
 | P8 Hardening      | done  | P8-01 to P8-09: all five harnesses have a full adapter, projects carry binary assets, an import says what the first save would change, the UI is checked against WCAG 2.1 AA in both themes, a 200-artifact project is measured, the docs no longer describe finished work as planned, and the docs/00 story is walked end to end. P8-10 and P8-11 are the two hook runtimes those adapters recorded. |
+| P9 Interface      | to do | The interface pass: the logo, a way back out of every route, one step to a project instead of ten, an example beside every field, a pointer on anything clickable, and a tutorial. Specified below.                                                                                                                                                                                                   |
 
 ## P0 — Foundation (done)
 
@@ -664,6 +665,80 @@ Verification: `pnpm check` green; `pnpm --filter @agent-blueprint/core test` sho
 - Found and fixed: **a link to a view did not survive a reload.** Opening `?view=export` bounced to the overview graph, because the effect that writes the URL from the store compared against values from the render before the effect that reads the URL had applied them — so the store's default won a race it should always lose. docs/07 claims `?view=` and `&id=` make an artifact linkable; clicking a link worked, reloading or sharing one did not. Three tests now cover it.
 
 Acceptance for P8 tasks: goldens or tests as in the corresponding P2/P3 tasks; each task updates its doc.
+
+## P9 — Interface
+
+Everything so far has been about whether the product is correct. This phase is about whether it
+is pleasant: a mark instead of a word, a way back, one step instead of ten, a field that says
+what it wants, a cursor that behaves, and a page that teaches.
+
+Nothing here changes the model, the compiler or the project format. Where a task removes
+something, it says what and where that thing still exists.
+
+### P9-01 The logo
+
+- Package: `apps/web/public`, `apps/web/src/app/layout.tsx`, `apps/web/src/components/layout/top-bar.tsx`, `apps/web/src/components/dashboard/dashboard.tsx`, `apps/web/src/components/settings/settings.tsx`, `apps/web/src/components/wizard/wizard.tsx`
+- Depends on: nothing
+- Description: The brand is the words "Agent Blueprint" in four places and nothing in the browser tab. Add the supplied mark: `apps/web/src/app/icon.png` for the favicon (Next reads that filename), and a `Logo` component used by every header, so the mark is defined once and the four headers stop each inventing their own.
+- Two sizes, because the supplied file is a square mark above a wordmark and a top bar is 44px tall: the **mark alone** for the top bar and the favicon, the **full lockup** for the dashboard hero and the tutorial. See the open question below.
+- The file is 680 KB, which is the whole page weight again. Serve it through `next/image` so it is resized and cached, and keep the raw asset out of the critical path.
+- Acceptance: the mark appears in the tab, the top bar, the dashboard, settings and the wizard; the dashboard's largest contentful paint does not get worse; `pnpm build` reports no new warnings.
+- Verify: `pnpm --filter web test:e2e accessibility` (the mark needs an accessible name, and an image with no `alt` is a violation), plus `pnpm --filter web screenshots`.
+
+### P9-02 Getting back
+
+- Package: `apps/web/src/components/layout/`, `apps/web/src/app/settings/page.tsx`, `apps/web/src/app/new/page.tsx`
+- Depends on: P9-01
+- Description: `/settings` and `/new` are dead ends. The workspace has a way home — the wordmark links to `/` — and the other two routes have neither that nor a back control, so the browser's back button is the only way out, and after a redirect it is the wrong way out.
+- One `PageHeader` with the logo, the page's title, and a back control that returns to the page the user came from when that page is inside the app, and to `/` when it is not. A back button that guesses wrong is worse than none: arriving at `/settings` from a bookmark must go to `/`, not to whatever was in the history before.
+- Acceptance: every route except `/` offers a way back; back from `/settings` opened directly lands on `/`; back from `/settings` opened out of the workspace returns to that project.
+- Verify: `pnpm --filter web test:e2e story`
+
+### P9-03 One step to a project
+
+- Package: `apps/web/src/components/wizard/`, `apps/web/src/lib/wizard/draft.ts`, `apps/web/e2e/workspace.spec.ts`
+- Depends on: P9-02
+- Description: Creating a Blueprint asks ten questions before it will make anything. Collapse it to the first: name, id, description, and the AI draft — which already lives on that step — then create the project and open the workspace on it.
+- The other nine steps are artifact creation, and the workspace does that better: it has the tree, the inspector, "new from template" and the health bar, none of which the wizard has. Two things only the later steps offer, and where each goes instead: **targets** are already toggleable from the command palette and the compatibility view, and a new project keeps the `claude-code` + `codex` defaults; **the evaluate step** is the evaluation view, which scores the real project rather than a draft.
+- `WIZARD_STEPS`, the step navigation, `blockingReason` for the removed steps and the nine step bodies all go. Deleting them is the point: a second, worse artifact editor is a second thing to keep working.
+- docs/00 §"End-to-end experience" step 2 describes the ten-step wizard and has to be rewritten, along with docs/07's wizard section. The `creation wizard` e2e block asserts "walks the ten steps".
+- Acceptance: `/new` is one screen; naming a project and pressing Create opens the workspace with that project stored; the AI draft still works from it; no route still references a removed step.
+- Verify: `pnpm --filter web test:e2e`, `pnpm check`
+
+### P9-04 What this field is for
+
+- Package: `apps/web/src/components/editors/fields.tsx`, `apps/web/src/components/editors/entity-form.tsx`
+- Depends on: nothing
+- Description: Every field already carries a sentence of help, printed underneath it — 29 of them in `entity-form.tsx` alone. Under a form of twelve fields that is a wall of grey text that stops being read. Move it into an info icon beside the label, on the Tooltip primitive that already exists, and add to each one an **example** and a way to insert it.
+- The example is the half that teaches. "One or two sentences. Harnesses use this to decide when to load the artifact." says what the field is; `Reviews Rust changes for unsafe blocks before they merge.` shows it.
+- Examples belong in one map keyed by kind and field, beside the help text they extend, not scattered through the form. Inserting one must be an edit like any other: undoable, and never silently replacing something the user has already typed.
+- This is not "new from template", which fills a whole artifact from the 29 artifact templates and stays as it is. This fills one field, for the person who knows what they want everywhere except here.
+- Acceptance: every field with help has an info control reachable by keyboard; the example is visible without a mouse; inserting one into a field that already has content asks first; the ten starters and the fixture are unchanged.
+- Verify: `pnpm --filter web test`, `pnpm --filter web test:e2e accessibility`
+
+### P9-05 A pointer on anything clickable
+
+- Package: `apps/web/src/components/ui/button.tsx`, and the bare `<button>` elements in the tree, the export list, the palette and the graph
+- Depends on: nothing
+- Description: Tailwind v4 dropped the browser default of `cursor: pointer` on `<button>`, and nothing in this app put it back, so every button in the product shows a text caret. It is a one-line fix in the button variants and a sweep for the elements that are buttons without using the component.
+- A disabled button must keep `cursor: not-allowed` rather than inheriting the pointer, or the refusals this app is careful about start looking like bugs.
+- Acceptance: hovering any enabled button shows a pointer; hovering a disabled one does not; no element that is not clickable gains a pointer.
+- Verify: `pnpm --filter web test:e2e` with an assertion on the computed cursor of an enabled and a disabled button.
+
+### P9-06 A tutorial page
+
+- Package: `apps/web/src/app/tutorial/`, `apps/web/e2e/screenshots.spec.ts`
+- Depends on: P9-01, P9-03
+- Description: The product explains itself to someone who already knows what a Blueprint is. A `/tutorial` route walks the docs/00 story — start, describe, see the graph, connect, validate, save, compile, push — with the screenshots P8-08 already generates.
+- Reuse rather than repeat: the screenshots come from `pnpm --filter web screenshots`, which drives the real app, so a page that has changed cannot leave a picture of the old one behind. Any shot the tutorial needs and the script does not take gets added to the script, never captured by hand.
+- Linked from the dashboard and from the header, and it must read as useful to somebody who has not created a project yet — which means every step says what to press, not only what happens.
+- Acceptance: `/tutorial` covers each step of the docs/00 story with a current screenshot; every image has an accessible description; the page works with no project stored.
+- Verify: `pnpm --filter web test:e2e accessibility`, `pnpm --filter web screenshots`
+
+### Open questions
+
+1. **The logo needs a mark-only export.** The supplied file is the mark above the wordmark, so using it in a 44px top bar shows a legible mark and an unreadable smear of text, or the mark cropped by CSS, which breaks the moment the artwork changes. A second file containing only the square mark would settle it. Without one, P9-01 uses the full lockup where there is room and crops by `object-position` in the top bar, and says so in the code.
+2. **P9-03 removes the guided path**, which is the one thing in the product aimed at someone who has never built an agent system. P9-06 is the replacement, which is why it depends on it. If the tutorial is not wanted, the wizard is worth keeping as an optional route rather than the default one.
 
 ## Deferred by design
 
