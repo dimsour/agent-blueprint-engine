@@ -642,6 +642,7 @@ Verification: `pnpm check` green; `pnpm --filter @agent-blueprint/core test` sho
 - Built: `stressProjectFiles({ artifacts })` generates a project of any size instead of checking one in — deterministic, and parameterised so the same code answers "is it fast enough?" and "is it still linear?". Core budgets are measured directly; the browser ones (import, graph draw, typing latency) in Playwright. Numbers and budgets are in docs/07 under "Performance".
 - Found and fixed: evaluation tokenized each skill description **inside** the pairwise redundancy loop, so the same text was parsed once per other skill — quadratic comparisons doing quadratic work. At 800 artifacts that was 42 ms; hoisting the tokenization made it 10 ms and the curve linear. The comparison is still quadratic; the work per comparison is not.
 - Nothing else needed changing: the health bar, evaluation view, export preview, inspector relations and overview graph were already memoized on the Blueprint and the diagnostics. Two of the tests compare 100 artifacts against 400 rather than asserting a constant, because something quadratic passes at 200 and falls over at 600.
+- Later (P9): the browser budgets became flaky as the suite grew, because a wall clock shared with four other Chromium workers measures the machine, not the app — the same graph drew in 600ms or 1100ms depending on what else was running. `performance.spec.ts` is now its own Playwright project, `workers: 1`, depending on the main one, so it runs alone after everything else has let go of the CPU. The budgets themselves are unchanged.
 
 ### P8-08 Vercel deployment and docs refresh (done)
 
@@ -675,7 +676,7 @@ what it wants, a cursor that behaves, and a page that teaches.
 Nothing here changes the model, the compiler or the project format. Where a task removes
 something, it says what and where that thing still exists.
 
-### P9-01 The logo
+### P9-01 The logo (done)
 
 - Package: `apps/web/public`, `apps/web/src/app/layout.tsx`, `apps/web/src/components/layout/top-bar.tsx`, `apps/web/src/components/dashboard/dashboard.tsx`, `apps/web/src/components/settings/settings.tsx`, `apps/web/src/components/wizard/wizard.tsx`
 - Depends on: nothing
@@ -684,8 +685,12 @@ something, it says what and where that thing still exists.
 - The file is 680 KB, which is the whole page weight again. Serve it through `next/image` so it is resized and cached, and keep the raw asset out of the critical path.
 - Acceptance: the mark appears in the tab, the top bar, the dashboard, settings and the wizard; the dashboard's largest contentful paint does not get worse; `pnpm build` reports no new warnings.
 - Verify: `pnpm --filter web test:e2e accessibility` (the mark needs an accessible name, and an image with no `alt` is a violation), plus `pnpm --filter web screenshots`.
+- Built: one `Logo` in `apps/web/src/components/layout/logo.tsx`, used by all four headers. Every placement goes through `next/image` at the size it actually paints; the dashboard's lockup is not preloaded, so the heading is still what the browser races to show.
+- The open question below is answered by making the missing file rather than working around it. `pnpm --filter web logo` runs `e2e/logo-assets.spec.ts`, which drives a browser over `apps/web/brand/agent-blueprint.png` and cuts three assets from it: the square padded favicon at `src/app/icon.png`, and `src/assets/logo-mark.png` and `logo-lockup.png`, each tight to its subject. The rectangles are measured from the artwork's own alpha channel and recorded in the file, so a new artwork is one command and one re-measurement. `Logo` reads each asset's height from the static import rather than a constant, so it holds no crop and no aspect ratio of its own.
+- The generator is excluded from `test:e2e` alongside the screenshot script, for the same reason: it writes into the repository.
+- `e2e/header.spec.ts` asserts the favicon route really answers with a PNG, that the dashboard's lockup is served through the optimizer rather than whole, and that the mark is `alt=""` everywhere a labelled link already names the product — the case axe cannot fail on, because an image that never arrives has no violation either.
 
-### P9-02 Getting back
+### P9-02 Getting back (done)
 
 - Package: `apps/web/src/components/layout/`, `apps/web/src/app/settings/page.tsx`, `apps/web/src/app/new/page.tsx`
 - Depends on: P9-01
@@ -693,6 +698,11 @@ something, it says what and where that thing still exists.
 - One `PageHeader` with the logo, the page's title, and a back control that returns to the page the user came from when that page is inside the app, and to `/` when it is not. A back button that guesses wrong is worse than none: arriving at `/settings` from a bookmark must go to `/`, not to whatever was in the history before.
 - Acceptance: every route except `/` offers a way back; back from `/settings` opened directly lands on `/`; back from `/settings` opened out of the workspace returns to that project.
 - Verify: `pnpm --filter web test:e2e story`
+- Built: `PageHeader` (logo, back control, title, theme toggle) is the header for `/settings` and `/new`; the workspace keeps its own top bar, whose wordmark still links home and now carries the mark.
+- The question the task calls out — is the page behind this one ours? — is answered by counting, not by guessing. `NavigationTrail` sits in the root layout and increments a **module-level** counter whenever the pathname changes. The app is one document, so a move between two of its routes always goes through the client router and never reloads the page; a full document load re-evaluates the module and resets the count to zero. A count above zero therefore _proves_ the previous history entry was rendered by this app. None of the obvious signals can do that: `document.referrer` is fixed at document load and never updated by the App Router, `history.length` counts entries from other sites and never shrinks, and `window.history.state` carries the router's bookkeeping under private keys.
+- The back control is a real `<a href="/">` and only the plain left click is intercepted, so ⌘-click, middle-click and "copy link address" all get `/`, and the fallback is the destination the browser was already showing.
+- The honest cost: reloading `/settings` forgets the project it was opened from and offers `/` instead. Going somewhere sensible beats going somewhere surprising, and the alternative was a control that sometimes leaves the app.
+- `e2e/header.spec.ts` covers both halves: `/settings` reached from a project returns to that project, and `/settings` opened after a page on another origin goes to `/` rather than back to it.
 
 ### P9-03 One step to a project
 
@@ -719,6 +729,7 @@ something, it says what and where that thing still exists.
 - Built: **Insert example** goes through the field's own `onChange`, so an insert is one ordinary edit — `upsertEntity`, one undo step. A field with content asks (**Replace** / **Cancel**) before anything is overwritten; a string list appends instead, so there is nothing to ask about.
 - Built: 68 examples in one map, `apps/web/src/components/editors/field-examples.ts`, keyed `<kind>.<field>` and lifted from the fixture project and the starters, so the form suggests what the product actually ships.
 - Deviation: the sentence keeps its own line where a field has no example. `help` is not always help — Settings passes the masked API key it already holds through the same prop — and hiding a live status behind an icon to gain nothing would be a regression, not a tidy-up.
+- Cost, paid once: naming the button after its field put the field's own word into a second accessible name, and Playwright's `getByLabel` matches substrings, so `getByLabel('Name')` began resolving to both the input and its info button. Eighteen e2e tests broke. The names are right, so the locators became exact — which is the stricter locator anyway, and now the suite cannot be confused by a control that merely mentions a field.
 
 ### P9-05 A pointer on anything clickable
 
@@ -741,7 +752,7 @@ something, it says what and where that thing still exists.
 
 ### Open questions
 
-1. **The logo needs a mark-only export.** The supplied file is the mark above the wordmark, so using it in a 44px top bar shows a legible mark and an unreadable smear of text, or the mark cropped by CSS, which breaks the moment the artwork changes. A second file containing only the square mark would settle it. Without one, P9-01 uses the full lockup where there is room and crops by `object-position` in the top bar, and says so in the code.
+1. ~~**The logo needs a mark-only export.**~~ Settled: rather than crop by CSS, the cut is a script. `pnpm --filter web logo` measures nothing at run time — the rectangles live in `e2e/logo-assets.spec.ts`, taken from the artwork's alpha channel — and writes the three assets the app imports. A redrawn logo needs that one command and a re-measurement, and no component changes.
 2. **P9-03 removes the guided path**, which is the one thing in the product aimed at someone who has never built an agent system. P9-06 is the replacement, which is why it depends on it. If the tutorial is not wanted, the wizard is worth keeping as an optional route rather than the default one.
 
 ## Deferred by design

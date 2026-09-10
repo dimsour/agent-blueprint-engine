@@ -141,8 +141,8 @@ test.describe('the end-to-end story', () => {
     // 9. Push. The preview names every path; the commit carries exactly those.
     await page.getByRole('button', { name: 'GitHub', exact: true }).click()
     const dialog = page.getByRole('dialog')
-    await dialog.getByLabel('Repository').fill('octocat/blueprints')
-    await dialog.getByLabel('Branch').fill('blueprint')
+    await dialog.getByLabel('Repository', { exact: true }).fill('octocat/blueprints')
+    await dialog.getByLabel('Branch', { exact: true }).fill('blueprint')
     await dialog.getByRole('button', { name: 'Preview the changes' }).click()
 
     const changes = dialog.getByRole('list', { name: 'Changes' })

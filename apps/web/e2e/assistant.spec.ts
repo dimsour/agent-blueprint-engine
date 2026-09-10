@@ -102,7 +102,7 @@ test.describe('the assistant', () => {
 
     await page.getByRole('button', { name: 'Turn this into reusable knowledge' }).click()
     await page
-      .getByLabel('What happened')
+      .getByLabel('What happened', { exact: true })
       .fill('We shipped a migration without a rollback and had to hotfix at 2am.')
     await page.getByRole('button', { name: 'Ask' }).click()
 
@@ -242,17 +242,17 @@ test.describe('the wizard', () => {
     await page.goto('/new')
 
     await page
-      .getByLabel('Draft this with AI')
+      .getByLabel('Draft this with AI', { exact: true })
       .fill('A crew that reviews pull requests and blocks anything unverified.')
     await page.getByRole('button', { name: 'Draft', exact: true }).click()
 
     const proposals = page.getByRole('list', { name: 'Proposed changes' })
     await expect(proposals.getByRole('listitem')).toHaveCount(4)
     // Nothing has been written into the draft yet: the name is still what the author typed.
-    await expect(page.getByLabel('Name')).toHaveValue('')
+    await expect(page.getByLabel('Name', { exact: true })).toHaveValue('')
 
     await page.getByRole('button', { name: 'Apply 4 changes' }).click()
-    await expect(page.getByLabel('Name')).toHaveValue('PR Review Crew')
+    await expect(page.getByLabel('Name', { exact: true })).toHaveValue('PR Review Crew')
 
     // The wizard stays on step one; drafting fills the page in, it does not skip the questions.
     await expect(page.getByRole('heading', { name: 'What are you building?' })).toBeVisible()

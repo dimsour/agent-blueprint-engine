@@ -175,7 +175,7 @@ test.describe('workspace layout', () => {
     await page.getByRole('button', { name: 'New from template' }).click()
 
     const dialog = page.getByRole('dialog')
-    await dialog.getByLabel('Name').fill('Bundle Budget')
+    await dialog.getByLabel('Name', { exact: true }).fill('Bundle Budget')
     await expect(dialog).toContainText('bundle-budget')
     await dialog.getByRole('button', { name: 'Add' }).click()
 
@@ -216,7 +216,7 @@ test.describe('workspace layout', () => {
     await openStarter(page)
     await artifact(page, 'React testing').click()
 
-    const description = page.getByLabel('Description')
+    const description = page.getByLabel('Description', { exact: true })
     await description.fill('Testing components by role and label.')
 
     // The change is unsaved, then autosave commits it without being asked.
@@ -225,7 +225,7 @@ test.describe('workspace layout', () => {
 
     await page.reload()
     await artifact(page, 'React testing').click()
-    await expect(page.getByLabel('Description')).toHaveValue(
+    await expect(page.getByLabel('Description', { exact: true })).toHaveValue(
       'Testing components by role and label.',
     )
   })
@@ -234,7 +234,7 @@ test.describe('workspace layout', () => {
     await openStarter(page)
     await artifact(page, 'Accessibility').click()
 
-    await page.getByLabel('Id').fill('a11y')
+    await page.getByLabel('Id', { exact: true }).fill('a11y')
     // The inspector offers "Rename…", which opens a dialog; this is the form's inline commit.
     await page.getByRole('button', { name: 'Rename', exact: true }).click()
 
@@ -257,7 +257,7 @@ test.describe('overview graph', () => {
   test('draws the Blueprint and selects from it', async ({ page }) => {
     await openStarter(page)
 
-    const graph = page.getByLabel('Blueprint overview graph')
+    const graph = page.getByLabel('Blueprint overview graph', { exact: true })
     await expect(graph).toBeVisible()
     // One node per artifact, laid out and painted.
     await expect(page.locator('.react-flow__node')).toHaveCount(19)
@@ -307,8 +307,8 @@ test.describe('workflow editor', () => {
     await expect(page.locator('.react-flow__node')).toHaveCount(before + 1)
 
     // The step panel opens on the new step, and names it.
-    await expect(page.getByLabel('Label')).toHaveValue('Verification')
-    await page.getByLabel('Label').fill('Run the tests')
+    await expect(page.getByLabel('Label', { exact: true })).toHaveValue('Verification')
+    await page.getByLabel('Label', { exact: true }).fill('Run the tests')
 
     await expect(page.getByText('Saved', { exact: true })).toBeVisible({ timeout: 10_000 })
     await page.reload()
@@ -412,7 +412,7 @@ test.describe('workflow editor', () => {
     // panel is the keyboard path, and the only place the kind is chosen while connecting.
     await page.locator('.react-flow__node', { hasText: 'Report the outcome' }).click()
     const panel = page.getByRole('complementary', { name: 'Step settings' })
-    await panel.getByLabel('Kind of the next connection').click()
+    await panel.getByLabel('Kind of the next connection', { exact: true }).click()
     await page.getByRole('option', { name: 'fallback' }).click()
 
     await panel.getByRole('button', { name: 'Verify', exact: true }).click()
@@ -431,7 +431,7 @@ test.describe('workflow editor', () => {
     await artifact(page, 'Build a Component').click()
     await page.getByRole('tab', { name: /Visual/ }).click()
 
-    await expect(page.getByLabel('Name')).toHaveValue('Build a Component')
+    await expect(page.getByLabel('Name', { exact: true })).toHaveValue('Build a Component')
   })
 })
 
@@ -470,7 +470,7 @@ test.describe('addressable workspace', () => {
     await artifact(page, 'React testing').click()
     await report(page, 'Overview').click()
 
-    await expect(page.getByLabel('Blueprint overview graph')).toBeVisible()
+    await expect(page.getByLabel('Blueprint overview graph', { exact: true })).toBeVisible()
     await expect(page.getByText('No findings. This Blueprint is clean.')).toBeVisible()
   })
 })
@@ -480,7 +480,7 @@ test.describe('trust surfaces', () => {
     await openStarter(page)
     // Make one, rather than hoping the starter has one.
     await artifact(page, 'React testing').click()
-    await page.getByLabel('Description').fill('')
+    await page.getByLabel('Description', { exact: true }).fill('')
     await report(page, 'Overview').click()
 
     const warnings = page.getByRole('button', { name: /warnings?$/ })
@@ -516,7 +516,7 @@ test.describe('trust surfaces', () => {
 
     // The graph opens with the step's own settings panel already showing.
     await expect(page.getByRole('complementary', { name: 'Step settings' })).toBeVisible()
-    await expect(page.getByLabel('Label')).toHaveValue('Review')
+    await expect(page.getByLabel('Label', { exact: true })).toHaveValue('Review')
   })
 
   test('the evaluation view explains the score', async ({ page }) => {
@@ -565,7 +565,7 @@ test.describe('export and import', () => {
 
     // Edit first, so the archive proves it holds the live Blueprint and not the starter.
     await artifact(page, 'React testing').click()
-    await page.getByLabel('Description').fill('Round tripped through a ZIP.')
+    await page.getByLabel('Description', { exact: true }).fill('Round tripped through a ZIP.')
 
     // The top bar's Export opens the export view, which is the one place files leave.
     await page.locator('header').getByRole('button', { name: 'Export', exact: true }).click()
@@ -589,7 +589,9 @@ test.describe('export and import', () => {
 
     // Import it back. The dialog reports what it found before anything is stored.
     await page.goto('/')
-    await page.getByLabel('Import a Blueprint archive or manifest').setInputFiles(archive)
+    await page
+      .getByLabel('Import a Blueprint archive or manifest', { exact: true })
+      .setInputFiles(archive)
 
     const importDialog = page.getByRole('dialog')
     await expect(importDialog.getByRole('heading', { name: /React Expert/ })).toBeVisible()
@@ -601,7 +603,9 @@ test.describe('export and import', () => {
     await expect(kindGroup(page, 'Skills 4')).toBeVisible()
     await expect(kindGroup(page, 'Agents 1')).toBeVisible()
     await artifact(page, 'React testing').click()
-    await expect(page.getByLabel('Description')).toHaveValue('Round tripped through a ZIP.')
+    await expect(page.getByLabel('Description', { exact: true })).toHaveValue(
+      'Round tripped through a ZIP.',
+    )
   })
 
   test('the export shortcut opens the same view', async ({ page }) => {
@@ -614,7 +618,7 @@ test.describe('export and import', () => {
 
   test('a file that is not a project says so instead of opening', async ({ page }) => {
     await page.goto('/')
-    await page.getByLabel('Import a Blueprint archive or manifest').setInputFiles({
+    await page.getByLabel('Import a Blueprint archive or manifest', { exact: true }).setInputFiles({
       name: 'notes.zip',
       mimeType: 'application/zip',
       buffer: Buffer.from('nope'),
@@ -648,13 +652,13 @@ test.describe('creation wizard', () => {
 
     // 1 · the project. The id follows the name until it is edited.
     await expect(page.getByRole('button', { name: /^Next/ })).toBeDisabled()
-    await page.getByLabel('Name').fill('Rust Review Crew')
-    await expect(page.getByLabel('Id')).toHaveValue('rust-review-crew')
+    await page.getByLabel('Name', { exact: true }).fill('Rust Review Crew')
+    await expect(page.getByLabel('Id', { exact: true })).toHaveValue('rust-review-crew')
     await page.getByRole('button', { name: /^Next/ }).click()
 
     // 2 · the agent.
     await expect(page.getByRole('button', { name: /^Next/ })).toBeDisabled()
-    await page.getByLabel('Agent name').fill('Rust Reviewer')
+    await page.getByLabel('Agent name', { exact: true }).fill('Rust Reviewer')
     await page.getByRole('button', { name: /^Next/ }).click()
 
     // 3, 4, 5 · one artifact each, from a template.
@@ -700,7 +704,7 @@ test.describe('creation wizard', () => {
 
   test('a half-finished draft is offered again on the next visit', async ({ page }) => {
     await page.goto('/new')
-    await page.getByLabel('Name').fill('Half Finished')
+    await page.getByLabel('Name', { exact: true }).fill('Half Finished')
     // The draft is written on a timer; give it room, then leave and come back.
     await page.waitForTimeout(1200)
 
@@ -709,14 +713,14 @@ test.describe('creation wizard', () => {
 
     await expect(page.getByText(/part way through/i)).toBeVisible()
     await page.getByRole('button', { name: /Pick it up/ }).click()
-    await expect(page.getByLabel('Name')).toHaveValue('Half Finished')
+    await expect(page.getByLabel('Name', { exact: true })).toHaveValue('Half Finished')
   })
 
   test('a project made by the wizard survives a reload', async ({ page }) => {
     await page.goto('/new')
-    await page.getByLabel('Name').fill('Minimal Crew')
+    await page.getByLabel('Name', { exact: true }).fill('Minimal Crew')
     await page.getByRole('button', { name: /^Next/ }).click()
-    await page.getByLabel('Agent name').fill('Only Agent')
+    await page.getByLabel('Agent name', { exact: true }).fill('Only Agent')
 
     // Every step after the second is optional, so the wizard can be finished early.
     for (let step = 0; step < 8; step += 1) {
@@ -737,14 +741,14 @@ test.describe('command palette', () => {
     await page.keyboard.press('ControlOrMeta+k')
 
     const palette = page.getByRole('dialog')
-    await expect(palette.getByLabel('Command')).toBeFocused()
+    await expect(palette.getByRole('combobox')).toBeFocused()
 
-    await palette.getByLabel('Command').fill('Create Skill')
+    await palette.getByRole('combobox').fill('Create Skill')
     await palette.getByRole('option', { name: /Create Skill/ }).click()
 
     // The new skill is selected and its form is open, ready to be named.
     await expect(page.getByRole('tab', { name: /Visual/ })).toHaveAttribute('data-state', 'active')
-    await expect(page.getByLabel('Name')).toHaveValue('New skill')
+    await expect(page.getByLabel('Name', { exact: true })).toHaveValue('New skill')
     await expect(artifact(page, 'New skill')).toBeVisible()
   })
 
@@ -753,7 +757,7 @@ test.describe('command palette', () => {
     await page.getByRole('button', { name: /Commands/ }).click()
 
     const palette = page.getByRole('dialog')
-    await palette.getByLabel('Command').fill('accessibility')
+    await palette.getByRole('combobox').fill('accessibility')
     await palette.getByRole('option', { name: /Accessibility/ }).click()
 
     await expect(page.getByRole('heading', { name: 'Accessibility' })).toBeVisible()
@@ -796,8 +800,10 @@ test.describe('source editor', () => {
     )
 
     await page.getByRole('tab', { name: /Visual/ }).click()
-    await expect(page.getByLabel('Name')).toHaveValue('Typed In Editor')
-    await expect(page.getByLabel('Description')).toHaveValue('Written through the editor.')
+    await expect(page.getByLabel('Name', { exact: true })).toHaveValue('Typed In Editor')
+    await expect(page.getByLabel('Description', { exact: true })).toHaveValue(
+      'Written through the editor.',
+    )
 
     // The tree follows the rename of the display name.
     await expect(artifact(page, 'Typed In Editor')).toBeVisible()

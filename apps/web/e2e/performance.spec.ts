@@ -24,7 +24,7 @@ async function stressArchive(): Promise<Buffer> {
 
 async function openStressProject(page: Page): Promise<number> {
   await page.goto('/')
-  await page.getByLabel('Import a Blueprint archive or manifest').setInputFiles({
+  await page.getByLabel('Import a Blueprint archive or manifest', { exact: true }).setInputFiles({
     name: 'stress.zip',
     mimeType: 'application/zip',
     buffer: await stressArchive(),

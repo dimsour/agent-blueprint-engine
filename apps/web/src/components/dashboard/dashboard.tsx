@@ -23,6 +23,7 @@ import { Button } from '@/components/ui/button'
 import { Badge, Card } from '@/components/ui/primitives'
 import { ThemeToggle } from '@/components/theme'
 import { ImportDialog } from '@/components/dashboard/import-dialog'
+import { Logo } from '@/components/layout/logo'
 import { OpenFromGitHubDialog } from '@/components/github/open-dialog'
 import { useClientValue } from '@/lib/client-value'
 import {
@@ -175,19 +176,22 @@ export function Dashboard({ starters }: { starters: StarterInfo[] }) {
   return (
     <div className="mx-auto flex min-h-dvh max-w-5xl flex-col gap-10 px-6 py-12">
       <header className="flex items-start justify-between gap-4">
-        <div className="flex flex-col gap-1.5">
-          <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-            Agent Blueprint
-          </p>
-          <h1 className="text-2xl font-semibold tracking-tight">
-            Design once. Test it. Compile it everywhere.
-          </h1>
-          <p className="text-muted-foreground text-sm">
-            Define an agent system once, then compile it for Claude Code, Codex, Copilot, OpenCode
-            and Pi.
-          </p>
+        {/* The only place with room for the full lockup, so the only place that uses it; it
+            carries the product's name, which is why the uppercase eyebrow that used to say it
+            is gone. */}
+        <div className="flex min-w-0 items-center gap-4">
+          <Logo variant="lockup" size={80} alt="Agent Blueprint" className="hidden sm:block" />
+          <div className="flex flex-col gap-1.5">
+            <h1 className="text-2xl font-semibold tracking-tight">
+              Design once. Test it. Compile it everywhere.
+            </h1>
+            <p className="text-muted-foreground text-sm">
+              Define an agent system once, then compile it for Claude Code, Codex, Copilot, OpenCode
+              and Pi.
+            </p>
+          </div>
         </div>
-        <span className="flex items-center gap-1">
+        <span className="flex shrink-0 items-center gap-1">
           <Button variant="ghost" size="sm" asChild>
             <Link href="/settings">
               <SettingsIcon />

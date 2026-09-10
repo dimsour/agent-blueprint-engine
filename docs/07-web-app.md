@@ -13,6 +13,7 @@ This document specifies `apps/web`: routes, layout, state model, persistence, th
 | AI settings, relay, ChangeSet review, assistant, AI evaluation                  | present (P6) |
 | GitHub: token and sign-in, push with preview, open from a repository            | present (P7) |
 | Accessibility checked in both themes, reduced motion, measured performance      | present (P8) |
+| The mark in the tab and every header; a way back from every route but `/`       | present (P9) |
 
 ## Routes
 
@@ -71,6 +72,30 @@ Every field in the visual form carries a sentence of help. Printed under twelve 
 - The panel holds the sentence, the example, and **Insert example**. Inserting goes through the field's own `onChange` — the same path typing takes — so it lands in the Blueprint through `upsertEntity` and ⌘Z takes it back out in one step. A field that already has something in it asks first (**Replace** / **Cancel**); a list gains a row rather than losing one, so it never asks.
 - The examples are one map in `apps/web/src/components/editors/field-examples.ts`, keyed `<kind>.<field>`, lifted from the fixture project and the starters so what the form suggests is what the product ships. This is not **New from template**, which fills a whole artifact from `@agent-blueprint/templates/artifacts`; this fills one field.
 - The sentence keeps its own line only where there is no example to take its place — a field with nothing but a sentence gains nothing from hiding it, and `help` is not always help: the API key field in Settings passes the masked key it already holds through the same prop, and that is live status, not a definition.
+
+### The mark (P9-01)
+
+The brand arrives as one square file — a mark above the words "Agent Blueprint" — kept at `apps/web/brand/agent-blueprint.png` and never served. A 44px top bar has room for the mark and not for the words, so `pnpm --filter web logo` cuts that file into the three assets the app actually uses:
+
+| Asset                        | Where                                   | Shape                                     |
+| ---------------------------- | --------------------------------------- | ----------------------------------------- |
+| `src/app/icon.png`           | the browser tab                         | square, padded — that is what a tab wants |
+| `src/assets/logo-mark.png`   | the top bar, `PageHeader`               | tight to the mark                         |
+| `src/assets/logo-lockup.png` | the dashboard hero, where there is room | tight to the whole lockup                 |
+
+The cut is `e2e/logo-assets.spec.ts`, driving a browser over the source with rectangles measured from the artwork's own alpha channel and recorded in the file. It is excluded from `test:e2e` because it writes into the repository. Replacing the artwork is therefore one command and one re-measurement, not a CSS crop re-tuned by eye.
+
+`Logo` (`src/components/layout/logo.tsx`) is the one definition of the mark, used by all four headers. It has a `mark` and a `lockup` variant, takes a width, and reads each asset's height from the static import rather than a constant, so a re-cut of a different shape still lands undistorted. Every placement goes through `next/image`, which resizes to what is painted; the lockup is deliberately not preloaded, so the hero text stays what the browser races to paint.
+
+The mark is `alt=""` wherever a wordmark or a labelled link already names the product, and carries the name only on the dashboard, where it stands alone.
+
+### Getting back (P9-02)
+
+Every route except `/` offers a way out of itself. The workspace top bar's wordmark links home; `/settings` and `/new` use `PageHeader`, which is the logo, a back control and the page's title.
+
+The back control returns to the previous page when that page belongs to this app, and to `/` when it does not — arriving from a bookmark must not walk back into whatever the tab was showing before. `NavigationTrail`, mounted once in the root layout, answers that by counting: it increments a module-level counter on every pathname change. The app is one document, so a move between two of its routes always goes through the client router and never reloads; a full document load re-evaluates the module and resets the counter. A counter above zero therefore proves the entry behind the current one was rendered here. `document.referrer` cannot answer it (fixed at document load, never updated by the App Router), nor can `history.length` (counts other sites' entries and never shrinks), nor `window.history.state` (private router keys).
+
+The control is a real link to `/` whose plain left click is intercepted, so a modified click, a middle click and "copy link address" all get `/`. The cost of the rule is that reloading `/settings` forgets the project it was opened from; going somewhere sensible beats going somewhere surprising.
 
 ## State model (P3)
 

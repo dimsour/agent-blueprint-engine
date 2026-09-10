@@ -13,11 +13,10 @@
 import type { Blueprint } from '@agent-blueprint/core'
 import { ArrowLeftIcon, ArrowRightIcon, CheckIcon, LoaderIcon } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
-import { ThemeToggle } from '@/components/theme'
+import { PageHeader } from '@/components/layout/page-header'
 import { Button } from '@/components/ui/button'
 import {
   AboutStep,
@@ -111,18 +110,7 @@ export function Wizard() {
 
   return (
     <div className="mx-auto flex min-h-dvh max-w-4xl flex-col gap-8 px-6 py-10">
-      <header className="flex items-start justify-between gap-4">
-        <div className="flex flex-col gap-1">
-          <Link
-            href="/"
-            className="text-muted-foreground hover:text-foreground text-xs font-medium tracking-wide uppercase"
-          >
-            Agent Blueprint
-          </Link>
-          <h1 className="text-xl font-semibold tracking-tight">New Blueprint</h1>
-        </div>
-        <ThemeToggle />
-      </header>
+      <PageHeader title="New Blueprint" />
 
       <nav aria-label="Wizard steps" className="flex flex-wrap gap-1.5">
         {WIZARD_STEPS.map((candidate, position) => {

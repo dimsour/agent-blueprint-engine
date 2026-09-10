@@ -83,7 +83,7 @@ test.describe('opening from GitHub', () => {
     await page.goto('/')
     await page.getByRole('button', { name: 'Open from GitHub' }).click()
 
-    await page.getByLabel('Repository').fill('octocat/blueprints')
+    await page.getByLabel('Repository', { exact: true }).fill('octocat/blueprints')
     await page.getByRole('button', { name: 'Read the repository' }).click()
 
     // The same preview a ZIP gets: what was found, before anything is stored.
@@ -120,7 +120,7 @@ test.describe('opening from GitHub', () => {
 
     await page.goto('/')
     await page.getByRole('button', { name: 'Open from GitHub' }).click()
-    await page.getByLabel('Repository').fill('octocat/empty')
+    await page.getByLabel('Repository', { exact: true }).fill('octocat/empty')
     await page.getByRole('button', { name: 'Read the repository' }).click()
 
     await expect(page.getByRole('alert')).toContainText('blueprint/blueprint.yaml')
