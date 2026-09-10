@@ -33,6 +33,7 @@ describe('every prompt', () => {
       'create-iron-laws',
       'find-contradictions',
       'find-missing',
+      'fix-finding',
       'evaluate',
       'compound',
       'judge-requirements',

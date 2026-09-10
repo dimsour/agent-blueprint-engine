@@ -201,3 +201,19 @@ export type RequirementVerdict = z.infer<typeof requirementVerdictSchema>
 export const judgeRequirementsOutputSchema = z.object({
   verdicts: z.array(requirementVerdictSchema).default([]),
 })
+
+/**
+ * The answer to "clear this finding".
+ *
+ * The kinds are the caller's, not a constant: a finding about a missing description may only
+ * touch that artifact, and one about the Blueprint having no Iron Laws may only write laws.
+ * Narrowing the union per finding is what keeps the schema small on the endpoints that read
+ * it in the prompt, and it is also the cheapest way to stop a model fixing something else.
+ */
+export function fixFindingOutputSchema<K extends EntityKind>(kinds: readonly K[]) {
+  return z.object({
+    artifacts: z.array(proposalUnion(kinds)).default([]),
+    /** What was changed and why it clears the finding. Shown above the diff. */
+    note: z.string().optional(),
+  })
+}

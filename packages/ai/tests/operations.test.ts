@@ -15,6 +15,7 @@ import {
   findEntity,
   upsertEntity,
   validateBlueprint,
+  DIAGNOSTIC_CODES,
 } from '@agent-blueprint/core'
 import { beforeAll, describe, expect, it } from 'vitest'
 
@@ -25,11 +26,14 @@ import {
   evaluate,
   findContradictions,
   findMissing,
+  fixabilityOf,
+  fixFinding,
   generateArtifact,
   generateBlueprint,
   assembleChangeSet,
   improveArtifact,
   judgeRequirements,
+  AI_DIAGNOSTIC_CODES,
   type OperationDeps,
 } from '../src/index'
 import { loadFixture, recording, replayClient } from './helpers'
@@ -408,5 +412,116 @@ describe('permissions a model invented', () => {
     // The workflow still points at the agent, because the agent still exists.
     const step = applied.workflows[0]!.nodes.find((node) => node.id === 'read')!
     expect(step.config.agentId).toBe('reviewer-agent')
+  })
+})
+
+/**
+ * Fixing one finding.
+ *
+ * The interesting part is not the prompt but the refusals: the codes it declines, the id it
+ * will not let a model change, and the case where it cannot tell which artifact was meant.
+ */
+describe('fixFinding', () => {
+  const missingDescription = {
+    code: 'BP-DESC-001',
+    severity: 'warning' as const,
+    message: 'Skill "xunit" has no description.',
+    ref: { kind: 'skill' as const, id: 'xunit' },
+  }
+
+  it('clears the finding without letting the model rename what it fixed', async () => {
+    const result = await fixFinding(
+      depsFor('fix-finding', [0, 1]),
+      { blueprint: fixture },
+      {
+        diagnostic: missingDescription,
+      },
+    )
+
+    // The model answered with id "xunit-testing". A rename here would be a create op beside
+    // the untouched original, which reads as a duplicate rather than as the fix.
+    expect(result.changeSet.ops).toHaveLength(1)
+    expect(result.changeSet.ops[0]!.id).toBe('update:skill:xunit')
+
+    const applied = applyChangeSet(fixture, result.changeSet)
+    expect(applied.rejected).toEqual([])
+    expect(applied.blueprint.skills.map((skill) => skill.id)).toEqual(
+      fixture.skills.map((skill) => skill.id),
+    )
+    expect(findEntity(applied.blueprint, 'skill', 'xunit')!.description).not.toBe('')
+  })
+
+  it('writes the artifact a Blueprint-level finding asks for', async () => {
+    const withoutLaws = { ...fixture, ironLaws: [] }
+    const result = await fixFinding(
+      depsFor('fix-finding', [1, 2]),
+      { blueprint: withoutLaws },
+      {
+        diagnostic: {
+          code: 'BP-SAFETY-003',
+          severity: 'info',
+          message: 'No Iron Law covers security.',
+        },
+      },
+    )
+
+    const applied = applyChangeSet(withoutLaws, result.changeSet)
+    expect(applied.rejected).toEqual([])
+    expect(applied.blueprint.ironLaws.map((law) => law.category)).toContain('security')
+  })
+
+  it('assumes nothing when two artifacts of the kind come back for one finding', async () => {
+    const result = await fixFinding(
+      depsFor('fix-finding', [2, 3]),
+      { blueprint: fixture },
+      {
+        diagnostic: missingDescription,
+      },
+    )
+
+    // Neither is "xunit": with two, picking one would overwrite an artifact silently.
+    expect(result.changeSet.ops.every((op) => op.type === 'create')).toBe(true)
+    expect(result.notes.join(' ')).toMatch(/2 skill artifacts/)
+  })
+
+  it('refuses the codes no artifact edit can clear, and says what does', async () => {
+    await expect(
+      fixFinding(
+        depsFor('fix-finding', [0, 1]),
+        { blueprint: fixture },
+        {
+          diagnostic: {
+            code: 'BP-ID-002',
+            severity: 'error',
+            message: 'Skill id "xUnit Testing" is not a slug.',
+            ref: { kind: 'skill', id: 'xUnit Testing' },
+          },
+        },
+      ),
+    ).rejects.toThrow(/Rename in the inspector/)
+  })
+
+  it('narrows what a fix may write to the kinds the finding is about', () => {
+    expect(fixabilityOf(missingDescription)).toEqual({ fixable: true, kinds: ['skill'] })
+    // An orphan is usually attached to an agent rather than changed itself.
+    expect(
+      fixabilityOf({
+        code: 'BP-ORPHAN-001',
+        severity: 'warning',
+        message: 'Nothing uses skill "xunit".',
+        ref: { kind: 'skill', id: 'xunit' },
+      }),
+    ).toEqual({ fixable: true, kinds: ['skill', 'agent'] })
+    expect(
+      fixabilityOf({ code: 'BP-PROJECT-004', severity: 'warning', message: 'A stray file.' }),
+    ).toEqual({ fixable: false, reason: 'Saving the project is the fix.' })
+  })
+
+  it('has guidance to send for every code the product can show', () => {
+    // The prompt is the catalogue's `remedy`. A code without one would be asked to fix a
+    // finding with no instructions, which is the model guessing.
+    for (const entry of [...DIAGNOSTIC_CODES, ...AI_DIAGNOSTIC_CODES]) {
+      expect(entry.remedy.length, entry.code).toBeGreaterThan(40)
+    }
   })
 })

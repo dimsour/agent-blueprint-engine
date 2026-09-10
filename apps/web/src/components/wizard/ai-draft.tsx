@@ -19,6 +19,7 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { ChangeSetReview } from '@/components/ai/changeset-review'
+import { advance, type Progress, Waiting } from '@/components/ai/waiting'
 import { Button } from '@/components/ui/button'
 import { Card, Textarea } from '@/components/ui/primitives'
 import { configuredClient, structuredFor } from '@/lib/ai/settings'
@@ -28,40 +29,6 @@ interface Draft {
   changeSet: Parameters<typeof ChangeSetReview>[0]['changeSet']
   notes: string[]
   contextTrimmed: boolean
-}
-
-interface Progress {
-  /** Characters of the answer received so far. Zero until the model starts writing. */
-  received: number
-  since: number
-}
-
-/**
- * What is happening while nothing has come back yet.
- *
- * A spinner says a request is open; it does not say whether the model is working or the
- * connection died twenty seconds ago. The count does, because it only moves when the answer
- * is actually arriving. It ticks its own clock so the seconds keep moving between chunks —
- * a model that thinks for a minute before writing sends nothing to re-render on.
- *
- * Not a live region on purpose: it changes every second, and a screen reader reading that
- * aloud each time would drown out everything else. The button beside it carries the state.
- */
-function Waiting({ progress }: { progress: Progress }) {
-  const [now, setNow] = useState(() => Date.now())
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 1000)
-    return () => clearInterval(timer)
-  }, [])
-
-  const seconds = Math.max(0, Math.round((now - progress.since) / 1000))
-  return (
-    <p className="text-muted-foreground text-xs tabular-nums">
-      {progress.received === 0
-        ? `Thinking… ${seconds}s. A local model can take a while before it starts writing.`
-        : `Writing… ${progress.received.toLocaleString()} characters in ${seconds}s.`}
-    </p>
-  )
 }
 
 export function DraftWithAI({
@@ -103,10 +70,7 @@ export function DraftWithAI({
             // A whole Blueprint is thousands of characters, and watching them arrive is the
             // difference between "it is working" and "it is stuck". Only the count is kept:
             // the answer itself is JSON being assembled, and showing that would be noise.
-            onProgress: (received) =>
-              setProgress((current) =>
-                current ? { ...current, received } : { received, since: Date.now() },
-              ),
+            onProgress: (received) => setProgress((current) => advance(current, received)),
           }),
         },
         { blueprint: draft },

@@ -13,6 +13,7 @@ export * from './create-workflow.v1'
 export * from './evaluate.v1'
 export * from './find-contradictions.v1'
 export * from './find-missing.v1'
+export * from './fix-finding.v1'
 export * from './generate-artifact.v1'
 export * from './generate-blueprint.v1'
 export * from './improve-artifact.v1'
@@ -24,6 +25,7 @@ import { createWorkflowV1 } from './create-workflow.v1'
 import { evaluateV1 } from './evaluate.v1'
 import { findContradictionsV1 } from './find-contradictions.v1'
 import { findMissingV1 } from './find-missing.v1'
+import { fixFindingV1 } from './fix-finding.v1'
 import { generateArtifactV1 } from './generate-artifact.v1'
 import { generateBlueprintV1 } from './generate-blueprint.v1'
 import { improveArtifactV1 } from './improve-artifact.v1'
@@ -37,6 +39,7 @@ export const PROMPTS = {
   'create-iron-laws': createIronLawsV1,
   'find-contradictions': findContradictionsV1,
   'find-missing': findMissingV1,
+  'fix-finding': fixFindingV1,
   evaluate: evaluateV1,
   compound: compoundV1,
   'judge-requirements': judgeRequirementsV1,

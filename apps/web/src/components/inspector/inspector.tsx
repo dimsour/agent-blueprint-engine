@@ -26,7 +26,7 @@ import {
   TemplateDialog,
 } from '@/components/inspector/dialogs'
 import { PanelSection } from '@/components/layout/ide-shell'
-import { DiagnosticHelp, SeverityIcon } from '@/components/views/diagnostic-row'
+import { DiagnosticFix, DiagnosticHelp, SeverityIcon } from '@/components/views/diagnostic-row'
 import { Button } from '@/components/ui/button'
 import { Badge, Card } from '@/components/ui/primitives'
 import { entityOf } from '@/lib/artifact-source'
@@ -274,6 +274,7 @@ function DiagnosticCard({
           <span className="flex min-w-0 flex-1 flex-col gap-1">{body}</span>
         )}
         <DiagnosticHelp code={diagnostic.code} />
+        <DiagnosticFix diagnostic={diagnostic} />
       </div>
     </Card>
   )

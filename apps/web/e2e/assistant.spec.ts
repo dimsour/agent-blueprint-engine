@@ -361,3 +361,67 @@ test.describe('waiting for a slow model', () => {
     await expect(page.getByText(/Thinking…/)).toHaveCount(0)
   })
 })
+
+/**
+ * Fixing a finding from the list it appears in (P9-12).
+ *
+ * The path a user actually takes: break something, see the health bar report it, press the
+ * control beside the finding, and get back a proposal that has to be accepted before anything
+ * changes. Stubbed at the network boundary like everything else here, so the prompt, the
+ * schema, the assembler and the review are all the real ones.
+ */
+test.describe('fixing a finding', () => {
+  /** The description the finding says is missing, put back. */
+  const FIXED_SKILL = {
+    artifacts: [
+      {
+        kind: 'skill',
+        artifact: {
+          id: 'react-testing',
+          name: 'React testing',
+          description: 'Testing React components by behaviour rather than by implementation.',
+          whenToUse: 'When adding or changing a component test.',
+          body: '## Instructions\n\nQuery by role. Assert on what the user would see.',
+        },
+        note: 'Restored the description the finding said was missing.',
+      },
+    ],
+    note: 'Added a one-line description so the harness can choose this skill.',
+  }
+
+  test('proposes a change from the finding, and applies nothing until it is accepted', async ({
+    page,
+  }) => {
+    await stubEndpoint(page, FIXED_SKILL)
+    await openStarter(page)
+
+    // Make the finding rather than hoping the starter has one.
+    await tree(page)
+      .getByRole('button', { name: /^React testing/ })
+      .click()
+    await page.getByLabel('Description', { exact: true }).fill('')
+
+    const warnings = page.getByRole('button', { name: /^[1-9]\d* warnings?$/ })
+    await expect(warnings).toBeEnabled({ timeout: 10_000 })
+    await warnings.click()
+
+    const findings = page.getByRole('list', { name: 'warning findings' })
+    await findings.getByRole('button', { name: 'Fix BP-DESC-001 with AI' }).first().click()
+
+    const dialog = page.getByRole('dialog')
+    // The instructions the model is given are on screen before it is asked, so what comes
+    // back can be judged against what was asked for.
+    await expect(dialog).toContainText('every harness chooses which skill to activate')
+
+    await dialog.getByRole('button', { name: 'Fix it' }).click()
+    await expect(dialog.getByRole('list', { name: 'Proposed changes' })).toBeVisible()
+
+    // Still empty: a proposal is not a change.
+    await expect(page.getByLabel('Description', { exact: true })).toHaveValue('')
+
+    await dialog.getByRole('button', { name: /Apply/ }).click()
+    await expect(page.getByLabel('Description', { exact: true })).toHaveValue(
+      /Testing React components/,
+    )
+  })
+})

@@ -85,3 +85,55 @@ describe('the help behind a finding', () => {
     }
   })
 })
+
+/**
+ * The two controls have to be told apart at a glance (P9-12).
+ *
+ * Reported from use: the help control was an ⓘ, which is also the icon an info-severity
+ * finding draws at the head of its own row — the same glyph saying "this is an info" and
+ * "this explains it" in one picture.
+ */
+describe('the controls on a finding', () => {
+  it('does not draw the help control with the info-severity icon', () => {
+    render(<DiagnosticRow diagnostic={{ ...REQUIREMENT, severity: 'info' }} />)
+
+    const severity = document.querySelector('.lucide-circle-alert, .lucide-info')
+    const help = screen.getByRole('button', { name: 'How to fix BP-REQ-001' })
+    expect(severity).not.toBeNull()
+    expect(help.querySelector('.lucide-circle-help')).not.toBeNull()
+    expect(help.querySelector('.lucide-info')).toBeNull()
+  })
+
+  it('offers to fix a finding a model could clear', () => {
+    render(<DiagnosticRow diagnostic={REQUIREMENT} />)
+    expect(screen.getByRole('button', { name: 'Fix BP-REQ-001 with AI' })).toBeVisible()
+  })
+
+  it('does not offer to fix what no artifact edit can clear', () => {
+    // Renaming is a refactor that has to carry every reference with it, which is the
+    // inspector's Rename, not a model rewriting one file.
+    render(
+      <DiagnosticRow
+        diagnostic={{
+          code: 'BP-ID-002',
+          severity: 'error',
+          message: 'Skill id "xUnit Testing" is not a slug.',
+          ref: { kind: 'skill', id: 'xUnit Testing' },
+        }}
+      />,
+    )
+
+    expect(screen.queryByRole('button', { name: /Fix .* with AI/ })).toBeNull()
+    // The help control stays: there is still a remedy to read, it is just not a model's.
+    expect(screen.getByRole('button', { name: 'How to fix BP-ID-002' })).toBeVisible()
+  })
+
+  it('gives both controls a real target rather than a bare glyph', () => {
+    render(<DiagnosticRow diagnostic={REQUIREMENT} />)
+
+    for (const name of ['How to fix BP-REQ-001', 'Fix BP-REQ-001 with AI']) {
+      // `size-6` — 24px. The icon inside is 14px; what grew is the padding around it.
+      expect(screen.getByRole('button', { name }).className).toContain('size-6')
+    }
+  })
+})

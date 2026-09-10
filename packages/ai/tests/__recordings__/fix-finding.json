@@ -1,0 +1,65 @@
+{
+  "note": "Three findings from the fixture, fixed. The first answer renames the skill on the way past, which the operation must not let through. The second answers a Blueprint-level finding with a new Iron Law. The third answers with two skills for a finding about one, which is the case where no id may be assumed.",
+  "recordedAgainst": { "operation": "fix-finding", "promptVersion": 1 },
+  "answers": [
+    {
+      "artifacts": [
+        {
+          "kind": "skill",
+          "artifact": {
+            "id": "xunit-testing",
+            "name": "xUnit",
+            "description": "Write idiomatic xUnit tests - facts, theories, fixtures, collections and async patterns.",
+            "whenToUse": "When writing or changing tests in a .NET project that uses xUnit.",
+            "body": "## Instructions\n\nOne assertion per behaviour. Name the test for the behaviour, not the method."
+          },
+          "note": "Restored the description the finding said was missing."
+        }
+      ],
+      "note": "Added a one-line description so the harness can choose this skill."
+    },
+    {
+      "artifacts": [
+        {
+          "kind": "iron-law",
+          "artifact": {
+            "id": "never-commit-credentials",
+            "name": "Never commit credentials",
+            "description": "Secrets never enter the repository.",
+            "rule": "Never write an API key, token or password into a tracked file.",
+            "rationale": "A committed secret is public the moment the repository is, and rotating it is the only remedy.",
+            "severity": "critical",
+            "category": "security",
+            "violationBehavior": "Stop, remove the value, and tell the user which credential needs rotating.",
+            "body": "Use environment variables or the platform's secret store."
+          },
+          "note": "The Blueprint had no law covering security."
+        }
+      ],
+      "note": "Wrote the security law the check asks for."
+    },
+    {
+      "artifacts": [
+        {
+          "kind": "skill",
+          "artifact": {
+            "id": "xunit-a",
+            "name": "xUnit facts",
+            "description": "Facts and theories.",
+            "body": "## Instructions\n\nUse a fact for one case."
+          }
+        },
+        {
+          "kind": "skill",
+          "artifact": {
+            "id": "xunit-b",
+            "name": "xUnit fixtures",
+            "description": "Class and collection fixtures.",
+            "body": "## Instructions\n\nShare setup with a fixture."
+          }
+        }
+      ],
+      "note": "Split it in two."
+    }
+  ]
+}

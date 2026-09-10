@@ -13,14 +13,32 @@
  * thought this" from reading as the same claim.
  */
 import { type Diagnostic, diagnosticCode, type EntityRef } from '@agent-blueprint/core'
-import { AlertTriangleIcon, CircleAlertIcon, InfoIcon } from 'lucide-react'
+import { fixabilityOf } from '@agent-blueprint/ai'
+import {
+  AlertTriangleIcon,
+  CircleAlertIcon,
+  CircleHelpIcon,
+  InfoIcon,
+  SparklesIcon,
+} from 'lucide-react'
 import { useId, useState } from 'react'
 
+import { FixFindingDialog } from '@/components/ai/fix-finding-dialog'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/overlays'
 import { Badge } from '@/components/ui/primitives'
 import { isAiFinding } from '@/lib/ai/merge'
 import { nodeIdsOf } from '@/lib/graph/workflow'
 import { cn } from '@/lib/utils'
+
+/**
+ * The two controls a finding carries, sharing one look.
+ *
+ * Small, quiet and beside the message — but a real target rather than a 14px glyph. They are
+ * the same size as a touch target ought to be, with the icon centred in it, so the padding is
+ * what grew rather than the icon.
+ */
+const ROW_CONTROL =
+  'text-muted-foreground hover:text-foreground hover:bg-muted flex size-6 shrink-0 items-center justify-center rounded transition-colors'
 
 export function SeverityIcon({ severity }: { severity: Diagnostic['severity'] }) {
   if (severity === 'error') return <CircleAlertIcon className="text-danger size-3.5 shrink-0" />
@@ -41,6 +59,11 @@ export function SeverityIcon({ severity }: { severity: Diagnostic['severity'] })
  * Hover or focus gives the one-line meaning; pressing opens the remedy and keeps it open,
  * because a paragraph of instructions behind a hover is a paragraph nobody on a keyboard can
  * read. The same bargain as the field help in P9-04, for the same reason.
+ *
+ * A question mark rather than an ⓘ (P9-12): an info-severity finding already draws an ⓘ at
+ * the head of its own row, so the same glyph twice on one line said "this is an info" and
+ * "this explains it" in the same picture. It is also a 24px target now — the icon did not
+ * grow, the padding around it did.
  *
  * It renders a button and, when open, a full-width panel, so its parent must be a
  * `flex-wrap` row: `basis-full` is what puts the panel on its own line under the message
@@ -68,9 +91,9 @@ export function DiagnosticHelp({ code }: { code: string }) {
               aria-expanded={open}
               {...(open ? { 'aria-controls': panelId } : {})}
               onClick={() => setOpen(!open)}
-              className="text-muted-foreground hover:text-foreground mt-0.5 shrink-0 rounded-full transition-colors"
+              className={cn(ROW_CONTROL, open && 'bg-muted text-foreground')}
             >
-              <InfoIcon className="size-3.5" />
+              <CircleHelpIcon className="size-3.5" />
             </button>
           </TooltipTrigger>
           <TooltipContent className="max-w-xs">
@@ -89,6 +112,52 @@ export function DiagnosticHelp({ code }: { code: string }) {
           <p className="text-muted-foreground leading-relaxed">{entry.remedy}</p>
         </div>
       ) : null}
+    </>
+  )
+}
+
+/**
+ * "Fix with AI" on one finding (P9-12).
+ *
+ * Offered only where a model could actually help. A finding about a file missing from disk,
+ * an id that needs renaming through the refactor, or a compile target that needs enabling has
+ * a real fix and it is not artifact text — `fixabilityOf` knows which those are, and the
+ * button is absent for them rather than present and useless. Its tooltip carries what the
+ * kinds are, so pressing it is not a surprise.
+ */
+export function DiagnosticFix({ diagnostic }: { diagnostic: Diagnostic }) {
+  const [open, setOpen] = useState(false)
+  const fixability = fixabilityOf(diagnostic)
+  if (!fixability.fixable) return null
+
+  return (
+    <>
+      <TooltipProvider delayDuration={400}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              // Named after the code for the same reason the help control is: a list of
+              // twenty findings otherwise has twenty buttons called "Fix".
+              aria-label={`Fix ${diagnostic.code} with AI`}
+              onClick={() => setOpen(true)}
+              className={ROW_CONTROL}
+            >
+              <SparklesIcon className="size-3.5" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent className="max-w-xs">
+            <p>Ask a model to clear this finding.</p>
+            <p className="mt-1 opacity-80">
+              It proposes {fixability.kinds.join(', ')}; you review every change before anything is
+              applied.
+            </p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+
+      {/* Mounted only while open, so a list of forty findings costs no dialogs. */}
+      {open ? <FixFindingDialog diagnostic={diagnostic} open onOpenChange={setOpen} /> : null}
     </>
   )
 }
@@ -137,7 +206,10 @@ export function DiagnosticRow({
       ) : (
         <span className="flex min-w-0 flex-1 items-start gap-2 px-1 py-0.5">{body}</span>
       )}
+      {/* Understand, then act: the help control comes first in the tab order because
+          reading what the finding means is the step before deciding to fix it. */}
       <DiagnosticHelp code={diagnostic.code} />
+      <DiagnosticFix diagnostic={diagnostic} />
     </div>
   )
 }

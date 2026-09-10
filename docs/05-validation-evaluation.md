@@ -153,7 +153,11 @@ that goes nowhere teaches the user that the list is not to be trusted.
 | `BP-AI-MISSING-001` | warning (critical, high) or info     | Something the Blueprint implies but does not specify. `ref` is the artifact that implies it, when there is one.                                                        |
 | `BP-AI-REQ-001`     | warning on `fail`, info on `unclear` | An `ai-judged` requirement check the model would not pass. `ref` is the requirement; `data.checkIndex` says which check. A check the model passes produces no finding. |
 
-The catalogue lives in code in `packages/ai/src/operations/codes.ts`; `packages/ai/tests/docs.test.ts` fails when a code there is missing from this document.
+The catalogue lives in code in `packages/ai/src/operations/codes.ts`; `packages/ai/tests/docs.test.ts` fails when a code there is missing from this document. These three carry a `remedy` like the deterministic codes do, and for the same two uses: the "How to fix" note a person reads, and the steering `fixFinding` is given (docs/06). A finding from a model is still a finding.
+
+### 2.7 What a model can be asked to clear (P9-12)
+
+`fixabilityOf(diagnostic)` in `packages/ai` decides whether a finding is offered a **Fix with AI** control, and it says no for the codes whose remedy is real but is not made of artifact text: `BP-PROJECT-002` to `BP-PROJECT-006` (files on disk — the fix is a save or a restore), `BP-ID-001` and `BP-ID-002` (renaming is a refactor that has to carry every reference, which is `renameEntity` and not a rewrite), `BP-AGENT-002`, `BP-TARGET-001` to `BP-TARGET-003`, `BP-COMPILE-001` and `BP-EVAL-PORT-001` (settings and targets), and the five `BP-<HARNESS>-001` id collisions. Each refusal names the control that does the job instead. Where it agrees, it also narrows the kinds the fix may write — the finding's own `ref` kind and anything in `related`, plus a small per-code extension for the findings whose fix lives elsewhere (an orphan is usually attached to an agent; a Blueprint with no Iron Laws needs a law written).
 
 ## 3. Contradiction heuristic (implemented, `validation/contradictions.ts`)
 
