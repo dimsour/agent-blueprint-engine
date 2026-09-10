@@ -34,3 +34,4 @@ export function readFixtureFiles(name: FixtureName): Record<string, string> {
   walk(root)
   return Object.fromEntries(Object.entries(files).sort(([a], [b]) => (a < b ? -1 : 1)))
 }
+export * from './stress'

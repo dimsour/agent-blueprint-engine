@@ -310,3 +310,25 @@ Conventions:
 - Feature components live in `src/components/<area>/` (`blueprint`, `graph`, `editor`, `ai`, `evaluation`, `export`, `github`); hooks in `src/hooks/`; browser adapters (stores, fs backends, GitHub client) in `src/lib/`.
 - Server components by default; `'use client'` only where state or browser APIs are needed (the whole workspace is a client tree).
 - Severity colours are used only for diagnostics and health, never decoratively.
+
+## Performance (P8-07)
+
+Measured, not assumed. `packages/fixtures` generates a project of any size (`stressProjectFiles({ artifacts })`) rather than checking one in: two hundred files nobody reads, kept in canonical form by hand forever, is a worse fixture than one function. It is deterministic, and because the size is a parameter the same code answers "is it fast enough?" and "is it still linear?".
+
+`packages/core/tests/performance.test.ts` measures the functions directly; `apps/web/e2e/performance.spec.ts` measures the things only a browser can answer. On a 200-artifact project, at the time of writing:
+
+| What                                         | Measured | Budget |
+| -------------------------------------------- | -------- | ------ |
+| `validateBlueprint`                          | ~2 ms    | 100 ms |
+| `buildDependencyGraph`                       | <1 ms    | 50 ms  |
+| `evaluateBlueprint`                          | ~2 ms    | 200 ms |
+| `renderProjectFiles`                         | ~8 ms    | 100 ms |
+| Import a ZIP, store it, open the workspace   | ~250 ms  | 2 s    |
+| Draw the overview graph                      | ~260 ms  | 500 ms |
+| Ten keystrokes in an editor, health bar live | ~200 ms  | 2 s    |
+
+The budgets are loose against the measurements on purpose: a threshold that fails on a loaded machine gets disabled, and a disabled test measures nothing. They exist to catch a change in the _shape_ of the cost, which is why two of the tests compare 100 artifacts against 400 rather than checking a constant — something quadratic passes at 200 and falls over at 600.
+
+That check found the one real problem. Evaluation compares skills pairwise, which it has to, but it tokenized each description **inside** the loop, so the same text was parsed once per other skill: quadratic comparisons doing quadratic work. Two hundred skills meant forty thousand parses instead of two hundred. Hoisting the tokenization took an 800-artifact evaluation from 42 ms to 10 ms and made the curve linear again. The comparison is still quadratic; the work per comparison is not.
+
+Everything else was already memoized where it needed to be: the health bar, the evaluation view, the export preview, the inspector's relations and the overview graph all recompute only when the Blueprint or the diagnostics change.

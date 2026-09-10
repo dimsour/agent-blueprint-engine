@@ -343,12 +343,21 @@ function heuristics(blueprint: Blueprint): Record<DimensionId, Heuristic[]> {
   }
 
   // Redundancy: two skills that describe the same thing compete for activation.
+  //
+  // The comparison is pairwise and has to be, but tokenizing inside the loop made it pairwise
+  // in *tokenizations* too — the same skill's description parsed once per other skill. Two
+  // hundred skills meant forty thousand parses instead of two hundred (P8-07).
+  const EMPTY_KEYWORDS: ReadonlySet<string> = new Set()
+  const skillKeywords = blueprint.skills.map((skill) => keywords(skill.description ?? skill.name))
   for (let i = 0; i < blueprint.skills.length; i += 1) {
     for (let j = i + 1; j < blueprint.skills.length; j += 1) {
       const a = blueprint.skills[i]
       const b = blueprint.skills[j]
       if (!a || !b) continue
-      const overlap = jaccard(keywords(a.description ?? a.name), keywords(b.description ?? b.name))
+      const overlap = jaccard(
+        skillKeywords[i] ?? EMPTY_KEYWORDS,
+        skillKeywords[j] ?? EMPTY_KEYWORDS,
+      )
       if (overlap < 0.7) continue
       out.complexity.push(
         finding(
