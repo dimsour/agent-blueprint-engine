@@ -3,7 +3,12 @@ import { beforeEach, describe, expect, it } from 'vitest'
 
 import { IndexedDbStore, parseProject, resetDbForTests } from '@/lib/storage'
 
-import { diagnosticsFor, useWorkspace, workspaceHistory } from './workspace-store'
+import {
+  diagnosticsFor,
+  useWorkspace,
+  VALIDATION_DEBOUNCE_MS,
+  workspaceHistory,
+} from './workspace-store'
 
 async function loadStarter(id = 'react-expert') {
   const { blueprint } = await parseProject(readStarterFiles(id))
@@ -380,5 +385,79 @@ describe('diagnosticsFor', () => {
     ]
     const found = diagnosticsFor(diagnostics, { kind: 'skill', id: 'x' })
     expect(found.map((diagnostic) => diagnostic.code)).toEqual(['A', 'B'])
+  })
+})
+
+/**
+ * Opening a project has to say what is wrong with it (P9-11).
+ *
+ * Reported from use: the workspace showed nothing until the first keystroke. `load` was given
+ * the reader's diagnostics and did `diagnostics ?? validateBlueprint(blueprint)` — and an
+ * empty array is not nullish, so a project that read cleanly never got validated at all. The
+ * evaluation view was the only surface that looked right, because it runs its own pass.
+ */
+describe('findings on load', () => {
+  beforeEach(async () => {
+    useWorkspace.getState().close()
+    await resetDbForTests()
+  })
+
+  it('validates a project as it opens, without waiting for an edit', async () => {
+    const { blueprint } = await parseProject(readStarterFiles('react-expert'))
+    // A starter is clean, so break one thing: a skill nothing describes.
+    const broken = {
+      ...blueprint,
+      skills: blueprint.skills.map((skill, index) =>
+        index === 0 ? { ...skill, description: '' } : skill,
+      ),
+    }
+
+    // The reader's own findings, passed exactly as `openProject` passes them: empty, which
+    // is the case that used to swallow the whole validation pass.
+    useWorkspace.getState().load('test-project', broken, [])
+
+    expect(useWorkspace.getState().diagnostics.map((found) => found.code)).toContain('BP-DESC-001')
+    expect(useWorkspace.getState().validating).toBe(false)
+  })
+
+  it('keeps what the reader said about the files alongside what the validator says', async () => {
+    const { blueprint } = await parseProject(readStarterFiles('react-expert'))
+    const fromReader = {
+      code: 'BP-PROJECT-004',
+      severity: 'warning' as const,
+      message: 'A file exists that the manifest does not list.',
+      path: 'blueprint/skills/stray/SKILL.md',
+    }
+
+    useWorkspace.getState().load('test-project', blueprint, [fromReader])
+    expect(useWorkspace.getState().diagnostics).toContainEqual(fromReader)
+
+    // And through a revalidation, which cannot recompute a finding about a file. Waited out
+    // rather than flushed: `flushPending` also saves, and a save is what legitimately
+    // retires these — so flushing would prove the opposite of what this is about.
+    useWorkspace.getState().upsert('skill', { ...blueprint.skills[0]!, description: 'edited' })
+    await new Promise((resolve) => setTimeout(resolve, VALIDATION_DEBOUNCE_MS + 50))
+
+    expect(useWorkspace.getState().validating).toBe(false)
+    expect(useWorkspace.getState().diagnostics).toContainEqual(fromReader)
+  })
+
+  it('drops the reader’s findings once the save has rewritten the files', async () => {
+    const { blueprint } = await parseProject(readStarterFiles('react-expert'))
+    useWorkspace.getState().load('test-project', blueprint, [
+      {
+        code: 'BP-PROJECT-006',
+        severity: 'info',
+        message: 'The manifest names a different source directory.',
+      },
+    ])
+
+    await useWorkspace.getState().save(new IndexedDbStore())
+
+    // Saving is the remedy the catalogue names for this code, so it must stop being reported.
+    expect(useWorkspace.getState().projectDiagnostics).toEqual([])
+    expect(useWorkspace.getState().diagnostics.map((found) => found.code)).not.toContain(
+      'BP-PROJECT-006',
+    )
   })
 })

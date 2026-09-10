@@ -122,7 +122,8 @@ interface WorkspaceState {
   view: 'overview' | EntityKind // the canvas section, mirrored to ?view=
   artifactTab: 'visual' | 'source' | 'preview'
   sourceError?: string // set while the project file does not parse
-  diagnostics: Diagnostic[] // recomputed by validateBlueprint, debounced
+  diagnostics: Diagnostic[] // the reader's findings plus validateBlueprint's, debounced
+  projectDiagnostics: Diagnostic[] // what the reader said about the files; a save retires them
   validating: boolean
   dirty: boolean // differs from the last written project
   saving: boolean
@@ -143,7 +144,7 @@ Rules:
 
 - The store holds no domain logic. Every action calls a `core` function and replaces `blueprint` with the returned value.
 - `zundo` wraps the store for undo/redo (`⌘Z` / `⇧⌘Z`); history is keyed on `blueprint` only, is cleared when a project is loaded or closed, and is followed by `afterHistory()`, because zundo writes the Blueprint without going through any action and everything derived from it would otherwise be stale.
-- `diagnostics` are derived (`validateBlueprint(blueprint)`) and cached per Blueprint identity.
+- `diagnostics` is every finding the workspace shows, and findings come from two places: the reader's, which are about the files and cannot be recomputed from the model, and `validateBlueprint(blueprint)`, which is derived and cached per Blueprint identity. One function assembles the list, so `load`, the debounced revalidation and `flushPending` cannot disagree about what is wrong — a project is validated as it opens rather than on the first edit (P9-11). The reader's half is held separately in `projectDiagnostics` so a revalidation cannot lose it, and a successful save clears it, because writing the files is the remedy those codes name.
 - Forms are controlled inputs writing straight through the store, not `react-hook-form`: the schema is already the validator, and a field the schema briefly rejects keeps what was typed while the Blueprint keeps its last valid value.
 - The `Markdown` tab content is `renderProjectFiles(blueprint)[entityMainPath(sourceDir, kind, id)]`. On edit, the text is parsed with `decodeFrontmatter`, merged with `{ id, body }`, validated with `entitySchemaFor(kind)`, and committed through `upsert`. Parse errors are shown inline and never commit. This guarantees the two views cannot diverge.
 - Workflow graphs edit `nodes`, `edges`, `entryNodeId` directly through `upsert('workflow', …)`; node positions are part of the workflow and are saved. The overview graph stores no positions; it is auto-laid-out with `elkjs` every render.

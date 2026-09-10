@@ -212,6 +212,25 @@ test.describe('workspace layout', () => {
     ).toHaveCount(count)
   })
 
+  test('a reopened project reports what is wrong with it before anything is touched', async ({
+    page,
+  }) => {
+    await openStarter(page)
+    await artifact(page, 'React testing').click()
+    await page.getByLabel('Description', { exact: true }).fill('')
+    await expect(page.getByText('Saved', { exact: true })).toBeVisible({ timeout: 10_000 })
+
+    // The bug (P9-11): validation ran on the first keystroke, never on load, so a project
+    // came back looking clean and only admitted the problem once it was edited again.
+    await page.reload()
+    await expect(page.getByRole('navigation', { name: 'Blueprint artifacts' })).toBeVisible()
+
+    const warnings = page.getByRole('button', { name: /^[1-9]\d* warnings?$/ })
+    await expect(warnings).toBeVisible()
+    await warnings.click()
+    await expect(page.getByRole('list', { name: 'warning findings' })).toContainText('BP-DESC-001')
+  })
+
   test('editing an artifact saves it and survives a reload', async ({ page }) => {
     await openStarter(page)
     await artifact(page, 'React testing').click()

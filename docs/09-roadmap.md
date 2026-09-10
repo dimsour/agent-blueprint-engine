@@ -803,6 +803,16 @@ something, it says what and where that thing still exists.
 - Built: `DiagnosticHelp`, dropped into the two components every findings list already went through, so the health bar, the inspector, the evaluation dimensions and the export blockers all gained it at once. Hover or focus gives the one-liner, pressing unfolds the remedy and leaves it open — the same bargain as P9-04's field help, for the same reason: a paragraph behind a hover is a paragraph a keyboard user never sees.
 - Cost, paid once: a findings row used to be a single button. It cannot contain a second one, so the row is now a wrapping flex container with the navigate button, the help button, and a `basis-full` panel that drops onto its own line. The alternative was a popover, which would have covered the next finding in the list.
 
+### P9-11 A project that opens clean and is not (done)
+
+- Package: `apps/web/src/lib/state/workspace-store.ts`
+- Depends on: nothing
+- Description: Reported from use while checking P9-10: the findings were missing everywhere except the evaluation view, and came back as soon as anything was edited. Not a regression from P9-10 — a defect from P3, dated `282880a`. `load` did `diagnostics: diagnostics ?? validateBlueprint(blueprint)`, and the caller passes the **reader's** diagnostics, which for a project that reads cleanly is `[]`. An empty array is not nullish, so the fallback never ran and the whole validation pass was skipped. The health bar, the inspector and the export blockers all read the store, so all three showed nothing; the evaluation view runs its own pass, which is why it alone looked right. The first keystroke started the debounced revalidation and everything appeared at once.
+- Acceptance: a project reports what is wrong with it as it opens; the reader's findings survive a revalidation, which cannot recompute them; a save retires them, since writing the files is the remedy their codes name.
+- Verify: `pnpm --filter web test`, `pnpm --filter web test:e2e workspace`
+- Built: one `findings(blueprint, project)` used by `load`, the debounced pass and `flushPending`, so no caller can produce a shorter list than another. `projectDiagnostics` holds the reader's half; `save` clears it, matched **by array identity rather than by project id**, because every reload uses the same id and a save in flight across one would otherwise retire findings that belong to the load after it.
+- Worth recording: `workspace-store.test.ts` already had a test called _"loads a project and validates it immediately"_, and it asserted `diagnostics` was `[]`. It passed for four months because the starter it loads is clean — the assertion agreed with the bug. The new test breaks a description first, so the expected list is not the empty one.
+
 ### Open questions
 
 1. ~~**The logo needs a mark-only export.**~~ Settled: rather than crop by CSS, the cut is a script. `pnpm --filter web logo` measures nothing at run time — the rectangles live in `e2e/logo-assets.spec.ts`, taken from the artwork's alpha channel — and writes the three assets the app imports. A redrawn logo needs that one command and a re-measurement, and no component changes.

@@ -33,6 +33,7 @@ import {
   buildDependencyGraph,
   hasEntity,
   impactOf,
+  sortDiagnostics,
   validateBlueprint,
 } from '@agent-blueprint/core'
 import { create, useStore } from 'zustand'
@@ -99,6 +100,13 @@ export interface WorkspaceState {
    */
   focusNodeId?: string | undefined
   diagnostics: Diagnostic[]
+  /**
+   * What the reader said about the files, kept apart from what the validator says about the
+   * Blueprint. `validateBlueprint` cannot recompute these — they are about bytes on disk, not
+   * about the model — so they would be lost the first time anything is revalidated. They stop
+   * being true when the project is written, and the save clears them.
+   */
+  projectDiagnostics: Diagnostic[]
   /** True while diagnostics are older than the Blueprint. */
   validating: boolean
   dirty: boolean
@@ -165,13 +173,27 @@ function resetHistory(): void {
 export const useWorkspace = create<WorkspaceState>()(
   temporal(
     (set, get) => {
+      /**
+       * Every finding the workspace shows, from both places they come from.
+       *
+       * One function so that no caller can produce a shorter list than another. The bug that
+       * made it one: `load` took the reader's diagnostics and, because an empty array is not
+       * nullish, `diagnostics ?? validateBlueprint(blueprint)` kept the empty array and never
+       * validated. A project opened clean and stayed clean until the first keystroke, which
+       * is when the debounced revalidation finally ran (P9-11).
+       */
+      const findings = (blueprint: Blueprint, project: readonly Diagnostic[]): Diagnostic[] =>
+        sortDiagnostics([...project, ...validateBlueprint(blueprint)])
+
       /** Recomputes diagnostics and writes the project, both debounced. */
       const scheduleWork = (): void => {
         if (validationTimer) clearTimeout(validationTimer)
         validationTimer = setTimeout(() => {
           validationTimer = undefined
-          const current = get().blueprint
-          if (current) set({ diagnostics: validateBlueprint(current), validating: false })
+          const { blueprint: current, projectDiagnostics } = get()
+          if (current) {
+            set({ diagnostics: findings(current, projectDiagnostics), validating: false })
+          }
         }, VALIDATION_DEBOUNCE_MS)
 
         if (autosaveTimer) clearTimeout(autosaveTimer)
@@ -199,6 +221,7 @@ export const useWorkspace = create<WorkspaceState>()(
         view: 'overview',
         artifactTab: 'visual',
         diagnostics: [],
+        projectDiagnostics: [],
         validating: false,
         dirty: false,
         saving: false,
@@ -210,7 +233,8 @@ export const useWorkspace = create<WorkspaceState>()(
           set({
             projectId,
             blueprint,
-            diagnostics: diagnostics ?? validateBlueprint(blueprint),
+            diagnostics: findings(blueprint, diagnostics ?? []),
+            projectDiagnostics: [...(diagnostics ?? [])],
             selection: undefined,
             view: 'overview',
             artifactTab: 'visual',
@@ -234,6 +258,7 @@ export const useWorkspace = create<WorkspaceState>()(
             blueprint: undefined,
             selection: undefined,
             diagnostics: [],
+            projectDiagnostics: [],
             view: 'overview',
             artifactTab: 'visual',
             sourceError: undefined,
@@ -368,6 +393,10 @@ export const useWorkspace = create<WorkspaceState>()(
         async save(store) {
           const { projectId, blueprint } = get()
           if (!projectId || !blueprint) return
+          // Held by identity, not by content: a project reopened under the same id while
+          // this save was in flight has a different array, and its findings are not ours to
+          // retire. `projectId` alone does not separate those two.
+          const readFindings = get().projectDiagnostics
 
           const write = (async () => {
             set({ saving: true })
@@ -382,6 +411,16 @@ export const useWorkspace = create<WorkspaceState>()(
                 dirty: current.blueprint !== blueprint,
                 lastSavedAt: Date.now(),
                 saveError: undefined,
+                // The reader's findings were about the files this save has just rewritten —
+                // an artifact missing its file, a file the manifest did not list, a source
+                // directory that had moved. The write is what fixes all of them, and it is
+                // the remedy the catalogue names for three of the five.
+                ...(readFindings.length > 0 && current.projectDiagnostics === readFindings
+                  ? {
+                      projectDiagnostics: [],
+                      diagnostics: findings(current.blueprint ?? blueprint, []),
+                    }
+                  : {}),
               })
             } catch (error) {
               if (get().projectId !== projectId) return
@@ -401,8 +440,10 @@ export const useWorkspace = create<WorkspaceState>()(
           if (validationTimer) {
             clearTimeout(validationTimer)
             validationTimer = undefined
-            const blueprint = get().blueprint
-            if (blueprint) set({ diagnostics: validateBlueprint(blueprint), validating: false })
+            const { blueprint, projectDiagnostics } = get()
+            if (blueprint) {
+              set({ diagnostics: findings(blueprint, projectDiagnostics), validating: false })
+            }
           }
           if (autosaveTimer) {
             clearTimeout(autosaveTimer)
