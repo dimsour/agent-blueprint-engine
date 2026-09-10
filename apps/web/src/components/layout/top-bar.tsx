@@ -20,42 +20,18 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/overlay
 import { useModifierLabel } from '@/lib/shortcuts'
 import { useWorkspace } from '@/lib/state/workspace-store'
 
-/** Actions that are not built yet are shown disabled with the reason, not hidden. */
-function PendingAction({
-  label,
-  icon,
-  reason,
-}: {
-  label: string
-  icon: React.ReactNode
-  reason: string
-}) {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        {/* A disabled button swallows pointer events, so the tooltip needs a wrapper. */}
-        <span>
-          <Button variant="ghost" size="sm" disabled>
-            {icon}
-            {label}
-          </Button>
-        </span>
-      </TooltipTrigger>
-      <TooltipContent>{reason}</TooltipContent>
-    </Tooltip>
-  )
-}
-
 export function TopBar({
   onOpenPalette,
   onExport,
   onValidate,
   onOpenAssistant,
+  onPush,
 }: {
   onOpenPalette: () => void
   onExport: () => void
   onValidate: () => void
   onOpenAssistant: () => void
+  onPush: () => void
 }) {
   const blueprint = useWorkspace((state) => state.blueprint)
   const dirty = useWorkspace((state) => state.dirty)
@@ -118,11 +94,10 @@ export function TopBar({
           <DownloadIcon />
           Export
         </Button>
-        <PendingAction
-          label="GitHub"
-          icon={<CloudUploadIcon />}
-          reason="Pushing to GitHub arrives in roadmap P7"
-        />
+        <Button variant="ghost" size="sm" onClick={onPush} disabled={!blueprint}>
+          <CloudUploadIcon />
+          GitHub
+        </Button>
         <Button
           variant="ghost"
           size="sm"

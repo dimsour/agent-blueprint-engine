@@ -1,6 +1,7 @@
 /**
- * The palette's contract: everything enabled here goes through the store, and everything
- * that is not built yet is visible and disabled rather than missing.
+ * The palette's contract: everything enabled here goes through the store, an action with
+ * nothing to act on is disabled rather than missing, and anything not built yet would be
+ * listed with the reason instead of hidden.
  */
 import { readFixtureFiles } from '@agent-blueprint/fixtures'
 import { render, screen, within } from '@testing-library/react'
@@ -21,8 +22,16 @@ async function load() {
 
 function open(onOpenAssistant = vi.fn()) {
   const onOpenChange = vi.fn()
-  render(<CommandPalette open onOpenChange={onOpenChange} onOpenAssistant={onOpenAssistant} />)
-  return { onOpenChange, onOpenAssistant }
+  const onPush = vi.fn()
+  render(
+    <CommandPalette
+      open
+      onOpenChange={onOpenChange}
+      onOpenAssistant={onOpenAssistant}
+      onPush={onPush}
+    />,
+  )
+  return { onOpenChange, onOpenAssistant, onPush }
 }
 
 describe('CommandPalette', () => {
@@ -114,13 +123,15 @@ describe('CommandPalette', () => {
     expect(screen.getByRole('option', { name: /Save/ })).toHaveAttribute('data-disabled', 'true')
   })
 
-  it('names what is not built yet instead of hiding it', async () => {
+  it('opens the push dialog and closes, rather than pushing from here', async () => {
     await load()
-    open()
+    const user = userEvent.setup()
+    const { onOpenChange, onPush } = open()
 
-    const push = screen.getByRole('option', { name: /Push to GitHub/ })
-    expect(push).toHaveAttribute('data-disabled', 'true')
-    expect(within(push).getByText('not built yet')).toBeInTheDocument()
+    await user.click(screen.getByRole('option', { name: /Push to GitHub/ }))
+
+    expect(onPush).toHaveBeenCalled()
+    expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
   it('opens a report and closes, like every other action', async () => {

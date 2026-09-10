@@ -510,12 +510,22 @@ Verification: `pnpm check` green; `pnpm --filter @agent-blueprint/core test` sho
 - Verify: `pnpm --filter web test`
 - Built: `GitHubTreeFs` reads a branch as a `VirtualFs`, and `planPush` runs the compiler's own `writeCompiled` over a recording file system with that branch behind it — so ownership, staleness and "never overwrite what we did not write" are the same code that governs writing to a folder, not a second implementation of it. Content is compared by Git's own blob hash, computed locally, so a file the branch already has byte for byte is never downloaded: an unchanged project plans in one request. A truncated tree listing is carried through to the UI rather than passed off as complete.
 
-### P7-04 Atomic push
+### P7-04 Atomic push (done)
 
 - Depends on: P7-03
 - Description: Git Data API: blobs → tree → commit → update ref, one commit, user-supplied message; progress and error UI.
 - Acceptance: mocked test; manual push of the fixture to a test repo recorded in the PR.
 - Verify: `pnpm --filter web test`
+- Built: one tree, one commit, one move of the branch — the Contents API would write a commit per file and leave half a Blueprint behind on a failure. The branch is moved without `force`, so a push whose parent is no longer the head is refused rather than winning a race with whoever pushed meanwhile. The dialog previews before it offers a button: every path, the compiler's errors (which block), files this app did not write (skipped until each is ticked), and anything in the content shaped like a credential (blocks until each is ticked, shown masked — a screenshot of the warning must not be the leak). A manual push against a real repository has not been run; the checks are the mocked ones.
+
+### P7-06 Scan on export, not only on push
+
+- Package: `apps/web/src/components/views/export-view.tsx`
+- Depends on: P7-04
+- Description: `scanForSecrets` runs before a push (P7-04) but not before the ZIP export, although `docs/08-security.md` claims both. Either wire the same scan and per-finding override into the export view, or correct the document. The scan is the cheap half; the per-finding override UI is the work, and it now exists in the push dialog to copy.
+- Acceptance: a Blueprint carrying something key-shaped blocks the ZIP download until the finding is accepted; the fixture exports untouched.
+- Verify: `pnpm --filter web test`
+- Found by: building P7-04, which found docs/08 claiming a scan on export that was never built.
 
 ### P7-05 Open/clone from GitHub
 

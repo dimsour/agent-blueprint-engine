@@ -201,7 +201,7 @@ Actions, grouped:
 | Verify        | Validate (flushes the debounce and reports the counts), Show health, Show compatibility                                      | done  |
 | Blueprint     | Save, Undo, Redo                                                                                                             | done  |
 | Targets       | enable or disable each compile target                                                                                        | done  |
-| Deliver       | Export (opens the export view, where the files are browsed and the ZIP is built); Push to GitHub (P7)                        | P7    |
+| Deliver       | Export (opens the export view, where the files are browsed and the ZIP is built); Push to GitHub (opens the push dialog)     | P3/P7 |
 | AI            | every assistant action, each disabled with its reason when the selection does not suit it; selecting one opens the assistant | done  |
 | Go to         | every artifact, matched on name or id                                                                                        | done  |
 
@@ -243,6 +243,15 @@ Two ways to hand this app a token, one place it is kept.
 - **Sign in with GitHub** appears only when the deployment set `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET`. `/api/github/oauth/start` sends the browser to GitHub with a random `state` in an `HttpOnly` cookie scoped to those two routes; `/api/github/oauth/callback` checks the `state`, exchanges the code, and hands the token to the page that opened it through a same-origin `postMessage`, then closes. The token is never a cookie, never in a URL, never on the server after the request (docs/08-security.md). The settings page renders per request so that setting the variables is enough to turn sign-in on.
 
 The token then lives exactly where the AI key does: `ab:credentials:github`, `sessionStorage` by default, `localStorage` only after the warning, read by `lib/credentials` and nothing else. **Forget credentials** clears both.
+
+**Pushing** (`⌘K` → Push to GitHub, or the GitHub button in the top bar) is two steps, and the second is a preview. Choose a repository (`owner/name`, a URL, or one of the repositories the token can push to) and a branch, which is created by the push when it does not exist; then **Preview the changes** builds a plan against that branch and shows it before anything can be pressed:
+
+- every path that would be added, changed or removed, with the ones edited on GitHub since the last push marked as such;
+- errors from the compiler, which block: files compiled from a Blueprint the validator rejects would misrepresent it;
+- files the branch already has that this app did not write — skipped unless each is ticked;
+- anything in the content shaped like a credential — blocking until each is ticked, shown with the value masked (docs/08-security.md).
+
+The push itself is one tree, one commit and one move of the branch, without `force`: a branch that moved while the preview was open is a conversation, not a race to win. A second push of an unchanged project reports that there is nothing to do, and costs one request to find out.
 
 `lib/github/client.ts` is `fetch` rather than Octokit (ADR-23). It maps GitHub's statuses to codes the UI can act on — in particular telling an exhausted token (403 with `x-ratelimit-remaining: 0`) apart from an unauthorised one — and constructs every error by hand so that no request header can reach a message, a stack or a log.
 

@@ -13,6 +13,7 @@ import { useEffect, useMemo, useState } from 'react'
 
 import { AssistantPanel } from '@/components/ai/assistant-panel'
 import { CommandPalette } from '@/components/command-palette/command-palette'
+import { PushDialog } from '@/components/github/push-dialog'
 import { OverviewGraph } from '@/components/graph/overview/overview-graph'
 import { CompatibilityView } from '@/components/views/compatibility-view'
 import { EvaluationView } from '@/components/views/evaluation-view'
@@ -38,6 +39,7 @@ export function Workspace({ projectId }: { projectId: string }) {
   const [error, setError] = useState<string | undefined>()
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [assistantOpen, setAssistantOpen] = useState(false)
+  const [pushOpen, setPushOpen] = useState(false)
 
   /** Export is a section of the workspace, so every route to it lands in the same place. */
   const showExport = () => {
@@ -109,6 +111,7 @@ export function Workspace({ projectId }: { projectId: string }) {
             onExport={showExport}
             onValidate={() => void validateNow()}
             onOpenAssistant={() => setAssistantOpen(true)}
+            onPush={() => setPushOpen(true)}
           />
         }
         sidebar={<ProjectTree />}
@@ -121,8 +124,10 @@ export function Workspace({ projectId }: { projectId: string }) {
         open={paletteOpen}
         onOpenChange={setPaletteOpen}
         onOpenAssistant={() => setAssistantOpen(true)}
+        onPush={() => setPushOpen(true)}
       />
       <AssistantPanel open={assistantOpen} onOpenChange={setAssistantOpen} />
+      <PushDialog open={pushOpen} onOpenChange={setPushOpen} />
     </>
   )
 }

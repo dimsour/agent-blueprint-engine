@@ -64,7 +64,7 @@ AI_PROXY_ALLOWED_HOSTS=localhost,127.0.0.1
 ## Secrets in generated files
 
 - The compiler emits only Blueprint content. Still, users write free text, and a pasted key in a skill body is a real risk.
-- **Secret scan before export and push** (P5/P7): every generated and source file is scanned for common credential patterns (AWS access keys, GitHub `ghp_`/`github_pat_`, OpenAI `sk-`, Anthropic `sk-ant-`, private key blocks, JWT-looking strings, generic `api[_-]?key\s*[:=]\s*\S{16,}`). A hit blocks the action with the file and line, and the user can override per finding.
+- **Secret scan before a push** (built, P7-04; `apps/web/src/lib/secret-scan.ts`): every generated and source file about to be committed is scanned for common credential patterns (AWS access keys, GitHub `ghp_`/`github_pat_`, OpenAI `sk-`, Anthropic `sk-ant-`, private key blocks, JWT-looking strings, generic `api[_-]?key\s*[:=]\s*\S{16,}`). A hit blocks the action with the file and line, and the user can override per finding. The finding shows the line with the match masked: a screenshot of the warning must not become the leak the warning exists to prevent. The ZIP export does **not** scan yet — it writes to the user's own disk rather than publishing, so it is the lesser exposure, but the difference is not principled and is recorded as P7-06.
 - The same scanner is offered as a Hook action (`secret-scan` in `HOOK_ACTION_TYPES`, `packages/core/src/schema/governance.ts`) so that compiled projects can run it inside the harness on every file change.
 - Hooks compile to commands. The compiler never embeds a token in a hook command; if a user writes one into `action.command`, the secret scan reports it.
 

@@ -99,9 +99,15 @@ export interface CommandPaletteProps {
   onOpenChange: (open: boolean) => void
   /** Absent in tests that only care about the rest of the palette. */
   onOpenAssistant?: () => void
+  onPush?: () => void
 }
 
-export function CommandPalette({ open, onOpenChange, onOpenAssistant }: CommandPaletteProps) {
+export function CommandPalette({
+  open,
+  onOpenChange,
+  onOpenAssistant,
+  onPush,
+}: CommandPaletteProps) {
   const blueprint = useWorkspace((state) => state.blueprint)
   const selection = useWorkspace((state) => state.selection)
   const dirty = useWorkspace((state) => state.dirty)
@@ -262,8 +268,9 @@ export function CommandPalette({ open, onOpenChange, onOpenAssistant }: CommandP
               <Item
                 icon={<CloudUploadIcon />}
                 label="Push to GitHub"
-                hint="not built yet"
-                disabled
+                keywords={['commit', 'repository', 'remote', 'publish']}
+                disabled={!blueprint}
+                onSelect={run(() => onPush?.())}
               />
             </Group>
 
