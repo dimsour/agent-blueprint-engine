@@ -17,6 +17,9 @@ import {
 
 import { cn } from '@/lib/utils'
 
+/** Target of the skip link, and the id the canvas landmark carries. */
+const CANVAS_ID = 'workspace-editor'
+
 export interface IdeShellProps {
   topBar: ReactNode
   sidebar: ReactNode
@@ -54,6 +57,14 @@ export function IdeShell({
 
   return (
     <div className="bg-background flex h-dvh flex-col overflow-hidden">
+      {/* First in the tab order, and visible only while focused: a keyboard user should not
+          have to walk the whole project tree to reach what they came to edit. */}
+      <a
+        href={`#${CANVAS_ID}`}
+        className="bg-accent text-accent-foreground sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:px-3 focus:py-1.5 focus:text-sm"
+      >
+        Skip to the editor
+      </a>
       <header className="bg-surface flex h-11 shrink-0 items-center gap-2 border-b px-3">
         {topBar}
       </header>
@@ -71,8 +82,19 @@ export function IdeShell({
 
         <Handle label="Resize the project panel" />
 
-        <Panel id="canvas" defaultSize={inspector ? '55' : '80'} minSize="30" className="panel">
-          {children}
+        <Panel
+          id="canvas"
+          defaultSize={inspector ? '55' : '80'}
+          minSize="30"
+          className="panel"
+          // The landmark a screen reader jumps to, and what the skip link targets. A role
+          // rather than a <main> element: the panel owns the scroll boundary, and another
+          // wrapper inside it would take that away.
+          role="main"
+        >
+          <div id={CANVAS_ID} className="panel flex-1">
+            {children}
+          </div>
         </Panel>
 
         {inspector ? (
@@ -84,6 +106,8 @@ export function IdeShell({
               minSize="15"
               maxSize="40"
               className="panel bg-surface"
+              role="complementary"
+              aria-label="Inspector"
             >
               {inspector}
             </Panel>

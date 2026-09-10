@@ -31,18 +31,18 @@
   --secondary: oklch(0.96 0 0);
   --secondary-foreground: oklch(0.24 0 0);
 
-  --accent: oklch(0.55 0.18 264);
+  --accent: oklch(0.5 0.19 264);
   --accent-foreground: oklch(0.99 0 0);
   --accent-muted: oklch(0.95 0.03 264);
 
   --border: oklch(0.9 0 0);
   --input: oklch(0.9 0 0);
-  --ring: oklch(0.55 0.18 264);
+  --ring: oklch(0.5 0.19 264);
 
   /* Diagnostic severities. These are the same three colours everywhere in the product. */
-  --success: oklch(0.55 0.14 150);
+  --success: oklch(0.48 0.14 150);
   --success-muted: oklch(0.95 0.04 150);
-  --warning: oklch(0.65 0.15 75);
+  --warning: oklch(0.52 0.13 70);
   --warning-muted: oklch(0.96 0.05 85);
   --danger: oklch(0.55 0.21 25);
   --danger-muted: oklch(0.96 0.03 25);
@@ -242,4 +242,25 @@
 }
 .prose-blueprint hr {
   border-top: 1px solid var(--border);
+}
+
+/*
+  Reduced motion (P8-06).
+
+  Near-zero rather than `none`: Radix and React Flow finish their transitions by listening for
+  `transitionend` and `animationend`, and an animation that never runs never ends, which would
+  leave a dialog mounted forever. 0.01ms still fires the event on the next frame.
+*/
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  html {
+    scroll-behavior: auto !important;
+  }
 }

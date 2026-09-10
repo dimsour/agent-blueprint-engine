@@ -11,7 +11,14 @@ import * as SelectPrimitive from '@radix-ui/react-select'
 import * as TabsPrimitive from '@radix-ui/react-tabs'
 import * as TooltipPrimitive from '@radix-ui/react-tooltip'
 import { CheckIcon, ChevronDownIcon, XIcon } from 'lucide-react'
-import type { ComponentProps } from 'react'
+import {
+  type ComponentProps,
+  createContext,
+  type RefObject,
+  useContext,
+  useEffect,
+  useRef,
+} from 'react'
 
 import { cn } from '@/lib/utils'
 
@@ -19,18 +26,63 @@ import { cn } from '@/lib/utils'
 // Dialog
 // ---------------------------------------------------------------------------
 
-export const Dialog = DialogPrimitive.Root
+/**
+ * The dialog root, plus the one thing Radix cannot do for us here.
+ *
+ * Radix restores focus to the `DialogTrigger` it opened from. Every dialog in this app is
+ * controlled by state instead — a command in the palette, a toolbar button, a row action —
+ * so there is no trigger to go back to, and closing left focus on `<body>`: a keyboard user
+ * lost their place in the page every time they pressed Escape. So the root remembers what was
+ * focused when it opened and puts focus back there.
+ */
+const DialogOpener = createContext<RefObject<HTMLElement | null> | null>(null)
+
+export function Dialog({ open, ...props }: ComponentProps<typeof DialogPrimitive.Root>) {
+  const opener = useRef<HTMLElement | null>(null)
+
+  useEffect(() => {
+    // Uncontrolled, or open: Radix has a trigger to go back to, or there is nothing to record.
+    if (open !== false) return
+
+    // While closed, remember what has focus. Capturing at open time is too late — the dialog
+    // is opened by state, not by a Radix trigger, so nothing announces the moment it happens.
+    const remember = (event: FocusEvent): void => {
+      opener.current = event.target as HTMLElement | null
+    }
+    document.addEventListener('focusin', remember)
+    return () => document.removeEventListener('focusin', remember)
+  }, [open])
+
+  return (
+    <DialogOpener.Provider value={opener}>
+      <DialogPrimitive.Root {...(open === undefined ? {} : { open })} {...props} />
+    </DialogOpener.Provider>
+  )
+}
 
 export function DialogContent({
   className,
   children,
+  onCloseAutoFocus,
   ...props
 }: ComponentProps<typeof DialogPrimitive.Content>) {
+  const opener = useContext(DialogOpener)
   return (
     <DialogPrimitive.Portal>
       <DialogPrimitive.Overlay className="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/40" />
       <DialogPrimitive.Content
         data-slot="dialog-content"
+        onCloseAutoFocus={(event) => {
+          // The moment Radix would put focus back on the trigger. There is no trigger, so put
+          // it where the user was instead. Doing this on a timer would race the closing
+          // animation, which is what delays the unmount.
+          const target = opener?.current
+          if (target?.isConnected) {
+            event.preventDefault()
+            target.focus()
+          }
+          onCloseAutoFocus?.(event)
+        }}
         className={cn(
           'bg-card data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed top-1/2 left-1/2 z-50 grid w-full max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 rounded-lg border p-5 shadow-lg',
           className,

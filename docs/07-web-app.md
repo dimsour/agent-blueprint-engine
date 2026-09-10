@@ -236,6 +236,24 @@ Either modifier fires the shortcut, so the same key works on any keyboard; menus
 
 `⌘/` opens the assistant, and `⌘⏎` applies whatever a ChangeSet review currently has accepted. Both were reserved until P6; a shortcut with nothing behind it is left to the browser rather than swallowed.
 
+## Accessibility (P8-06)
+
+Checked rather than asserted: `e2e/accessibility.spec.ts` runs axe over the dashboard, the workspace, the settings screen, the wizard, each of the four views and an open dialog, in **both themes**, against WCAG 2.1 AA. A colour that passes on one ground can fail on the other, so both are measured; the theme is chosen with `addInitScript` before the app loads, because setting the class afterwards races `next-themes` and measures whichever won.
+
+What the sweep found and what changed:
+
+- **Contrast.** In the light theme `--accent` (4.31), `--success` (4.01) and `--warning` (3.22) all fell short of 4.5:1 on their own muted grounds. The three foregrounds were darkened; the dark theme already passed. The helper reports the two colours and the ratio, because a near miss and a wide one call for different fixes.
+- **A title on every route.** The workspace route inherited the root title, which arrives only after the client transition settles — a window in which the document has no title at all. It carries its own now.
+
+Structure, which axe cannot judge:
+
+- **Landmarks.** The canvas panel is the `main` landmark and the inspector is `complementary`, both in the shell rather than wrapped inside it: the panel owns the scroll boundary, and another element inside it would take that away. The project tree is a labelled `navigation`.
+- **A skip link**, first in the tab order and visible only while focused. A dense project tree is a long way to walk to reach the editor.
+- **Focus returns to what opened a dialog.** Radix restores focus to the `DialogTrigger` it opened from, and every dialog here is opened by state instead — a toolbar button, a palette command, a row action — so closing left focus on `<body>` and a keyboard user lost their place every time they pressed Escape. The dialog root remembers what had focus while it was closed, and `onCloseAutoFocus` puts it back. On that event rather than a timer: the closing animation delays the unmount, so anything scheduled would land first and be overwritten.
+- **Reduced motion.** `prefers-reduced-motion: reduce` collapses every animation and transition to 0.01ms — near-zero rather than `none`, because Radix unmounts on `animationend` and an animation that never runs never ends.
+
+The keyboard half of the spec drives these with keys only and asserts where focus ended up: the skip link, the resizable separators, the palette, the dialog round trip, and opening an artifact from the tree.
+
 ## Views
 
 - **Overview graph** (P4): derived from `collectRefs`; nodes coloured by kind; clicking selects; no positions stored.
