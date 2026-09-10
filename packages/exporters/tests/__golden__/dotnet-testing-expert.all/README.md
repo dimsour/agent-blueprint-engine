@@ -13,14 +13,14 @@ This repository is an AI agent configuration compiled from a Blueprint. Clone it
 - OpenAI Codex — `AGENTS.md` plus `.agents/skills/` and `.codex/`.
 - GitHub Copilot — `AGENTS.md` plus `.github/` (instructions, skills, agents, prompts, hooks).
 - OpenCode — `AGENTS.md` plus `.agents/skills/`, `opencode.json` and `.opencode/`.
-- Pi — `AGENTS.md` plus `.agents/skills/`.
+- Pi — `AGENTS.md` plus `.agents/skills/`, `.pi/prompts/` and `.pi/settings.json`.
 
 ## Workflows
 
 | Workflow | What it does | Claude Code | OpenAI Codex | GitHub Copilot | OpenCode | Pi |
 | --- | --- | --- | --- | --- | --- | --- |
-| Write Unit Tests | From a request to the finished, verified test file. | `/write-tests` | `$write-tests` | `/write-tests` | `/write-tests` | `/skill:write-tests` |
-| Review Unit Tests | Review an existing test suite for coverage gaps, brittleness and readability. | `/review-tests` | `$review-tests` | `/review-tests` | `/review-tests` | `/skill:review-tests` |
+| Write Unit Tests | From a request to the finished, verified test file. | `/write-tests` | `$write-tests` | `/write-tests` | `/write-tests` | `/write-tests` |
+| Review Unit Tests | Review an existing test suite for coverage gaps, brittleness and readability. | `/review-tests` | `$review-tests` | `/review-tests` | `/review-tests` | `/review-tests` |
 
 ## Before you trust it
 
@@ -32,7 +32,9 @@ This repository is an AI agent configuration compiled from a Blueprint. Clone it
 - **GitHub Copilot:** Any MCP server is configured for the editor in `.vscode/mcp.json`; the cloud coding agent takes its MCP configuration from repository settings instead.
 - **OpenCode:** Permissions are enforced by `opencode.json`; read it before trusting the project, and remember that the last matching pattern wins.
 - **OpenCode:** Hooks and gates are not enforced: they need a plugin, which is TypeScript rather than configuration. They are described in `AGENTS.md` and in the workflow skills.
-- **Pi:** Pi runs one agent; steps that delegate ask the same session to adopt another persona.
+- **Pi:** Pi runs one agent; steps that delegate ask the same session to adopt another persona, so the isolation the Blueprint asks for is not there.
+- **Pi:** Permissions are a tool allowlist in `.pi/settings.json`. Pi has no ask, no per-command rules and no network tool, so the rest of the policy is guidance in `AGENTS.md`.
+- **Pi:** Hooks and gates are not enforced: they need an extension, which is TypeScript rather than configuration.
 
 ## Changing the agent
 

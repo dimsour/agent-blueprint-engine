@@ -4,7 +4,7 @@ import { claudeCodeAdapter } from './claude-code/index'
 import { codexAdapter } from './codex/index'
 import { copilotAdapter } from './copilot/index'
 import { openCodeAdapter } from './opencode/index'
-import { piAdapter } from './portable-adapters'
+import { piAdapter } from './pi/index'
 import type { AnyHarnessAdapter } from './types'
 
 /** Every harness the compiler can target. Keys match `HARNESS_IDS` in core. */

@@ -299,6 +299,19 @@ subagent primitive, or to persona-switch prompts where subagents are unsupported
 | Rules with directory `paths`                        | nested `AGENTS.md` (shared with Codex)                          |
 | Hooks, gates                                        | not emitted; they need a TypeScript plugin (P8-10)              |
 
+## Pi adapter mapping (summary; full table in `docs/harness/pi.md`)
+
+| Blueprint                                           | Output                                                     |
+| --------------------------------------------------- | ---------------------------------------------------------- |
+| Primary agent + laws + rules + roster + memory seed | `AGENTS.md` (shared)                                       |
+| Iron Laws with `severity: critical`                 | `.pi/APPEND_SYSTEM.md`                                     |
+| Skills                                              | `.agents/skills/<id>/SKILL.md` + resources (shared)        |
+| Other agents                                        | `.pi/prompts/<id>.md` persona template; no subagent exists |
+| Workflows                                           | `.agents/skills/<id>/SKILL.md` + `.pi/prompts/<id>.md`     |
+| Permissions                                         | `.pi/settings.json` `defaultTools`                         |
+| Rules with directory `paths`                        | nested `AGENTS.md` (shared with Codex and OpenCode)        |
+| Hooks, gates                                        | not emitted; they need a TypeScript extension (P8-11)      |
+
 ## Repository layout after compilation
 
 ```
@@ -316,7 +329,7 @@ subagent primitive, or to persona-switch prompts where subagents are unsupported
 ├── .github/{skills,agents,instructions,prompts,hooks}/   copilot
 ├── .vscode/mcp.json               copilot (only with MCP tools)
 ├── opencode.json, .opencode/{agents,commands}/          opencode
-└── .pi/{prompts,extensions,settings.json}       pi (P8-03)
+└── .pi/{prompts,settings.json,APPEND_SYSTEM.md}         pi
 ```
 
 ## Worked example: `packages/fixtures/projects/dotnet-testing-expert`
@@ -566,3 +579,48 @@ OpenCode hooks are a TypeScript module the harness auto-loads at session start. 
 against an API this repository has not run — and putting it somewhere a syntax or signature
 error breaks every session — is a worse outcome than not generating it. Roadmap P8-02 asks for
 `opencode.json`, agents and commands; the plugin is recorded as P8-10 with what it needs.
+
+## Implementation notes (P8-03, Pi)
+
+### A denied shell closes both shells
+
+`defaultTools` lists `bash` and `powershell` separately, but they are the same capability on
+two platforms. Denying the shell and leaving one of them enabled is not a boundary, so the two
+are set together from the shell and git operations. A tool survives while _any_ operation behind
+it survives, the same rule the Copilot allowlist uses.
+
+### `ask` is reported, not approximated
+
+Pi has no approval prompt. An `ask` decision could lower to `deny` (which takes away what the
+author granted) or to enabled (which drops the approval). It lowers to enabled, because a
+Blueprint that asks before mutating the shell still means the shell to be usable, and the lost
+approval is reported as a `limited` issue naming every operation it applied to. The intent is
+still written into the `AGENTS.md` command policy, which the agent can follow even though nothing
+enforces it.
+
+### Critical Iron Laws go in the system prompt
+
+`.pi/APPEND_SYSTEM.md` appends to the system prompt rather than replacing it, which makes it the
+strongest placement Pi offers and the closest the harness comes to enforcing a law. Only laws
+with `severity: critical` go there: a system prompt that lists everything is a system prompt
+nothing stands out in. The rest stay in the `AGENTS.md` Iron Laws section. `.pi/SYSTEM.md` is
+never written — replacing Pi's own system prompt would throw away the harness's tool
+instructions along with it.
+
+### A non-primary agent becomes a prompt, and the issue says what that costs
+
+Pi has no subagents, so an agent that is not the primary one becomes `.pi/prompts/<id>.md`: a
+template that puts the single session into that persona and takes the task as `$ARGUMENTS`. This
+is not delegation. The context is shared, and nothing stops the session carrying assumptions
+from one persona into the next, so every one of them also produces an `unsupported`
+compatibility issue that says so rather than letting the prompt file imply the Blueprint was
+honoured. Workflows and personas share `.pi/prompts/`, so an agent and a workflow with the same
+id is a `BP-PI-002` error rather than a silent overwrite.
+
+### The extension is not generated
+
+Pi hooks are a TypeScript extension the harness loads from `.pi/extensions/`. The same reasoning
+as OpenCode applies, and one more: a generated file is compiler-owned, so a stub a user filled in
+would be overwritten on the next export. Handing someone a starting point that their own work
+disappears from is worse than handing them nothing. Roadmap P8-11 covers generating a real one,
+after the event payloads are verified against a running Pi.

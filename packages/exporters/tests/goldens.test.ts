@@ -33,6 +33,7 @@ const CASES: GoldenCase[] = [
   { name: 'dotnet-testing-expert.all', targets: [...HARNESS_IDS] },
   { name: 'dotnet-testing-expert.copilot', targets: ['copilot'] },
   { name: 'dotnet-testing-expert.opencode', targets: ['opencode'] },
+  { name: 'dotnet-testing-expert.pi', targets: ['pi'] },
 ]
 
 function readTree(root: string): Record<string, string> {

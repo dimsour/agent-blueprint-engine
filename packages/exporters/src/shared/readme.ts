@@ -51,10 +51,12 @@ const USAGE: Record<HarnessId, HarnessUsage> = {
     ],
   },
   pi: {
-    entry: '`AGENTS.md` plus `.agents/skills/`.',
-    workflow: (id) => `/skill:${id}`,
+    entry: '`AGENTS.md` plus `.agents/skills/`, `.pi/prompts/` and `.pi/settings.json`.',
+    workflow: (id) => `/${id}`,
     notes: [
-      'Pi runs one agent; steps that delegate ask the same session to adopt another persona.',
+      'Pi runs one agent; steps that delegate ask the same session to adopt another persona, so the isolation the Blueprint asks for is not there.',
+      'Permissions are a tool allowlist in `.pi/settings.json`. Pi has no ask, no per-command rules and no network tool, so the rest of the policy is guidance in `AGENTS.md`.',
+      'Hooks and gates are not enforced: they need an extension, which is TypeScript rather than configuration.',
     ],
   },
 }

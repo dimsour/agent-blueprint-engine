@@ -30,7 +30,7 @@ The backlog for building Agent Blueprint. Phases follow the plan; tasks inside a
 | P5 Trust surfaces | done        | P5-01 to P5-05: the health bar opens its findings, the evaluation and compatibility views, the export view with compiled output, and the rename dialog with a slug preview. P5-06 reviewed P4 and P5 end to end and fixed what it found.                                                             |
 | P6 AI             | done        | P6-01 to P6-09: the AI package, the settings screen and relay, the ChangeSet review, the assistant, the AI draft in the wizard, a model second opinion in the evaluation view, and the live check against real endpoints that found and fixed seven bugs. P6-10 to P6-12 are follow-ups it recorded. |
 | P7 GitHub         | done        | P7-01 to P7-05: the token and sign-in, repository and branch selection, the push preview against the remote tree, the atomic push with a secret scan in front of it, and opening a project out of a repository. P7-06 is a follow-up it recorded.                                                    |
-| P8 Hardening      | in progress | P8-01 and P8-02 are done: Copilot and OpenCode have full adapters. P8-03 to P8-09 are specified below and not started, plus P8-10, which P8-02 recorded.                                                                                                                                             |
+| P8 Hardening      | in progress | P8-01 to P8-03 are done: Copilot, OpenCode and Pi have full adapters, so every harness now maps what it can. P8-04 to P8-09 are specified below and not started, plus P8-10 and P8-11, the two hook runtimes those adapters recorded.                                                                |
 
 ## P0 — Foundation (done)
 
@@ -564,9 +564,22 @@ Verification: `pnpm check` green; `pnpm --filter @agent-blueprint/core test` sho
 - Acceptance: hooks and gates from the fixture produce a plugin that loads in a real OpenCode session; a gate that fails blocks; goldens.
 - Found by: building P8-02.
 
-### P8-03 Full Pi adapter
+### P8-03 Full Pi adapter (done)
 
+- Package: `packages/exporters/src/pi/`
+- Depends on: P2
 - Description: `.pi/prompts/*.md` for workflows, `.pi/settings.json` (`defaultTools` from permissions), extension stub for hooks documented as adapted. Goldens.
+- Verify: `pnpm --filter @agent-blueprint/exporters test`
+- Built: workflows become `/`-invocable prompt templates that run the orchestration skill; `.pi/settings.json` carries `defaultTools` derived from the primary agent's permissions; critical Iron Laws are appended to the system prompt through `.pi/APPEND_SYSTEM.md`, the strongest placement Pi offers; and rules whose globs are plain directories become the same nested `AGENTS.md` Codex and OpenCode emit. A non-primary agent becomes a persona prompt that takes the task as `$ARGUMENTS`, with an `unsupported` issue beside it saying what a shared context costs.
+- Not built, and reported instead: the extension. The task asked for a stub, and a stub is the wrong shape — a generated file is compiler-owned, so anything a user filled in would be overwritten on the next export. Handing someone a starting point their work disappears from is worse than handing them nothing. Recorded as P8-11. `permissions` moved from `adapted` to `limited`, which is what it was already doing: Pi has no `ask`, no per-command rules and no network tool.
+
+### P8-11 Pi hook extension
+
+- Package: `packages/exporters/src/pi/`
+- Depends on: P8-03
+- Description: Generate `.pi/extensions/blueprint-hooks.ts` so hooks and gates are enforced rather than described. The event lowering table is in `docs/harness/pi.md` and its own note says the payloads need re-verifying against the current `docs/extensions.md`. Decide first whether a generated extension should be compiler-owned at all, or whether it belongs outside the manifest so a user can extend it.
+- Acceptance: hooks and gates from the fixture produce an extension that loads in a real Pi session; a gate that fails blocks the turn; goldens.
+- Found by: building P8-03.
 
 ### P8-04 Binary assets in projects
 

@@ -104,6 +104,7 @@ Manifest problems are thrown as `ProjectReadError` (`MANIFEST_MISSING`, `MANIFES
 | `BP-CODEX-002`                                                                    | warning  | `AGENTS.md` is still over the Codex instruction budget after optional sections moved to a skill.            |
 | `BP-COPILOT-002`                                                                  | warning  | A custom agent file is longer than the 30 000 characters Copilot reads.                                     |
 | `BP-OPENCODE-002`                                                                 | warning  | An agent and a workflow share an id, so OpenCode has a `@name` and a `/name` that are not the same thing.   |
+| `BP-PI-002`                                                                       | error    | An agent and a workflow share an id, so both compile to the same Pi prompt template.                        |
 
 ### 2.5 Evaluation-only findings (implemented: `evaluation/score.ts`)
 
