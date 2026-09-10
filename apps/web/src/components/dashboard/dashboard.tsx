@@ -21,9 +21,9 @@ import {
 
 import { Button } from '@/components/ui/button'
 import { Badge, Card } from '@/components/ui/primitives'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/overlays'
 import { ThemeToggle } from '@/components/theme'
 import { ImportDialog } from '@/components/dashboard/import-dialog'
+import { OpenFromGitHubDialog } from '@/components/github/open-dialog'
 import { useClientValue } from '@/lib/client-value'
 import {
   fileSystemAccessSupported,
@@ -55,6 +55,7 @@ export function Dashboard({ starters }: { starters: StarterInfo[] }) {
   const [recent, setRecent] = useState<ProjectSummary[]>([])
   const [busy, setBusy] = useState<string | undefined>(undefined)
   const [preview, setPreview] = useState<ImportPreview | undefined>()
+  const [githubOpen, setGithubOpen] = useState(false)
   // The server cannot know whether this browser can open a folder. Branching on it directly
   // made the server HTML and the first client render disagree, which React reports as a
   // hydration failure and recovers from by re-rendering the whole page.
@@ -217,18 +218,10 @@ export function Dashboard({ starters }: { starters: StarterInfo[] }) {
             Open folder
           </Button>
         ) : null}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            {/* Disabled buttons swallow pointer events, so the tooltip needs a wrapper. */}
-            <span>
-              <Button variant="outline" disabled>
-                <CloudUploadIcon />
-                Open from GitHub
-              </Button>
-            </span>
-          </TooltipTrigger>
-          <TooltipContent>Opening and cloning from GitHub arrives in roadmap P7</TooltipContent>
-        </Tooltip>
+        <Button variant="outline" onClick={() => setGithubOpen(true)} disabled={busy !== undefined}>
+          <CloudUploadIcon />
+          Open from GitHub
+        </Button>
         <input
           ref={fileInput}
           type="file"
@@ -242,6 +235,12 @@ export function Dashboard({ starters }: { starters: StarterInfo[] }) {
           }}
         />
       </section>
+
+      <OpenFromGitHubDialog
+        open={githubOpen}
+        onOpenChange={setGithubOpen}
+        onRead={(files, label) => inspect(files, label)}
+      />
 
       {preview ? (
         <ImportDialog

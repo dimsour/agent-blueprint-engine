@@ -1,17 +1,17 @@
 # Web App
 
-This document specifies `apps/web`: routes, layout, state model, persistence, the creation wizard, the ChangeSet review experience, keyboard interaction and the design language. Phases P3 to P6 are built: the dashboard, the workspace, the editors, the inspector, the command palette, the wizard, ZIP import and export, the overview graph and the workflow editor, the trust surfaces (health bar, diagnostics, evaluation, compatibility, export), and the AI side — settings, the relay, the ChangeSet review and the assistant. What is described here for P7 (GitHub) is still specification; each such section says which phase owns it.
+This document specifies `apps/web`: routes, layout, state model, persistence, the creation wizard, the ChangeSet review experience, keyboard interaction and the design language. Phases P3 to P7 are built: the dashboard, the workspace, the editors, the inspector, the command palette, the wizard, ZIP import and export, the overview graph and the workflow editor, the trust surfaces (health bar, diagnostics, evaluation, compatibility, export), the AI side — settings, the relay, the ChangeSet review and the assistant — and GitHub: the token, the push with its preview, and opening a project out of a repository. Each section says which phase owns it.
 
 ## Status
 
-| Area                                                                            | Status                               |
-| ------------------------------------------------------------------------------- | ------------------------------------ |
-| Next.js App Router, Tailwind v4 tokens, shadcn `components.json`, `cn()` helper | present                              |
-| Dashboard, workspace, editors, inspector, palette, wizard, import and export    | present (P3)                         |
-| Overview graph, workflow editor, delete-impact dialog                           | present (P4)                         |
-| Health bar, diagnostics, evaluation, compatibility and export views             | present (P5)                         |
-| AI settings, relay, ChangeSet review, assistant, AI evaluation                  | present (P6)                         |
-| GitHub                                                                          | in progress; phase noted per section |
+| Area                                                                            | Status       |
+| ------------------------------------------------------------------------------- | ------------ |
+| Next.js App Router, Tailwind v4 tokens, shadcn `components.json`, `cn()` helper | present      |
+| Dashboard, workspace, editors, inspector, palette, wizard, import and export    | present (P3) |
+| Overview graph, workflow editor, delete-impact dialog                           | present (P4) |
+| Health bar, diagnostics, evaluation, compatibility and export views             | present (P5) |
+| AI settings, relay, ChangeSet review, assistant, AI evaluation                  | present (P6) |
+| GitHub: token and sign-in, push with preview, open from a repository            | present (P7) |
 
 ## Routes
 
@@ -250,6 +250,8 @@ The token then lives exactly where the AI key does: `ab:credentials:github`, `se
 - errors from the compiler, which block: files compiled from a Blueprint the validator rejects would misrepresent it;
 - files the branch already has that this app did not write — skipped unless each is ticked;
 - anything in the content shaped like a credential — blocking until each is ticked, shown with the value masked (docs/08-security.md).
+
+**Opening** (`Open from GitHub` on the dashboard) reads a repository's `blueprint/` directory and hands the files to the import path a ZIP already takes: the same reader, the same diagnostics, the same rule that nothing is stored until Open is pressed. Only the source is read — everything at the repository root is compiler output and is rebuilt as soon as the project opens — and the build manifest is left behind, because it records what the compiler owns in _that_ repository.
 
 The push itself is one tree, one commit and one move of the branch, without `force`: a branch that moved while the preview was open is a conversation, not a race to win. A second push of an unchanged project reports that there is nothing to do, and costs one request to find out.
 

@@ -117,6 +117,20 @@ export class GitHubTreeFs implements VirtualFs {
     }
   }
 
+  /** Several files at once, for when the whole point is to read them all. */
+  async readAll(paths: readonly string[]): Promise<Record<string, string>> {
+    const files: Record<string, string> = {}
+    for (let index = 0; index < paths.length; index += FETCH_CONCURRENCY) {
+      const batch = paths.slice(index, index + FETCH_CONCURRENCY)
+      const contents = await Promise.all(batch.map((path) => this.read(path)))
+      batch.forEach((path, position) => {
+        const content = contents[position]
+        if (content !== undefined) files[path] = content
+      })
+    }
+    return files
+  }
+
   async read(path: string): Promise<string | undefined> {
     const cached = this.contents.get(path)
     if (cached !== undefined) return cached

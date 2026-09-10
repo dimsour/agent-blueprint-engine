@@ -20,17 +20,17 @@ The backlog for building Agent Blueprint. Phases follow the plan; tasks inside a
 
 ## Status
 
-| Phase             | State       | Notes                                                                                                                                                                                                                                                                                                |
-| ----------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| P0 Foundation     | done        | Workspace, docs, `@agent-blueprint/core` v0, fixture.                                                                                                                                                                                                                                                |
-| P1 Core semantics | done        | P1-01 to P1-09 implemented and tested, including 29 artifact templates and 10 starter blueprints.                                                                                                                                                                                                    |
-| P2 Compiler       | done        | P2-01 to P2-09 implemented: adapter interface, registry, shared emitters, pipeline, build manifest, Claude Code and Codex in full, Copilot/OpenCode/Pi minimal, portability, golden tests.                                                                                                           |
-| P3 Web shell      | done        | P3-01 to P3-11 implemented and then reviewed end to end: the review found eight defects (undo across projects, non-deterministic export, a hydration failure and five more), and the gaps it found against docs/07 were built. See P3-12.                                                            |
-| P4 Graphs         | done        | P4-01 to P4-04: the overview graph, the workflow editor with all sixteen step types and eight connection kinds, tidy and template insertion, and the delete-impact dialog. Reviewed with P5; see P5-06.                                                                                              |
-| P5 Trust surfaces | done        | P5-01 to P5-05: the health bar opens its findings, the evaluation and compatibility views, the export view with compiled output, and the rename dialog with a slug preview. P5-06 reviewed P4 and P5 end to end and fixed what it found.                                                             |
-| P6 AI             | done        | P6-01 to P6-09: the AI package, the settings screen and relay, the ChangeSet review, the assistant, the AI draft in the wizard, a model second opinion in the evaluation view, and the live check against real endpoints that found and fixed seven bugs. P6-10 to P6-12 are follow-ups it recorded. |
-| P7 GitHub         | in progress | P7-01 built: the token, sign-in, and the `fetch` client behind both. P7-02 to P7-05 are next.                                                                                                                                                                                                        |
-| P8                | to do       | P8 (hardening) is specified below and not started.                                                                                                                                                                                                                                                   |
+| Phase             | State | Notes                                                                                                                                                                                                                                                                                                |
+| ----------------- | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P0 Foundation     | done  | Workspace, docs, `@agent-blueprint/core` v0, fixture.                                                                                                                                                                                                                                                |
+| P1 Core semantics | done  | P1-01 to P1-09 implemented and tested, including 29 artifact templates and 10 starter blueprints.                                                                                                                                                                                                    |
+| P2 Compiler       | done  | P2-01 to P2-09 implemented: adapter interface, registry, shared emitters, pipeline, build manifest, Claude Code and Codex in full, Copilot/OpenCode/Pi minimal, portability, golden tests.                                                                                                           |
+| P3 Web shell      | done  | P3-01 to P3-11 implemented and then reviewed end to end: the review found eight defects (undo across projects, non-deterministic export, a hydration failure and five more), and the gaps it found against docs/07 were built. See P3-12.                                                            |
+| P4 Graphs         | done  | P4-01 to P4-04: the overview graph, the workflow editor with all sixteen step types and eight connection kinds, tidy and template insertion, and the delete-impact dialog. Reviewed with P5; see P5-06.                                                                                              |
+| P5 Trust surfaces | done  | P5-01 to P5-05: the health bar opens its findings, the evaluation and compatibility views, the export view with compiled output, and the rename dialog with a slug preview. P5-06 reviewed P4 and P5 end to end and fixed what it found.                                                             |
+| P6 AI             | done  | P6-01 to P6-09: the AI package, the settings screen and relay, the ChangeSet review, the assistant, the AI draft in the wizard, a model second opinion in the evaluation view, and the live check against real endpoints that found and fixed seven bugs. P6-10 to P6-12 are follow-ups it recorded. |
+| P7 GitHub         | done  | P7-01 to P7-05: the token and sign-in, repository and branch selection, the push preview against the remote tree, the atomic push with a secret scan in front of it, and opening a project out of a repository. P7-06 is a follow-up it recorded.                                                    |
+| P8                | to do | P8 (hardening) is specified below and not started.                                                                                                                                                                                                                                                   |
 
 ## P0 — Foundation (done)
 
@@ -224,7 +224,7 @@ Verification: `pnpm check` green; `pnpm --filter @agent-blueprint/core test` sho
 
 - Package: `apps/web/src/app/page.tsx`, `components/dashboard/*`
 - Depends on: P3-01..03, P1-08
-- Description: Create Blueprint (primary CTA → wizard), Templates grid (starter blueprints), Recent projects, Import (ZIP, folder, blueprint.yaml), GitHub (link to P7 flow, disabled until configured).
+- Description: Create Blueprint (primary CTA → wizard), Templates grid (starter blueprints), Recent projects, Import (ZIP, folder, blueprint.yaml), GitHub (opens a repository as a project; built in P7-05).
 - Acceptance: Playwright: create from template → workspace opens with the blueprint loaded.
 - Verify: `pnpm --filter web test:e2e`
 
@@ -527,12 +527,13 @@ Verification: `pnpm check` green; `pnpm --filter @agent-blueprint/core test` sho
 - Verify: `pnpm --filter web test`
 - Found by: building P7-04, which found docs/08 claiming a scan on export that was never built.
 
-### P7-05 Open/clone from GitHub
+### P7-05 Open/clone from GitHub (done)
 
 - Depends on: P7-03
 - Description: Dashboard "GitHub" opens a repo's `blueprint/` into a project (read via tree, saved locally).
 - Acceptance: Playwright with mocked GitHub.
 - Verify: `pnpm --filter web test:e2e`
+- Built: **Open from GitHub** on the dashboard reads the repository's `blueprint/` directory and hands the files to the import path a ZIP already takes — same reader, same diagnostics, same "nothing is stored until Open is pressed". Only the source is read: everything at the repository root is compiler output and is rebuilt on open, and the build manifest is left behind because it describes that repository rather than this copy. A repository with no `blueprint/blueprint.yaml` is told so plainly instead of opening as an empty project.
 
 ## P8 — Hardening
 
