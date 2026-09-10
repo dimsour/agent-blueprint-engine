@@ -1,0 +1,88 @@
+{
+  "note": "The same brief, answered the way the house style asks for: skills with Instructions and Verification headings, an agent with output requirements, a workflow with a verification step and triggers, a law carrying its rationale and an example, and no law marked for a gate that was not written. Used as the second attempt in the repair round, and on its own as the draft that needs no second attempt.",
+  "recordedAgainst": { "operation": "generate-blueprint", "promptVersion": 1 },
+  "answers": [
+    {
+      "name": "PR Review Crew",
+      "description": "Reviews pull requests in a .NET codebase and blocks merges that are not verified.",
+      "primaryAgentId": "reviewer",
+      "agents": [
+        {
+          "id": "reviewer",
+          "name": "Reviewer",
+          "description": "Reads a pull request diff and reports what is wrong with it.",
+          "role": "reviewer",
+          "expertise": ["C#", "code review"],
+          "responsibilities": ["Read the diff and report what is wrong with it"],
+          "outputRequirements": [
+            "A comment per finding, naming the file and line",
+            "An explicit statement of which files were not read"
+          ],
+          "skillIds": ["diff-reading"],
+          "workflowIds": ["review-a-pull-request"],
+          "ironLawIds": ["no-unverified-approval"],
+          "body": "You review pull requests. You do not approve what you have not read."
+        }
+      ],
+      "skills": [
+        {
+          "id": "diff-reading",
+          "name": "Reading a diff",
+          "description": "Reading a pull request diff hunk by hunk and reporting findings against file and line.",
+          "whenToUse": "When a pull request has to be reviewed.",
+          "activation": { "intents": ["review a pull request"] },
+          "body": "## Instructions\n\n1. List the changed files and their sizes before reading anything.\n2. Read hunk by hunk, largest file first.\n3. Write one comment per finding, naming the file and the line.\n4. State explicitly which files you did not read and why.\n\n## Verification\n\nEvery comment names a file and a line that exist in the diff. Run `git diff --stat` and check that the files you reported on are the files that changed."
+        }
+      ],
+      "workflows": [
+        {
+          "id": "review-a-pull-request",
+          "name": "Review a pull request",
+          "description": "From an open pull request to a verified verdict.",
+          "entryNodeId": "start",
+          "triggers": { "intents": ["review a pull request"] },
+          "nodes": [
+            { "id": "start", "type": "start", "label": "Start" },
+            {
+              "id": "read",
+              "type": "agent",
+              "label": "Read the diff",
+              "config": { "agentId": "reviewer" }
+            },
+            {
+              "id": "verify",
+              "type": "verification",
+              "label": "Run the tests",
+              "config": { "verification": { "method": "command", "command": "dotnet test" } }
+            },
+            { "id": "done", "type": "end", "label": "Done" }
+          ],
+          "edges": [
+            { "id": "e1", "from": "start", "to": "read" },
+            { "id": "e2", "from": "read", "to": "verify" },
+            { "id": "e3", "from": "verify", "to": "done" }
+          ],
+          "body": "The reviewer reads the diff, then the change is verified before it is approved."
+        }
+      ],
+      "ironLaws": [
+        {
+          "id": "no-unverified-approval",
+          "name": "Never approve what was not verified",
+          "description": "An approval requires an observed test run, not an expected one.",
+          "rule": "Never approve a pull request without reading its diff and observing the test output.",
+          "rationale": "An approval is a claim that the change works. Without an observed run it is a guess wearing the costume of a check.",
+          "examples": ["Ran `dotnet test`, 412 passed, approved."],
+          "counterexamples": [
+            "The change is small and obviously correct, so approval without running the tests."
+          ],
+          "severity": "critical",
+          "category": "testing",
+          "enforcement": ["instruction"],
+          "violationBehavior": "Stop, run the tests, and report the output before approving.",
+          "body": "Approval follows observation."
+        }
+      ]
+    }
+  ]
+}

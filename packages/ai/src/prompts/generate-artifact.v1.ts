@@ -2,6 +2,7 @@
 import type { EntityKind } from '@agent-blueprint/core'
 
 import { type BasePromptInput, type PromptTemplate, systemPrompt, userPrompt } from './compose'
+import { houseStyleFor } from './house-style'
 
 export interface GenerateArtifactInput extends BasePromptInput {
   kind: EntityKind
@@ -26,9 +27,19 @@ than writing a second copy of it under a new name.`,
 - References must be to ids present in the context.
 - The body is Markdown and is the substance; the fields are how it is found and enforced.`,
   }),
+  // The kind is a call-time input, so its house style cannot sit in the fixed system prompt.
+  // It goes beside the ask instead, which is where the kind is named anyway.
   user: (input) =>
     userPrompt(
       input,
-      `Write one new artifact of kind "${input.kind}" for this Blueprint:\n\n${input.brief.trim()}`,
+      [
+        `Write one new artifact of kind "${input.kind}" for this Blueprint:`,
+        '',
+        input.brief.trim(),
+        '',
+        houseStyleFor([input.kind]),
+      ]
+        .filter(Boolean)
+        .join('\n'),
     ),
 }

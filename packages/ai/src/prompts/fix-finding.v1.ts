@@ -20,6 +20,7 @@
 import type { EntityKind, EntityRef } from '@agent-blueprint/core'
 
 import { type BasePromptInput, type PromptTemplate, systemPrompt, userPrompt } from './compose'
+import { houseStyleFor } from './house-style'
 
 export interface FixFindingInput extends BasePromptInput {
   /** The diagnostic code, so the answer can be traced back to the rule that asked. */
@@ -164,6 +165,10 @@ ${WORKED_EXAMPLE}`,
           ]
             .filter(Boolean)
             .join('\n'),
+        ),
+        ...section(
+          'What the validator will check about what you write',
+          houseStyleFor(input.kinds),
         ),
         ...section('The artifact as it stands', input.current),
         ...section('Also named by the finding', input.alsoNamed),

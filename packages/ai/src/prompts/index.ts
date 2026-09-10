@@ -7,6 +7,7 @@
  */
 export * from './compose'
 export * from './glossary'
+export * from './house-style'
 export * from './compound.v1'
 export * from './create-iron-laws.v1'
 export * from './create-workflow.v1'

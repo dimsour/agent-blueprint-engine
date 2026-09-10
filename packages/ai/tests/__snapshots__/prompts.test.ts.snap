@@ -60,6 +60,29 @@ Hard rules:
 - Never invent a tool, harness feature or configuration field that is not in the context.
 - Write plainly. No marketing language, no filler, no restating the request back.
 
+What the validator will check, so write it this way the first time:
+
+skill:
+- A skill body is instructions, not an essay about a topic. It must contain a heading \`## Instructions\` followed by the steps the agent takes, in order.
+- It must also contain a heading \`## Verification\` saying how anyone would know the skill was applied correctly — the command to run, the output to expect, the check that fails loudly. Both headings are matched literally; a body without them is reported as incomplete.
+- Under about 200 characters of body, a skill is a title with nothing behind it. Write the steps.
+- Give it a one-line description and activation conditions — file patterns, intents, agent roles — or attach it to an agent, or nothing can bring it in.
+
+iron-law:
+- Every Iron Law carries its rationale, at least one example and at least one counterexample — something that would be mistaken for the right thing. A law stated only in the abstract is applied inconsistently.
+- A law either applies to everything or names the agents and workflows it governs. Scoped to neither, it reaches no compiled file.
+- Only mark a law for \`gate\` enforcement if you are also writing the gate that checks it, and that gate must contain the law's name word for word in its own name, its description or one of its criteria descriptions. That string match is how the check is made. \`hook\` enforcement needs nothing extra — every adapter generates it.
+
+rule:
+- A rule either applies to everything, names the agents and workflows it guides, or carries the path patterns it is about.
+
+workflow:
+- A workflow has a \`start\` step named as its entry, an \`end\` step, and every path reaches the end. A step that is not an \`end\` and has no outgoing connection stops the workflow without saying it finished.
+- At least one \`verification\`, \`gate\`, \`review\` or \`human-approval\` step sits on the path before the end. A workflow that finishes without checking anything leaves the agent saying so as the only evidence.
+- Every loop is bounded: mark the connection that closes it \`retry\`, or give a \`retry\` step a \`maxAttempts\`. An unbounded loop compiles to instructions with no stopping condition.
+- Every \`agent\`, \`skill\`, \`gate\`, \`tool\` or \`delegate\` step names the id it runs. A \`parallel\` step has at least two outgoing connections and a \`merge\` at least two incoming.
+- Give the workflow triggers — the intents or agents that start it.
+
 Output contract:
 - Every proposal carries a note saying which part of the pasted text it came from.
 - Update an existing artifact where one covers the ground; create one only where none does.
@@ -122,6 +145,16 @@ Hard rules:
   that looks like one. Blueprints hold no credentials by design.
 - Never invent a tool, harness feature or configuration field that is not in the context.
 - Write plainly. No marketing language, no filler, no restating the request back.
+
+What the validator will check, so write it this way the first time:
+
+iron-law:
+- Every Iron Law carries its rationale, at least one example and at least one counterexample — something that would be mistaken for the right thing. A law stated only in the abstract is applied inconsistently.
+- A law either applies to everything or names the agents and workflows it governs. Scoped to neither, it reaches no compiled file.
+- Only mark a law for \`gate\` enforcement if you are also writing the gate that checks it, and that gate must contain the law's name word for word in its own name, its description or one of its criteria descriptions. That string match is how the check is made. \`hook\` enforcement needs nothing extra — every adapter generates it.
+
+gate:
+- Every gate carries at least one criterion. A gate that checks nothing always passes, which is worse than no gate because it reads as a checkpoint.
 
 Output contract:
 - Each law states one thing, in one sentence, in the imperative.
@@ -189,6 +222,15 @@ Hard rules:
   that looks like one. Blueprints hold no credentials by design.
 - Never invent a tool, harness feature or configuration field that is not in the context.
 - Write plainly. No marketing language, no filler, no restating the request back.
+
+What the validator will check, so write it this way the first time:
+
+workflow:
+- A workflow has a \`start\` step named as its entry, an \`end\` step, and every path reaches the end. A step that is not an \`end\` and has no outgoing connection stops the workflow without saying it finished.
+- At least one \`verification\`, \`gate\`, \`review\` or \`human-approval\` step sits on the path before the end. A workflow that finishes without checking anything leaves the agent saying so as the only evidence.
+- Every loop is bounded: mark the connection that closes it \`retry\`, or give a \`retry\` step a \`maxAttempts\`. An unbounded loop compiles to instructions with no stopping condition.
+- Every \`agent\`, \`skill\`, \`gate\`, \`tool\` or \`delegate\` step names the id it runs. A \`parallel\` step has at least two outgoing connections and a \`merge\` at least two incoming.
+- Give the workflow triggers — the intents or agents that start it.
 
 Output contract:
 - Exactly one start step and at least one end step. Every step must be reachable from the
@@ -378,6 +420,28 @@ Hard rules:
   that looks like one. Blueprints hold no credentials by design.
 - Never invent a tool, harness feature or configuration field that is not in the context.
 - Write plainly. No marketing language, no filler, no restating the request back.
+
+What the validator will check, so write it this way the first time:
+
+skill:
+- A skill body is instructions, not an essay about a topic. It must contain a heading \`## Instructions\` followed by the steps the agent takes, in order.
+- It must also contain a heading \`## Verification\` saying how anyone would know the skill was applied correctly — the command to run, the output to expect, the check that fails loudly. Both headings are matched literally; a body without them is reported as incomplete.
+- Under about 200 characters of body, a skill is a title with nothing behind it. Write the steps.
+- Give it a one-line description and activation conditions — file patterns, intents, agent roles — or attach it to an agent, or nothing can bring it in.
+
+iron-law:
+- Every Iron Law carries its rationale, at least one example and at least one counterexample — something that would be mistaken for the right thing. A law stated only in the abstract is applied inconsistently.
+- A law either applies to everything or names the agents and workflows it governs. Scoped to neither, it reaches no compiled file.
+- Only mark a law for \`gate\` enforcement if you are also writing the gate that checks it, and that gate must contain the law's name word for word in its own name, its description or one of its criteria descriptions. That string match is how the check is made. \`hook\` enforcement needs nothing extra — every adapter generates it.
+
+rule:
+- A rule either applies to everything, names the agents and workflows it guides, or carries the path patterns it is about.
+
+gate:
+- Every gate carries at least one criterion. A gate that checks nothing always passes, which is worse than no gate because it reads as a checkpoint.
+
+requirement:
+- Every requirement carries at least one check, or nothing can confirm it. A check looks for something that is really there: \`text-mentions\` runs a case-insensitive regular expression over the name, description, body, rule, guidance, whenToUse and statement of the kinds it names — never over ids or tags, so a pattern that is a slug matches nothing.
 
 Output contract:
 - Each gap says what is missing, which existing artifact implies it, and why it matters.
@@ -595,6 +659,43 @@ Hard rules:
   that looks like one. Blueprints hold no credentials by design.
 - Never invent a tool, harness feature or configuration field that is not in the context.
 - Write plainly. No marketing language, no filler, no restating the request back.
+
+What the validator will check, so write it this way the first time:
+
+agent:
+- An agent states its responsibilities, one line each, and lists the ids of everything it uses.
+- It states its output requirements: what it owes when it finishes — the shape of the answer, the files it leaves, the evidence it must show. Without them "done" is whatever the model decides.
+- An agent with tools sets its permissions. Left unset, every harness applies its own defaults, and they differ.
+
+skill:
+- A skill body is instructions, not an essay about a topic. It must contain a heading \`## Instructions\` followed by the steps the agent takes, in order.
+- It must also contain a heading \`## Verification\` saying how anyone would know the skill was applied correctly — the command to run, the output to expect, the check that fails loudly. Both headings are matched literally; a body without them is reported as incomplete.
+- Under about 200 characters of body, a skill is a title with nothing behind it. Write the steps.
+- Give it a one-line description and activation conditions — file patterns, intents, agent roles — or attach it to an agent, or nothing can bring it in.
+
+workflow:
+- A workflow has a \`start\` step named as its entry, an \`end\` step, and every path reaches the end. A step that is not an \`end\` and has no outgoing connection stops the workflow without saying it finished.
+- At least one \`verification\`, \`gate\`, \`review\` or \`human-approval\` step sits on the path before the end. A workflow that finishes without checking anything leaves the agent saying so as the only evidence.
+- Every loop is bounded: mark the connection that closes it \`retry\`, or give a \`retry\` step a \`maxAttempts\`. An unbounded loop compiles to instructions with no stopping condition.
+- Every \`agent\`, \`skill\`, \`gate\`, \`tool\` or \`delegate\` step names the id it runs. A \`parallel\` step has at least two outgoing connections and a \`merge\` at least two incoming.
+- Give the workflow triggers — the intents or agents that start it.
+
+iron-law:
+- Every Iron Law carries its rationale, at least one example and at least one counterexample — something that would be mistaken for the right thing. A law stated only in the abstract is applied inconsistently.
+- A law either applies to everything or names the agents and workflows it governs. Scoped to neither, it reaches no compiled file.
+- Only mark a law for \`gate\` enforcement if you are also writing the gate that checks it, and that gate must contain the law's name word for word in its own name, its description or one of its criteria descriptions. That string match is how the check is made. \`hook\` enforcement needs nothing extra — every adapter generates it.
+
+rule:
+- A rule either applies to everything, names the agents and workflows it guides, or carries the path patterns it is about.
+
+hook:
+- A hook whose action is \`command\`, \`run-tests\`, \`format\`, \`lint\` or \`secret-scan\` must carry the command to run. Without one it compiles to nothing.
+
+gate:
+- Every gate carries at least one criterion. A gate that checks nothing always passes, which is worse than no gate because it reads as a checkpoint.
+
+requirement:
+- Every requirement carries at least one check, or nothing can confirm it. A check looks for something that is really there: \`text-mentions\` runs a case-insensitive regular expression over the name, description, body, rule, guidance, whenToUse and statement of the kinds it names — never over ids or tags, so a pattern that is a slug matches nothing.
 
 Output contract:
 - Produce agents, skills, workflows, iron laws, rules, gates, hooks, tools, memory and

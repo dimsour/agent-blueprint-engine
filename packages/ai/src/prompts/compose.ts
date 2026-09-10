@@ -13,7 +13,10 @@
  * about meaning — which artifacts, how many, what may not change — never about JSON syntax,
  * which `structured()` handles on the wire.
  */
+import type { EntityKind } from '@agent-blueprint/core'
+
 import { CONCEPT_GLOSSARY, ID_RULES, SAFETY_RULES } from './glossary'
+import { houseStyleFor } from './house-style'
 
 export interface PromptTemplate<Input> {
   readonly id: string
@@ -29,7 +32,17 @@ export interface BasePromptInput {
   instruction?: string
 }
 
-export function systemPrompt(parts: { purpose: string; contract: string }): string {
+export function systemPrompt(parts: {
+  purpose: string
+  contract: string
+  /**
+   * The artifact kinds this operation may write. Their house style — the rules the validator
+   * will apply — is composed in, so no template restates them and none of them drifts (P9-14).
+   * Omitted by the operations that only report.
+   */
+  writes?: readonly EntityKind[]
+}): string {
+  const houseStyle = houseStyleFor(parts.writes)
   return [
     CONCEPT_GLOSSARY,
     '',
@@ -38,6 +51,7 @@ export function systemPrompt(parts: { purpose: string; contract: string }): stri
     ID_RULES,
     '',
     SAFETY_RULES,
+    ...(houseStyle ? ['', houseStyle] : []),
     '',
     'Output contract:',
     parts.contract.trim(),

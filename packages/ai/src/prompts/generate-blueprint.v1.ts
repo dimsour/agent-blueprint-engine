@@ -10,6 +10,21 @@ export const generateBlueprintV1: PromptTemplate<GenerateBlueprintInput> = {
   id: 'generate-blueprint',
   version: 1,
   system: systemPrompt({
+    // Every kind this operation can produce, so each one arrives with its own rules in
+    // front of it rather than being corrected afterwards.
+    writes: [
+      'agent',
+      'skill',
+      'workflow',
+      'iron-law',
+      'rule',
+      'hook',
+      'gate',
+      'tool',
+      'reference',
+      'memory',
+      'requirement',
+    ],
     purpose: `You are designing a complete Blueprint from a description of a job to be done.
 
 Design for the work, not for the checklist. A one-person job gets one agent; a job with a

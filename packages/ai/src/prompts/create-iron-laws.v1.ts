@@ -11,6 +11,8 @@ export const createIronLawsV1: PromptTemplate<CreateIronLawsInput> = {
   id: 'create-iron-laws',
   version: 1,
   system: systemPrompt({
+    // A law marked for gate enforcement needs the gate too, which is why both are here.
+    writes: ['iron-law', 'gate'],
     purpose: `You are writing Iron Laws: the things this system must never do.
 
 A law earns its severity by being falsifiable. "Write good code" cannot be violated in any way

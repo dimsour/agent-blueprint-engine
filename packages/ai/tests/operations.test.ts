@@ -10,6 +10,7 @@
 import {
   applyChangeSet,
   type Blueprint,
+  isKnownDiagnosticCode,
   createEmptyBlueprint,
   createEntity,
   findEntity,
@@ -35,6 +36,10 @@ import {
   improveArtifact,
   judgeRequirements,
   AI_DIAGNOSTIC_CODES,
+  houseStyleFor,
+  HOUSE_STYLE_CODES,
+  PROMPTS,
+  type PromptId,
   type OperationDeps,
 } from '../src/index'
 import { loadFixture, recording, replayClient } from './helpers'
@@ -50,11 +55,24 @@ function depsFor(name: string, slice?: [number, number]): OperationDeps {
   return { client: replayClient(slice ? answers.slice(...slice) : answers).client }
 }
 
+/**
+ * The same recorded answer, twice.
+ *
+ * `generateBlueprint` checks its own draft and asks again when the validator finds something
+ * (P9-14), and the recording is a real model answer that does not pass — which is the whole
+ * reason the check exists. Answering identically twice means the second attempt is no better
+ * than the first, so the first is kept and these tests still measure the assembler.
+ */
+function depsRepeating(name: string): OperationDeps {
+  const answers = recording(name)
+  return { client: replayClient([...answers, ...answers]).client }
+}
+
 describe('generateBlueprint', () => {
   it('turns a draft into artifacts that apply cleanly to an empty Blueprint', async () => {
     const empty = createEmptyBlueprint({ id: 'pr-review', name: 'Untitled' })
     const result = await generateBlueprint(
-      depsFor('generate-blueprint'),
+      depsRepeating('generate-blueprint'),
       { blueprint: empty },
       'A crew that reviews pull requests in a .NET codebase.',
     )
@@ -71,7 +89,7 @@ describe('generateBlueprint', () => {
   it('renames a colliding id and leaves references to the id that survived', async () => {
     const empty = createEmptyBlueprint({ id: 'pr-review', name: 'Untitled' })
     const result = await generateBlueprint(
-      depsFor('generate-blueprint'),
+      depsRepeating('generate-blueprint'),
       { blueprint: empty },
       'A crew that reviews pull requests.',
     )
@@ -88,7 +106,7 @@ describe('generateBlueprint', () => {
   it('drops what will not parse and says so, instead of failing the answer', async () => {
     const empty = createEmptyBlueprint({ id: 'pr-review', name: 'Untitled' })
     const result = await generateBlueprint(
-      depsFor('generate-blueprint'),
+      depsRepeating('generate-blueprint'),
       { blueprint: empty },
       'A crew that reviews pull requests.',
     )
@@ -105,8 +123,16 @@ describe('generateBlueprint', () => {
 
   it('lays the steps out so a generated workflow opens as a graph, the same way every time', async () => {
     const empty = createEmptyBlueprint({ id: 'pr-review', name: 'Untitled' })
-    const once = await generateBlueprint(depsFor('generate-blueprint'), { blueprint: empty }, 'x')
-    const twice = await generateBlueprint(depsFor('generate-blueprint'), { blueprint: empty }, 'x')
+    const once = await generateBlueprint(
+      depsRepeating('generate-blueprint'),
+      { blueprint: empty },
+      'x',
+    )
+    const twice = await generateBlueprint(
+      depsRepeating('generate-blueprint'),
+      { blueprint: empty },
+      'x',
+    )
 
     const workflow = applyChangeSet(empty, once.changeSet).blueprint.workflows[0]!
     const positions = workflow.nodes.map((node) => node.position)
@@ -651,4 +677,90 @@ it('has an invariant for every validation code a model is offered', () => {
       invariantFor(entry.code) === undefined,
   )
   expect(uncovered.map((entry) => entry.code)).toEqual([])
+})
+
+/**
+ * Writing it right the first time (P9-14).
+ *
+ * Reported from use: a generated Blueprint arrived with seven skills that had no Instructions
+ * section, six with no Verification, five laws marked for a gate that was never written, an
+ * unbounded loop and a hook with no command. Every one of those is a rule in `packages/core`,
+ * and the model had never been told any of them.
+ */
+describe('the house style', () => {
+  it('tells a skill prompt the two headings the validator looks for', () => {
+    const style = houseStyleFor(['skill'])
+    expect(style).toContain('## Instructions')
+    expect(style).toContain('## Verification')
+  })
+
+  it('says how a law marked for a gate is actually checked', () => {
+    // BP-LAW-011 matches the law's name inside the gate's text. "Wire laws to gates" would
+    // not have produced that; naming the string match does.
+    const style = houseStyleFor(['iron-law'])
+    expect(style).toMatch(/name word for word/)
+  })
+
+  it('sends only the kinds the operation may write', () => {
+    const style = houseStyleFor(['gate'])
+    expect(style).toContain('criterion')
+    expect(style).not.toContain('## Instructions')
+    // Nothing to say for an operation that proposes nothing, and no budget spent saying it.
+    expect(houseStyleFor([])).toBe('')
+    expect(houseStyleFor(undefined)).toBe('')
+  })
+
+  it('reaches every prompt that can write an artifact', () => {
+    // The point of composing it into `systemPrompt` rather than copying it into templates:
+    // adding an operation cannot silently skip the rules.
+    for (const id of ['generate-blueprint', 'create-iron-laws', 'create-workflow', 'compound']) {
+      expect(PROMPTS[id as PromptId].system, id).toContain('What the validator will check')
+    }
+    // And the ones whose kind is a call-time input carry it beside the ask instead.
+    expect(PROMPTS['generate-artifact'].user({ context: '', kind: 'skill', brief: 'x' })).toContain(
+      '## Instructions',
+    )
+  })
+
+  it('is written against codes that still exist', () => {
+    // A rule that was renamed or removed would leave the model being told to satisfy a check
+    // nothing runs, which is worse than saying nothing.
+    for (const code of HOUSE_STYLE_CODES) {
+      expect(isKnownDiagnosticCode(code), code).toBe(true)
+    }
+  })
+})
+
+describe('generateBlueprint, checked against both passes', () => {
+  it('reads the findings back to the model and keeps the better draft', async () => {
+    const empty = createEmptyBlueprint({ id: 'pr-review', name: 'Untitled' })
+    const answers = recording('generate-blueprint')
+    const client = replayClient([...answers, ...recording('generate-blueprint-repaired')])
+
+    const result = await generateBlueprint(
+      { client: client.client },
+      { blueprint: empty },
+      'A crew.',
+    )
+
+    // It asked twice, and the second request quotes the validator rather than the brief.
+    expect(client.sent).toHaveLength(2)
+    expect(client.sent[1]!.messages.map((message) => message.content).join('\n')).toContain(
+      'BP-EVAL-SKILL-002',
+    )
+
+    // And the draft that reaches the review is the one with fewer problems in it.
+    const applied = applyChangeSet(empty, result.changeSet).blueprint
+    const skill = applied.skills[0]
+    expect(skill?.body).toContain('## Instructions')
+    expect(skill?.body).toContain('## Verification')
+  })
+
+  it('does not ask twice when the first draft is clean', async () => {
+    const empty = createEmptyBlueprint({ id: 'pr-review', name: 'Untitled' })
+    const client = replayClient(recording('generate-blueprint-repaired'))
+
+    await generateBlueprint({ client: client.client }, { blueprint: empty }, 'A crew.')
+    expect(client.sent).toHaveLength(1)
+  })
 })

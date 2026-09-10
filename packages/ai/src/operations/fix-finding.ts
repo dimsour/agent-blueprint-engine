@@ -26,7 +26,6 @@ import {
   ENTITY_KINDS,
   type EntityRef,
   findEntity,
-  refKey,
   ruleByCode,
   validateBlueprint,
 } from '@agent-blueprint/core'
@@ -36,6 +35,7 @@ import { renderEntity } from '../context/render'
 import { fixFindingV1 } from '../prompts/fix-finding.v1'
 import { fixFindingOutputSchema } from '../schemas/outputs'
 import { assembleChangeSet, type Assembly, type Draft } from './assemble'
+import { fingerprint } from './check'
 import { aiDiagnosticCode } from './codes'
 import { ask, contextFor } from './run'
 import type { ChangeSetResult, OperationContext, OperationDeps } from './types'
@@ -242,16 +242,6 @@ export function invariantFor(code: string): string | undefined {
 function sourceOf(blueprint: Blueprint, ref: EntityRef): string | undefined {
   const entity = findEntity(blueprint, ref.kind, ref.id)
   return entity ? renderEntity(ref.kind, entity) : undefined
-}
-
-/**
- * A finding, identified well enough to tell whether a fix cleared it.
- *
- * Code and artifact, not the message: a message often carries a count or a name the fix
- * legitimately changes, and a finding that came back reworded is still the same finding.
- */
-function fingerprint(finding: Diagnostic): string {
-  return `${finding.code}|${finding.ref ? refKey(finding.ref) : ''}`
 }
 
 interface Outcome {

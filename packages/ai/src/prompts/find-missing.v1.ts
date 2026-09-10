@@ -7,6 +7,7 @@ export const findMissingV1: PromptTemplate<FindMissingInput> = {
   id: 'find-missing',
   version: 1,
   system: systemPrompt({
+    writes: ['skill', 'iron-law', 'rule', 'gate', 'requirement', 'reference'],
     purpose: `You are looking for the gaps between what this Blueprint claims and what it specifies.
 
 Work from what is already there. An agent with a responsibility and no skill that covers it,

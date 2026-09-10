@@ -8,6 +8,7 @@
 import type { EntityKind } from '@agent-blueprint/core'
 
 import { type BasePromptInput, type PromptTemplate, systemPrompt, userPrompt } from './compose'
+import { houseStyleFor } from './house-style'
 
 export const QUICK_ACTIONS = [
   'improve',
@@ -81,6 +82,10 @@ Anything already said by a neighbouring artifact in the context does not need re
       [
         `Revise the ${input.kind} "${input.id}".`,
         input.action ? QUICK_ACTION_INSTRUCTIONS[input.action] : '',
+        '',
+        // A revision is judged by the same rules as a creation, and "improve this skill" is
+        // exactly the request that came back still missing its Instructions section.
+        houseStyleFor([input.kind]),
       ]
         .filter(Boolean)
         .join('\n'),

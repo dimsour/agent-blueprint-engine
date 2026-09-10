@@ -8,11 +8,12 @@
  * as the request for a second attempt. One attempt, not a loop — a model that cannot draw a
  * connected graph twice will not manage it on the fifth try, and the user is waiting.
  */
-import { applyChangeSet, type Diagnostic, refKey, validateBlueprint } from '@agent-blueprint/core'
+import { applyChangeSet, type Diagnostic, validateBlueprint } from '@agent-blueprint/core'
 
 import { createWorkflowV1 } from '../prompts/create-workflow.v1'
 import { createWorkflowOutputSchema } from '../schemas/outputs'
 import { assembleChangeSet, type Assembly } from './assemble'
+import { fingerprint } from './check'
 import { ask, contextFor } from './run'
 import type { ChangeSetResult, OperationContext, OperationDeps } from './types'
 
@@ -102,8 +103,4 @@ function problemsIntroduced(ctx: OperationContext, assembly: Assembly): Diagnost
       // and asking the model to draw it again would change nothing.
       (finding.severity === 'error' || finding.code.startsWith('BP-WF-')),
   )
-}
-
-function fingerprint(finding: Diagnostic): string {
-  return `${finding.code}|${finding.ref ? refKey(finding.ref) : ''}|${finding.message}`
 }

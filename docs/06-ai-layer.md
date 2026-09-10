@@ -294,6 +294,49 @@ Every result carries two more things than the proposal itself:
 | `judgeRequirements`  | none                                                                                                                                                              | Blueprint summary, the `ai-judged` checks and the requirements they belong to                                                                                                                                                                              | `Diagnostic[]` (`BP-AI-REQ-001`) for the checks that failed or could not be judged, plus every verdict for a view that shows checks                                                              | the check id must be one that was sent; others are dropped with a note                                                                                                                                                                                 |
 | `compound`           | pasted notes, transcript excerpt or diff                                                                                                                          | Blueprint summary, glossary                                                                                                                                                                                                                                | `ChangeSet` (source `compound`) proposing skills, laws, references, rules, workflow steps                                                                                                        | schema; every op carries a `note` explaining the evidence                                                                                                                                                                                              |
 
+### House style: the rules before the artifact (P9-14)
+
+A model asked for "a skill" writes a good essay about a topic, because that is what the word
+means in ordinary English. It is not what it means here: `packages/core` requires an
+`## Instructions` heading and a `## Verification` heading in the body, and reports their
+absence as `BP-EVAL-SKILL-002` and `BP-SKILL-011`. The same is true across the catalogue —
+a law marked for gate enforcement needs a gate whose text contains the law's **name**, a loop
+needs a retry edge or an attempt limit, a `secret-scan` hook needs its command.
+
+`prompts/house-style.ts` states those as construction rules, per artifact kind, at the level
+of precision the rule actually checks. `systemPrompt({ writes })` composes in the rules for
+the kinds an operation may produce, so no template restates them and none of them drifts;
+operations whose kind is a call-time input (`generateArtifact`, `improveArtifact`,
+`fixFinding`) carry the same text beside the ask instead. Operations that only report pass no
+`writes` and get none of it.
+
+Each block records the codes it is written against, and `tests/operations.test.ts` fails if
+one of those codes stops existing — a rule that was renamed leaves the model being told to
+satisfy a check nothing runs, which is worse than saying nothing.
+
+### Checking a proposal before the user sees it
+
+`operations/check.ts` is the shared version of what `createWorkflowFor` has done since P6:
+apply the proposal to a throwaway Blueprint, run the rules, and compare with what was already
+wrong. `allFindings` runs **both** passes — `validateBlueprint` and `evaluateBlueprint` —
+because the quality findings a generated Blueprint arrives with never come from the validator
+at all. `complaintsFor` then decides what is worth reading back:
+
+- A finding that **names an artifact** is about something the model wrote and got wrong, and it
+  can write that properly instead.
+- A finding that names **none** is about what the Blueprint as a whole does not contain — no
+  gates, no secret-scanning hook, no export target. Real advice, and the health bar's job; a
+  model asked to draft a crew from one sentence should not bolt those on unasked. Errors are the
+  exception, since an error is a Blueprint that will not compile.
+- `BP-PORT-*` and `BP-EVAL-PORT-001` are excluded outright: they describe the harness, or
+  where the evaluator ran, not the Blueprint.
+- Two examples per code, sixteen lines in total, then a count. The seventh identical line
+  teaches nothing and the budget comes out of the answer.
+
+`generateBlueprint` uses it: one repair round, and the better of the two drafts is kept —
+better meaning fewer complaints. What remains is said in the notes rather than discovered after
+applying.
+
 ### What `fixFinding` is told, and why (P9-13)
 
 A finding names a problem; clearing it needs the model to know what "fixed" means, where to

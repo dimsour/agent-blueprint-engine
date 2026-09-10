@@ -1,5 +1,6 @@
 export * from './analysis'
 export * from './assemble'
+export * from './check'
 export * from './codes'
 export * from './compound'
 export * from './create-iron-laws'

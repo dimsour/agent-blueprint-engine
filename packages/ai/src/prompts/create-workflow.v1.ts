@@ -11,6 +11,7 @@ export const createWorkflowV1: PromptTemplate<CreateWorkflowInput> = {
   id: 'create-workflow',
   version: 1,
   system: systemPrompt({
+    writes: ['workflow'],
     purpose: `You are designing one workflow: a graph of typed steps and typed connections.
 
 A workflow is how work is orchestrated, so the interesting parts are the ones a list of

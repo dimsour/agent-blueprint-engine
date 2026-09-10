@@ -17,6 +17,7 @@ export const compoundV1: PromptTemplate<CompoundInput> = {
   id: 'compound',
   version: 1,
   system: systemPrompt({
+    writes: ['skill', 'iron-law', 'rule', 'reference', 'memory', 'workflow'],
     purpose: `You are turning an account of real work into artifacts that make the next run of it better.
 
 Read the notes for what was learned the hard way: a mistake that had to be corrected, a step
