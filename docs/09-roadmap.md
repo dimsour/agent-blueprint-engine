@@ -705,7 +705,7 @@ something, it says what and where that thing still exists.
 - Acceptance: `/new` is one screen; naming a project and pressing Create opens the workspace with that project stored; the AI draft still works from it; no route still references a removed step.
 - Verify: `pnpm --filter web test:e2e`, `pnpm check`
 
-### P9-04 What this field is for
+### P9-04 What this field is for (done)
 
 - Package: `apps/web/src/components/editors/fields.tsx`, `apps/web/src/components/editors/entity-form.tsx`
 - Depends on: nothing
@@ -715,6 +715,10 @@ something, it says what and where that thing still exists.
 - This is not "new from template", which fills a whole artifact from the 29 artifact templates and stays as it is. This fills one field, for the person who knows what they want everywhere except here.
 - Acceptance: every field with help has an info control reachable by keyboard; the example is visible without a mouse; inserting one into a field that already has content asks first; the ten starters and the fixture are unchanged.
 - Verify: `pnpm --filter web test`, `pnpm --filter web test:e2e accessibility`
+- Built: `Field` grew an info button beside the label, named `About <field>`, that is both a tooltip and a disclosure — the tooltip is the glance, the panel is the thing a keyboard can reach and act on, and Escape returns focus to the icon. It carries its own `TooltipProvider`, because `Field` is mounted in dialogs, in the wizard and in tests where the app shell's provider is not above it.
+- Built: **Insert example** goes through the field's own `onChange`, so an insert is one ordinary edit — `upsertEntity`, one undo step. A field with content asks (**Replace** / **Cancel**) before anything is overwritten; a string list appends instead, so there is nothing to ask about.
+- Built: 68 examples in one map, `apps/web/src/components/editors/field-examples.ts`, keyed `<kind>.<field>` and lifted from the fixture project and the starters, so the form suggests what the product actually ships.
+- Deviation: the sentence keeps its own line where a field has no example. `help` is not always help — Settings passes the masked API key it already holds through the same prop — and hiding a live status behind an icon to gain nothing would be a regression, not a tidy-up.
 
 ### P9-05 A pointer on anything clickable
 
