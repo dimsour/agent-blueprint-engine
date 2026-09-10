@@ -28,9 +28,15 @@ import {
   SparklesIcon,
   XIcon,
 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
-import { AIError, findContradictions, judgeRequirements } from '@agent-blueprint/ai'
+import {
+  AIError,
+  checkId,
+  findContradictions,
+  judgeRequirements,
+  type RequirementVerdict,
+} from '@agent-blueprint/ai'
 
 import { validateNow } from '@/lib/actions'
 import { withAiFindings, withoutDuplicates } from '@/lib/ai/merge'
@@ -65,6 +71,10 @@ export function EvaluationView() {
   const [aiFindings, setAiFindings] = useState<Diagnostic[]>([])
   const [asking, setAsking] = useState(false)
   const [aiError, setAiError] = useState<string | undefined>()
+  /** What a model decided about each ai-judged check, including the passes (P6-12). */
+  const [verdicts, setVerdicts] = useState<Map<string, RequirementVerdict>>(new Map())
+  // Held across renders rather than in state: stopping must not wait for one (P6-11).
+  const inFlight = useRef<AbortController | undefined>(undefined)
 
   // A model's findings describe the Blueprint it was shown. Edit anything and they are about a
   // version that no longer exists, so they go — showing a stale finding badged `AI` next to a
@@ -74,6 +84,8 @@ export function EvaluationView() {
     setJudged(blueprint)
     setAiFindings([])
     setAiError(undefined)
+    // A verdict is about the Blueprint it was shown, like a finding.
+    setVerdicts(new Map())
   }
   const canAsk = useClientValue(() => configuredClient() !== undefined, false)
 
@@ -91,13 +103,17 @@ export function EvaluationView() {
     [scored, aiFindings],
   )
 
+  const stopAiAnalysis = () => inFlight.current?.abort()
+
   const runAiAnalysis = async () => {
     const configured = configuredClient()
     if (!configured || !blueprint) return
+    const controller = new AbortController()
+    inFlight.current = controller
     setAsking(true)
     setAiError(undefined)
     try {
-      const deps = { client: configured.client }
+      const deps = { client: configured.client, structured: { signal: controller.signal } }
       const ctx = { blueprint, diagnostics }
       // Settled rather than all: these are two independent questions, and one of them failing
       // is no reason to throw away the answer to the other. A rate-limited endpoint refusing
@@ -114,22 +130,49 @@ export function EvaluationView() {
       // The deterministic checker has already reported what it can see; a model repeating it
       // would double every finding the user has read once.
       setAiFindings(withoutDuplicates(found, diagnostics))
-      if (failed?.status === 'rejected') {
-        const reason: unknown = failed.reason
-        setAiError(
-          reason instanceof Error ? reason.message : 'Part of the analysis could not be run.',
+
+      // Only the failures become diagnostics, so without this a check a model judged and
+      // passed still read as "unverifiable" — in the one place a reader looks to find out
+      // whether a requirement holds (P6-12).
+      if (requirements.status === 'fulfilled') {
+        setVerdicts(
+          new Map(
+            requirements.value.verdicts.map((judged) => [
+              checkId(judged.requirementId, judged.index),
+              judged.verdict,
+            ]),
+          ),
         )
       }
+      if (failed?.status === 'rejected') {
+        const reason: unknown = failed.reason
+        // The two questions are settled rather than awaited together, so a cancellation
+        // arrives here as a rejected outcome and never reaches the catch below. Reporting it
+        // would tell the user their own decision had failed.
+        if (!(reason instanceof AIError && reason.code === 'aborted')) {
+          setAiError(
+            reason instanceof Error ? reason.message : 'Part of the analysis could not be run.',
+          )
+        }
+      }
     } catch (error) {
-      setAiError(
-        error instanceof AIError || error instanceof Error
-          ? error.message
-          : 'The endpoint could not be reached.',
-      )
+      // Stopping is a decision, not a failure.
+      if (!(error instanceof AIError && error.code === 'aborted')) {
+        setAiError(
+          error instanceof AIError || error instanceof Error
+            ? error.message
+            : 'The endpoint could not be reached.',
+        )
+      }
     } finally {
+      inFlight.current = undefined
       setAsking(false)
     }
   }
+
+  // Leaving the view mid-request left it running, which on a local model is minutes of work
+  // nobody is waiting for.
+  useEffect(() => () => inFlight.current?.abort(), [])
 
   if (!blueprint || !report) return null
 
@@ -169,6 +212,11 @@ export function EvaluationView() {
           )}
           Run AI analysis
         </Button>
+        {asking ? (
+          <Button variant="outline" size="sm" onClick={stopAiAnalysis}>
+            Stop
+          </Button>
+        ) : null}
       </div>
 
       {aiError ? (
@@ -259,33 +307,45 @@ export function EvaluationView() {
                     </span>
 
                     <ul aria-label="Checks" className="flex flex-col gap-1">
-                      {result.checks.map((check, index) => (
-                        <li key={index} className="flex flex-wrap items-baseline gap-1.5 text-xs">
-                          <Badge
-                            variant={
-                              check.status === 'pass'
-                                ? 'success'
-                                : check.status === 'fail'
-                                  ? 'danger'
-                                  : 'outline'
-                            }
-                          >
-                            {check.status}
-                          </Badge>
-                          <span className="font-mono">{check.check.type}</span>
-                          {check.error ? <span className="text-danger">{check.error}</span> : null}
-                          {check.evidence.map((ref) => (
-                            <button
-                              key={`${ref.kind}:${ref.id}`}
-                              type="button"
-                              onClick={() => select(ref)}
-                              className="hover:border-accent rounded border px-1.5 py-0.5"
+                      {result.checks.map((check, index) => {
+                        // A rule could not run this one, but a model has judged it. Showing the
+                        // rule's "skipped" next to a verdict nobody sees is the bug (P6-12).
+                        const judgedBy = verdicts.get(checkId(result.ref.id, index))
+                        return (
+                          <li key={index} className="flex flex-wrap items-baseline gap-1.5 text-xs">
+                            <Badge
+                              variant={
+                                (judgedBy?.status ?? check.status) === 'pass'
+                                  ? 'success'
+                                  : (judgedBy?.status ?? check.status) === 'fail'
+                                    ? 'danger'
+                                    : 'outline'
+                              }
                             >
-                              {ENTITY_KIND_INFO[ref.kind].label}: {ref.id}
-                            </button>
-                          ))}
-                        </li>
-                      ))}
+                              {judgedBy?.status ?? check.status}
+                            </Badge>
+                            {judgedBy ? (
+                              <Badge variant="outline" title={judgedBy.rationale}>
+                                judged by a model
+                              </Badge>
+                            ) : null}
+                            <span className="font-mono">{check.check.type}</span>
+                            {check.error ? (
+                              <span className="text-danger">{check.error}</span>
+                            ) : null}
+                            {check.evidence.map((ref) => (
+                              <button
+                                key={`${ref.kind}:${ref.id}`}
+                                type="button"
+                                onClick={() => select(ref)}
+                                className="hover:border-accent rounded border px-1.5 py-0.5"
+                              >
+                                {ENTITY_KIND_INFO[ref.kind].label}: {ref.id}
+                              </button>
+                            ))}
+                          </li>
+                        )
+                      })}
                       {result.checks.length === 0 ? (
                         <li className="text-muted-foreground text-xs">
                           No checks, so nothing can confirm it. Add one from the requirement.

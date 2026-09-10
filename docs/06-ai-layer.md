@@ -460,7 +460,7 @@ Probing once instead of once per test brought it from nine down to four, which i
 between usable and not.
 
 The 120 000 ms default timeout is right for
-a hosted API and short for a local model drafting a whole Blueprint (roadmap P6-10). And
+a hosted API and short for a local model drafting a whole Blueprint. Since P6-10 the timeout is a field of the preset — hosted endpoints keep 120s, the local ones wait ten minutes — and the endpoint form offers it, because the number that is right depends on hardware this app cannot see. And
 `generateBlueprint` is by far the heaviest operation — its schema is the union of eleven entity
 schemas — so it is the one that strains a small local model while every other operation is
 comfortable. How much a model chooses to write for it also varies a great deal run to run —

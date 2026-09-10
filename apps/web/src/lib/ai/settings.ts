@@ -33,6 +33,8 @@ export interface AISettings {
   viaProxy: boolean
   /** Extra headers some endpoints want (OpenRouter's HTTP-Referer, a workspace id). */
   extraHeaders: Record<string, string>
+  /** How long to wait for an answer. Seeded from the preset; the user can change it. */
+  timeoutMs: number
 }
 
 export const DEFAULT_AI_SETTINGS: AISettings = {
@@ -42,6 +44,7 @@ export const DEFAULT_AI_SETTINGS: AISettings = {
   jsonSchema: true,
   viaProxy: false,
   extraHeaders: {},
+  timeoutMs: AI_PRESETS.openai.timeoutMs,
 }
 
 /** What choosing a preset fills in. Only the fields the preset actually knows. */
@@ -54,6 +57,9 @@ export function settingsForPreset(preset: PresetId, current: AISettings): AISett
     jsonSchema: chosen.jsonSchema === 'probe' ? current.jsonSchema : chosen.jsonSchema,
     // A local endpoint is the reason the proxy exists; anything else reaches the browser directly.
     viaProxy: chosen.requiresKey ? false : current.viaProxy,
+    // Choosing a preset re-seeds the wait, because that is the number the preset knows and the
+    // user almost never does. Editing it afterwards keeps it until another preset is chosen.
+    timeoutMs: chosen.timeoutMs,
   }
 }
 
@@ -88,6 +94,7 @@ export function clientConfig(settings: AISettings, apiKey: string | undefined): 
     model: settings.model,
     presetId: settings.presetId,
     features: { jsonSchema: settings.jsonSchema },
+    timeoutMs: settings.timeoutMs,
     ...(apiKey ? { apiKey } : {}),
     ...(settings.viaProxy ? { viaProxy: true } : {}),
     ...(Object.keys(settings.extraHeaders).length > 0

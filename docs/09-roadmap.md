@@ -459,31 +459,35 @@ Verification: `pnpm check` green; `pnpm --filter @agent-blueprint/core test` sho
 - Verify: `AI_TEST_BASE_URL=… AI_TEST_MODEL=… pnpm --filter @agent-blueprint/ai test:live`
 - Run against four endpoint implementations and seven models, local and hosted. Most pass all three checks, including a whole Blueprint that applies with no rejected ops and no dangling references. The exceptions were a model too slow to finish the largest operation inside ten minutes, one loaded with a context smaller than the request, and a hosted free tier too small to run the suite. Results and the seven bugs it found are in docs/06. OpenAI has not been run.
 
-### P6-10 A configurable request timeout
+### P6-10 A configurable request timeout (done)
 
 - Package: `apps/web/src/lib/ai/settings.ts`, `packages/ai/src/client/*`
 - Depends on: P6-05
 - Description: `AIClientConfig.timeoutMs` defaults to 120 000, which is right for a hosted API and too short for a local model drafting a whole Blueprint — measured cases exceeded it, and the user's only signal is "No answer within 120s". The endpoint form should offer the timeout, and the default should probably follow the preset (local presets longer than hosted ones).
 - Acceptance: the timeout is part of the stored settings and reaches the client; a local preset defaults higher than a hosted one.
-- Verify: `pnpm --filter web test`
+- Verify: `pnpm --filter web test settings`
+- Built: `timeoutMs` is a field of the preset, so the number lives with the thing that knows it — hosted endpoints keep 120s, the local ones wait ten minutes. Settings carries it, the endpoint form offers it in seconds, and choosing a preset re-seeds it. Settings stored before the field existed fall back to the default rather than to zero.
 - Found by: the P6-09 live check.
 
-### P6-11 Cancelling a request in flight
+### P6-11 Cancelling a request in flight (done)
 
 - Package: `apps/web/src/components/ai/*`
 - Depends on: P6-07
 - Description: `AIClient` threads an `AbortSignal` through every call, and nothing in the UI ever passes one. A whole-Blueprint draft against a local model can run for minutes with no way to stop it but closing the panel, which leaves the request running. The assistant and the evaluation view should hold an `AbortController` and offer Stop while a request is in flight.
 - Acceptance: a request in flight can be cancelled; the panel returns to its idle state and reports nothing as an error.
-- Verify: `pnpm --filter web test`
+- Verify: `pnpm --filter web test views`
+- Built: the assistant and the evaluation view each hold an `AbortController`, pass its signal through `OperationDeps.structured`, and offer Stop while a request is running. Closing the panel or leaving the view aborts too, which is what used to leave a local model working for minutes on an answer nobody was waiting for.
+- Stopping is reported as a decision rather than a failure, and that needed care in two places: the evaluation view settles its two questions rather than awaiting them together, so a cancellation arrives as a rejected outcome and never reaches the catch. The first version of the fix missed it and told the user their own decision had failed; the test caught it.
 - Found by: the P6-09 review.
 
-### P6-12 Show what a model decided about an `ai-judged` check
+### P6-12 Show what a model decided about an `ai-judged` check (done)
 
 - Package: `apps/web/src/components/views/evaluation-view.tsx`
 - Depends on: P6-08
 - Description: `judgeRequirements` returns a verdict per check, and only the failures become diagnostics. The passes are dropped, so a check a model has judged and passed still displays as `skipped` in the requirements list — the one place a reader looks to see whether a requirement holds. The view should carry the verdicts and show them on the check.
 - Acceptance: a passed `ai-judged` check shows as passed, badged as a model's judgement rather than a rule's.
-- Verify: `pnpm --filter web test`
+- Verify: `pnpm --filter web test views`
+- Built: the view keeps the verdicts, not only the diagnostics, and a judged check shows the verdict with its rationale on hover and a badge saying a model decided it. Verdicts are dropped when the Blueprint changes, on the same terms as the findings: a verdict is about the Blueprint it was shown.
 - Found by: the P6-09 review.
 
 ## P7 — GitHub

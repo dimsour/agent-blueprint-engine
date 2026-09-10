@@ -48,6 +48,15 @@ export interface AIPreset {
    * 6 000 with the strict one.
    */
   strictSchema: boolean
+  /**
+   * How long to wait for an answer, in milliseconds.
+   *
+   * A hosted API answers in seconds or fails. A local model drafting a whole Blueprint on
+   * consumer hardware takes minutes, and P6-09 measured cases that ran past two — where the
+   * only thing the user saw was "No answer within 120s" for a request that was working. So the
+   * local presets wait far longer, and the user can change it.
+   */
+  timeoutMs: number
   /** Shown under the picker. Says what the user has to do outside this app, if anything. */
   note: string
   docsUrl: string
@@ -62,6 +71,7 @@ export const AI_PRESETS: Record<PresetId, AIPreset> = {
     requiresKey: true,
     jsonSchema: true,
     strictSchema: true,
+    timeoutMs: 120_000,
     note: 'Structured output is supported directly.',
     docsUrl: 'https://platform.openai.com/docs/api-reference/chat',
   },
@@ -75,6 +85,7 @@ export const AI_PRESETS: Record<PresetId, AIPreset> = {
     // schema here would silently return prose. See docs/06-ai-layer.md.
     jsonSchema: false,
     strictSchema: false,
+    timeoutMs: 120_000,
     note: 'A compatibility layer for testing models, not a production surface. response_format is ignored, so schemas are enforced by re-asking.',
     docsUrl: 'https://platform.claude.com/docs/en/cli-sdks-libraries/libraries/openai-sdk',
   },
@@ -86,6 +97,7 @@ export const AI_PRESETS: Record<PresetId, AIPreset> = {
     requiresKey: true,
     jsonSchema: 'probe',
     strictSchema: false,
+    timeoutMs: 120_000,
     note: 'Schema support depends on the model routed to. HTTP-Referer and X-Title may be sent as extra headers.',
     docsUrl: 'https://openrouter.ai/docs/api-reference/overview',
   },
@@ -97,6 +109,7 @@ export const AI_PRESETS: Record<PresetId, AIPreset> = {
     requiresKey: false,
     jsonSchema: 'probe',
     strictSchema: false,
+    timeoutMs: 600_000,
     note: 'The browser needs OLLAMA_ORIGINS to include this app, or turn the proxy on.',
     docsUrl: 'https://docs.ollama.com/api/openai-compatibility',
   },
@@ -108,6 +121,7 @@ export const AI_PRESETS: Record<PresetId, AIPreset> = {
     requiresKey: false,
     jsonSchema: 'probe',
     strictSchema: false,
+    timeoutMs: 600_000,
     note: "Enable CORS in LM Studio's server settings, or turn the proxy on.",
     docsUrl: 'https://lmstudio.ai/docs/app/api/endpoints/openai',
   },
@@ -119,6 +133,7 @@ export const AI_PRESETS: Record<PresetId, AIPreset> = {
     requiresKey: false,
     jsonSchema: 'probe',
     strictSchema: false,
+    timeoutMs: 600_000,
     note: 'Guided JSON works when the server was started with a backend that supports it.',
     docsUrl: 'https://docs.vllm.ai/en/latest/serving/openai_compatible_server.html',
   },
@@ -130,6 +145,7 @@ export const AI_PRESETS: Record<PresetId, AIPreset> = {
     requiresKey: true,
     jsonSchema: true,
     strictSchema: true,
+    timeoutMs: 120_000,
     note: 'Base URL is https://<resource>.openai.azure.com/openai/deployments/<deployment>?api-version=<version>; the model is the deployment name.',
     docsUrl: 'https://learn.microsoft.com/azure/ai-services/openai/reference',
   },
@@ -141,6 +157,7 @@ export const AI_PRESETS: Record<PresetId, AIPreset> = {
     requiresKey: false,
     jsonSchema: 'probe',
     strictSchema: false,
+    timeoutMs: 120_000,
     note: 'Anything that speaks POST /chat/completions.',
     docsUrl: 'https://platform.openai.com/docs/api-reference/chat',
   },

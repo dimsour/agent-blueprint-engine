@@ -23,7 +23,7 @@ import {
 import { AIError } from '@agent-blueprint/ai'
 import { ArrowRightIcon, Loader2Icon, SparklesIcon } from 'lucide-react'
 import Link from 'next/link'
-import { useId, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { ChangeSetReview, RejectedOps, type RejectedOp } from '@/components/ai/changeset-review'
@@ -57,6 +57,8 @@ export function AssistantPanel({
   const [text, setText] = useState('')
   const [kind, setKind] = useState<EntityKind>('skill')
   const [busy, setBusy] = useState(false)
+  // Held across renders rather than in state: stopping must not wait for one (P6-11).
+  const inFlight = useRef<AbortController | undefined>(undefined)
   const [result, setResult] = useState<AssistantResult | undefined>()
   const [failure, setFailure] = useState<string | undefined>()
   const [rejected, setRejected] = useState<RejectedOp[]>([])
@@ -68,8 +70,12 @@ export function AssistantPanel({
   const blocked = blueprint && action ? action.unavailable(blueprint, selection) : undefined
   const missingText = action?.field?.required === true && !text.trim()
 
+  const stop = () => inFlight.current?.abort()
+
   const run = async () => {
     if (!blueprint || !action || !configured) return
+    const controller = new AbortController()
+    inFlight.current = controller
     setBusy(true)
     setFailure(undefined)
     setResult(undefined)
@@ -77,7 +83,7 @@ export function AssistantPanel({
     try {
       setResult(
         await action.run(
-          { client: configured.client },
+          { client: configured.client, structured: { signal: controller.signal } },
           {
             blueprint,
             ...(selection ? { selection } : {}),
@@ -87,17 +93,26 @@ export function AssistantPanel({
         ),
       )
     } catch (error) {
-      setFailure(
-        error instanceof AIError
-          ? error.message
-          : error instanceof Error
+      // Stopping is a decision, not a failure: reporting it as one would make the panel look
+      // broken every time somebody changed their mind.
+      if (!(error instanceof AIError && error.code === 'aborted')) {
+        setFailure(
+          error instanceof AIError
             ? error.message
-            : 'The endpoint could not be reached.',
-      )
+            : error instanceof Error
+              ? error.message
+              : 'The endpoint could not be reached.',
+        )
+      }
     } finally {
+      inFlight.current = undefined
       setBusy(false)
     }
   }
+
+  // A panel closed mid-request left the request running, which on a local model means minutes
+  // of work nobody is waiting for.
+  useEffect(() => () => inFlight.current?.abort(), [])
 
   const applyOps = (ops: ChangeOp[], summary: string) => {
     if (!result) return
@@ -216,17 +231,23 @@ export function AssistantPanel({
                     />
                   </div>
                 ) : null}
-                <Button
-                  className="self-start"
-                  disabled={busy || blocked !== undefined || missingText}
-                  onClick={() => void run()}
-                >
-                  {busy ? <Loader2Icon className="animate-spin" /> : <SparklesIcon />}
-                  {/* Not the action's own label: the chip above already carries that, and two
+                <div className="flex items-center gap-2">
+                  <Button
+                    disabled={busy || blocked !== undefined || missingText}
+                    onClick={() => void run()}
+                  >
+                    {busy ? <Loader2Icon className="animate-spin" /> : <SparklesIcon />}
+                    {/* Not the action's own label: the chip above already carries that, and two
                       buttons with the same name is a screen reader reading the same thing
                       twice and a test that cannot tell them apart. */}
-                  {busy ? 'Asking…' : 'Ask'}
-                </Button>
+                    {busy ? 'Asking…' : 'Ask'}
+                  </Button>
+                  {busy ? (
+                    <Button variant="outline" onClick={stop}>
+                      Stop
+                    </Button>
+                  ) : null}
+                </div>
               </div>
             ) : (
               <p className="text-muted-foreground text-sm">Choose what to do.</p>

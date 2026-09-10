@@ -77,6 +77,7 @@ export function AISettings() {
   const keyId = useId()
   const storageId = useId()
   const proxyId = useId()
+  const timeoutId = useId()
 
   const [settings, setSettings] = useState<AISettings>(DEFAULT_AI_SETTINGS)
   const [where, setWhere] = useState<CredentialStorage>('session')
@@ -172,6 +173,28 @@ export function AISettings() {
           ? { help: `This endpoint offers: ${probe.models.slice(0, 8).join(', ')}` }
           : {})}
       />
+
+      <Field
+        label="Wait for an answer"
+        htmlFor={timeoutId}
+        help="A hosted API answers in seconds. A local model drafting a whole Blueprint can take minutes, and the wait is what stands between that and a request that looked like a failure."
+      >
+        <div className="flex items-center gap-2">
+          <Input
+            id={timeoutId}
+            type="number"
+            min={5}
+            max={3600}
+            className="w-24"
+            value={Math.round(settings.timeoutMs / 1000)}
+            onChange={(event) => {
+              const seconds = Number(event.target.value)
+              if (Number.isFinite(seconds) && seconds > 0) change({ timeoutMs: seconds * 1000 })
+            }}
+          />
+          <span className="text-muted-foreground text-sm">seconds</span>
+        </div>
+      </Field>
 
       <Field
         label="API key"

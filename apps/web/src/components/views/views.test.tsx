@@ -9,7 +9,7 @@ import { evaluateBlueprint, validateBlueprint } from '@agent-blueprint/core'
 import { compileBlueprint, portabilityOf } from '@agent-blueprint/exporters'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { CompatibilityView } from '@/components/views/compatibility-view'
 import { EvaluationView } from '@/components/views/evaluation-view'
@@ -406,5 +406,119 @@ describe('ExportView: the secret scan', () => {
 
     await screen.findByText(/looks like a credential/)
     expect(document.body.textContent).not.toContain('sk-abcdefghijklmnopqrstuvwxyz01')
+  })
+})
+
+/**
+ * The two things a request in flight needs (P6-11) and the verdict that was being thrown away
+ * (P6-12). Both are about the same screen and the same call, so they are tested together.
+ */
+describe('EvaluationView: a request in flight', () => {
+  beforeEach(() => {
+    useWorkspace.getState().close()
+    localStorage.clear()
+    sessionStorage.clear()
+  })
+  afterEach(() => {
+    globalThis.fetch = realFetch
+  })
+
+  /** An endpoint that never answers until the request is aborted. */
+  function stubHang(): void {
+    globalThis.fetch = ((_url: string, init?: RequestInit) =>
+      new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => {
+          reject(Object.assign(new Error('aborted'), { name: 'AbortError' }))
+        })
+      })) as unknown as typeof globalThis.fetch
+  }
+
+  it('offers Stop only while something is running', async () => {
+    await load()
+    configureEndpoint()
+    stubHang()
+    const user = userEvent.setup()
+    render(<EvaluationView />)
+
+    expect(screen.queryByRole('button', { name: 'Stop' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Run AI analysis' }))
+    expect(await screen.findByRole('button', { name: 'Stop' })).toBeInTheDocument()
+  })
+
+  it('stopping is a decision, not a failure', async () => {
+    await load()
+    configureEndpoint()
+    stubHang()
+    const user = userEvent.setup()
+    render(<EvaluationView />)
+
+    await user.click(screen.getByRole('button', { name: 'Run AI analysis' }))
+    await user.click(await screen.findByRole('button', { name: 'Stop' }))
+
+    // Back to idle, with nothing reported as broken.
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Run AI analysis' })).toBeEnabled(),
+    )
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+})
+
+describe('EvaluationView: a check a model judged', () => {
+  beforeEach(() => {
+    useWorkspace.getState().close()
+    localStorage.clear()
+    sessionStorage.clear()
+  })
+  afterEach(() => {
+    globalThis.fetch = realFetch
+  })
+
+  /** The fixture, with a requirement whose only check needs a model. */
+  async function withAiJudgedCheck() {
+    const blueprint = await load()
+    const [first, ...rest] = blueprint.requirements
+    if (!first) throw new Error('The fixture has no requirements.')
+    useWorkspace.getState().load('test', {
+      ...blueprint,
+      requirements: [
+        {
+          ...first,
+          checks: [
+            { type: 'ai-judged' as const, prompt: 'Does the agent verify before claiming?' },
+          ],
+        },
+        ...rest,
+      ],
+    })
+    return first.id
+  }
+
+  it('shows a passed verdict instead of leaving the check unverifiable', async () => {
+    const requirementId = await withAiJudgedCheck()
+    configureEndpoint()
+    stubAnswer({
+      contradictions: [],
+      verdicts: [
+        {
+          id: `${requirementId}#0`,
+          status: 'pass',
+          rationale: 'The write-tests workflow has a verification step.',
+        },
+      ],
+    })
+    const user = userEvent.setup()
+    render(<EvaluationView />)
+
+    // Before asking, a rule cannot run this check and says so.
+    const checks = screen.getAllByRole('list', { name: 'Checks' })
+    expect(within(checks[0]!).getByText('skipped')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Run AI analysis' }))
+
+    // Only failures become diagnostics, so without carrying the verdicts a passed check still
+    // read as skipped — in the one place a reader looks to see whether a requirement holds.
+    const after = screen.getAllByRole('list', { name: 'Checks' })
+    expect(await within(after[0]!).findByText('pass')).toBeInTheDocument()
+    expect(within(after[0]!).getByText('judged by a model')).toBeInTheDocument()
   })
 })
