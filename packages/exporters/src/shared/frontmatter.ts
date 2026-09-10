@@ -7,7 +7,10 @@ import { toYaml } from '@agent-blueprint/core'
 
 import { withHeader } from './header'
 
-export type FrontmatterValue = string | number | boolean | string[] | Record<string, string>
+/** One level of nesting is enough for every harness: OpenCode's `permission` is the deepest. */
+export type FrontmatterMap = Record<string, string | Record<string, string>>
+
+export type FrontmatterValue = string | number | boolean | string[] | FrontmatterMap
 
 export type Frontmatter = Record<string, FrontmatterValue | undefined>
 

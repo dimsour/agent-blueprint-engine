@@ -43,8 +43,12 @@ const USAGE: Record<HarnessId, HarnessUsage> = {
     ],
   },
   opencode: {
-    entry: '`AGENTS.md` plus `.agents/skills/`.',
-    workflow: (id) => `the ${id} skill`,
+    entry: '`AGENTS.md` plus `.agents/skills/`, `opencode.json` and `.opencode/`.',
+    workflow: (id) => `/${id}`,
+    notes: [
+      'Permissions are enforced by `opencode.json`; read it before trusting the project, and remember that the last matching pattern wins.',
+      'Hooks and gates are not enforced: they need a plugin, which is TypeScript rather than configuration. They are described in `AGENTS.md` and in the workflow skills.',
+    ],
   },
   pi: {
     entry: '`AGENTS.md` plus `.agents/skills/`.',

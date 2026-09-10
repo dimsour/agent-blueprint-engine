@@ -3,7 +3,8 @@ import { HARNESS_IDS, type HarnessId } from '@agent-blueprint/core'
 import { claudeCodeAdapter } from './claude-code/index'
 import { codexAdapter } from './codex/index'
 import { copilotAdapter } from './copilot/index'
-import { openCodeAdapter, piAdapter } from './portable-adapters'
+import { openCodeAdapter } from './opencode/index'
+import { piAdapter } from './portable-adapters'
 import type { AnyHarnessAdapter } from './types'
 
 /** Every harness the compiler can target. Keys match `HARNESS_IDS` in core. */

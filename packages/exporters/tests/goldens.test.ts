@@ -32,6 +32,7 @@ const CASES: GoldenCase[] = [
   // Every target at once, which is also the strongest test that shared files stay shared.
   { name: 'dotnet-testing-expert.all', targets: [...HARNESS_IDS] },
   { name: 'dotnet-testing-expert.copilot', targets: ['copilot'] },
+  { name: 'dotnet-testing-expert.opencode', targets: ['opencode'] },
 ]
 
 function readTree(root: string): Record<string, string> {

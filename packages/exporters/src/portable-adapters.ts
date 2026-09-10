@@ -1,11 +1,10 @@
 /**
- * OpenCode and Pi adapters.
+ * Pi adapter.
  *
- * Both ship their capability matrix, their options schema and the portable artifact set
- * (`AGENTS.md` plus the `.agents/skills` tree), and both report every concept they cannot
- * represent. Their native mappings (`opencode.json`, `.pi/` extensions) are roadmap P8-02 and
- * P8-03; the capability matrices below already describe what those will do, so the
- * compatibility view is accurate today.
+ * Pi runs one agent and its extensions are TypeScript, so the portable artifact set is very
+ * nearly the whole mapping: `AGENTS.md` plus the `.agents/skills` tree, and a report of what a
+ * single-agent harness cannot do. The native pieces (`.pi/prompts`, `.pi/settings.json`,
+ * extensions) are roadmap P8-03.
  */
 import type { Blueprint, Diagnostic, HarnessId } from '@agent-blueprint/core'
 import { z } from 'zod'
@@ -86,107 +85,6 @@ function permissionIssue(
       adaptation: 'AGENTS.md "Command policy" section',
     },
   ]
-}
-
-// ---------------------------------------------------------------------------
-// OpenCode
-// ---------------------------------------------------------------------------
-
-const openCodeCapabilities: CapabilityMatrix = {
-  skills: {
-    support: 'native',
-    explanation:
-      'OpenCode reads `.agents/skills/` and `.opencode/skills/`; the portable location is used.',
-  },
-  agents: {
-    support: 'native',
-    explanation:
-      'OpenCode supports `mode: subagent` agents. Emitting `.opencode/agents/*.md` is roadmap P8; agents are described in AGENTS.md today.',
-  },
-  parallelAgents: {
-    support: 'limited',
-    explanation:
-      'The Task tool spawns subagents, but OpenCode documents no explicit parallel control.',
-  },
-  workflows: {
-    support: 'adapted',
-    explanation:
-      'Workflows compile to orchestration skills; `.opencode/commands/` entries are roadmap P8.',
-  },
-  hooks: {
-    support: 'adapted',
-    explanation:
-      'OpenCode hooks are TypeScript plugins rather than declarative JSON; generating `.opencode/plugins/` is roadmap P8.',
-  },
-  gates: {
-    support: 'adapted',
-    explanation:
-      'Gates become instructions in the workflow skill; enforcing them needs a plugin (roadmap P8).',
-  },
-  permissions: {
-    support: 'adapted',
-    explanation:
-      'OpenCode has a native allow/ask/deny `permission` block; emitting `opencode.json` is roadmap P8, so permissions are currently a command policy in AGENTS.md.',
-  },
-  memory: {
-    support: 'unsupported',
-    explanation:
-      'OpenCode has no persistent memory; memory definitions become instructions to keep notes in the repository.',
-  },
-  pathScopedRules: {
-    support: 'adapted',
-    explanation:
-      'Path-scoped rules become nested `AGENTS.md` files or `instructions` globs; today they are inlined with an "Applies to" line.',
-  },
-  commands: {
-    support: 'native',
-    explanation: 'OpenCode supports `.opencode/commands/`; skills already act as commands.',
-  },
-  ironLaws: { support: 'adapted', explanation: 'Iron Laws become a section in AGENTS.md.' },
-  references: {
-    support: 'native',
-    explanation: 'References attached to a skill are copied beside it.',
-  },
-}
-
-export const openCodeAdapter: HarnessAdapter<PortableAdapterOptions> = {
-  id: 'opencode',
-  name: 'OpenCode',
-  version: '0.1.0',
-  docsUrl: 'https://opencode.ai/docs/skills/',
-  capabilities: openCodeCapabilities,
-  optionsSchema,
-  parseOptions: (raw) => optionsSchema.parse(raw),
-  validate: (blueprint) => idCollisions(blueprint, 'BP-OPENCODE-001', PORTABLE_SKILLS_DIR),
-
-  compile(blueprint): CompileResult {
-    const files: GeneratedFile[] = [emitPortableInstructionFile(blueprint).file]
-    const skillSet = emitPortableSkillSet(blueprint, {
-      root: PORTABLE_SKILLS_DIR,
-      owner: 'shared',
-      referencesDir: PORTABLE_REFERENCES_DIR,
-    })
-    files.push(...skillSet.files)
-
-    const issues: CompatibilityIssue[] = [
-      ...workflowIssues(blueprint, 'opencode'),
-      ...memoryIssue(blueprint, 'opencode'),
-      ...permissionIssue(
-        blueprint,
-        'opencode',
-        'OpenCode has a native permission block, but emitting `opencode.json` is roadmap P8; for now the permission set is a command policy in AGENTS.md.',
-      ),
-    ]
-    if (blueprint.hooks.length > 0) {
-      issues.push({
-        harnessId: 'opencode',
-        concept: 'hooks',
-        support: 'adapted',
-        message: `${blueprint.hooks.length} hook(s) need a TypeScript plugin on OpenCode; generating one is roadmap P8, so they are documented rather than enforced.`,
-      })
-    }
-    return { files, issues }
-  },
 }
 
 // ---------------------------------------------------------------------------

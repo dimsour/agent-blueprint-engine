@@ -1,0 +1,38 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "permission": {
+    "read": "allow",
+    "glob": "allow",
+    "grep": "allow",
+    "edit": "allow",
+    "bash": {
+      "*": "ask",
+      "ls *": "allow",
+      "cat *": "allow",
+      "head *": "allow",
+      "tail *": "allow",
+      "grep *": "allow",
+      "find *": "allow",
+      "wc *": "allow",
+      "diff *": "allow",
+      "pwd *": "allow",
+      "echo *": "allow",
+      "which *": "allow",
+      "file *": "allow",
+      "stat *": "allow",
+      "git status *": "allow",
+      "git diff *": "allow",
+      "git log *": "allow",
+      "git show *": "allow",
+      "git commit *": "ask",
+      "git push *": "deny",
+      "git push --force *": "deny",
+      "git push -f *": "deny",
+      "rm *": "ask",
+      "dotnet test *": "allow",
+      "dotnet build *": "allow"
+    },
+    "webfetch": "ask",
+    "websearch": "deny"
+  }
+}

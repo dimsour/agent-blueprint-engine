@@ -287,6 +287,18 @@ subagent primitive, or to persona-switch prompts where subagents are unsupported
 | Hooks, gates, hook-enforced laws                    | `.github/hooks/blueprint.json`                                          |
 | MCP tools                                           | `.vscode/mcp.json` (editor only)                                        |
 
+## OpenCode adapter mapping (summary; full table in `docs/harness/opencode.md`)
+
+| Blueprint                                           | Output                                                          |
+| --------------------------------------------------- | --------------------------------------------------------------- |
+| Primary agent + laws + rules + roster + memory seed | `AGENTS.md` (shared)                                            |
+| Skills                                              | `.agents/skills/<id>/SKILL.md` + resources (shared)             |
+| Other agents                                        | `.opencode/agents/<id>.md` (`mode: subagent`, own `permission`) |
+| Workflows                                           | `.agents/skills/<id>/SKILL.md` + `.opencode/commands/<id>.md`   |
+| Permissions, MCP, loose references                  | `opencode.json` (`permission`, `mcp`, `instructions`)           |
+| Rules with directory `paths`                        | nested `AGENTS.md` (shared with Codex)                          |
+| Hooks, gates                                        | not emitted; they need a TypeScript plugin (P8-10)              |
+
 ## Repository layout after compilation
 
 ```
@@ -303,7 +315,7 @@ subagent primitive, or to persona-switch prompts where subagents are unsupported
 ├── .codex/{config.toml,hooks.json,agents/}      codex
 ├── .github/{skills,agents,instructions,prompts,hooks}/   copilot
 ├── .vscode/mcp.json               copilot (only with MCP tools)
-├── opencode.json, .opencode/{agents,commands,plugins}/   opencode (P8-02)
+├── opencode.json, .opencode/{agents,commands}/          opencode
 └── .pi/{prompts,extensions,settings.json}       pi (P8-03)
 ```
 
@@ -504,3 +516,53 @@ The cloud coding agent takes MCP configuration from repository settings, not fro
 the generated file serves VS Code and the adapter says so. `sse` is written as `http`: the
 VS Code schema names `stdio` and `http`, and `http` is the transport that replaced SSE. Only
 environment variable _names_ are written, never values.
+
+## Implementation notes (P8-02, OpenCode)
+
+### `opencode.json` is not canonical JSON
+
+OpenCode reads a permission pattern object **last match wins**, so the order of the keys _is_
+the meaning. `canonicalJson` sorts keys and would silently invert the precedence of a rule set
+that is otherwise correct — a `"*": "ask"` catch-all landing after a specific `deny` turns the
+deny off. The config is written with `stableJson`, which keeps insertion order, and the objects
+are built in the order they are meant to be read: catch-all, then derived rules, then the
+author's own patterns, which are the most specific thing they wrote. A test asserts the order in
+the serialized bytes, not just in the object.
+
+### The primary agent has no agent file
+
+OpenCode always loads `AGENTS.md`, which already carries the primary persona. An agent file for
+it, plus `default_agent`, would put the same persona in context twice. The primary agent's
+permissions become the global `permission` block instead, which is also what applies to the
+built-in agents a user may switch to. Same reasoning as `CLAUDE.md` and
+`.github/copilot-instructions.md`.
+
+### Path-scoped rules do not use `instructions`
+
+`instructions` adds files that are _always_ loaded; it does not scope them. Pointing it at a
+generated `.opencode/rules/<id>.md` would duplicate text `AGENTS.md` already carries and gain no
+scoping at all. Rules whose globs are plain directories become a nested `AGENTS.md` — byte for
+byte the file Codex emits, so the pipeline merges them into one `shared` file — and the rest stay
+inlined with an "Applies to" line and are reported.
+
+### One `webfetch` key cannot hold two answers
+
+A Blueprint can allow documentation fetches and deny the open internet. OpenCode has a single
+`webfetch` permission and cannot tell them apart. Allowing it grants more than was asked for and
+denying it takes away what was granted, so it asks, and a `limited` issue names the domains that
+were meant to be free. Keys with no Blueprint meaning (`task`, `skill`, `lsp`, `question`,
+`doom_loop`, `external_directory`) are left unset: a guess there restricts an agent in a way
+nobody asked for.
+
+### `glob` and `grep` follow `read`
+
+A `read: deny` that left `glob` and `grep` open is not a read ban. They are set from the same
+decision — but only when it is a single decision: a path pattern object means something
+different for a matcher than for a reader, so patterns stay on `read` alone.
+
+### Hooks are not generated
+
+OpenCode hooks are a TypeScript module the harness auto-loads at session start. Generating code
+against an API this repository has not run — and putting it somewhere a syntax or signature
+error breaks every session — is a worse outcome than not generating it. Roadmap P8-02 asks for
+`opencode.json`, agents and commands; the plugin is recorded as P8-10 with what it needs.

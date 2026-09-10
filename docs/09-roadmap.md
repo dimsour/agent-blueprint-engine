@@ -30,7 +30,7 @@ The backlog for building Agent Blueprint. Phases follow the plan; tasks inside a
 | P5 Trust surfaces | done        | P5-01 to P5-05: the health bar opens its findings, the evaluation and compatibility views, the export view with compiled output, and the rename dialog with a slug preview. P5-06 reviewed P4 and P5 end to end and fixed what it found.                                                             |
 | P6 AI             | done        | P6-01 to P6-09: the AI package, the settings screen and relay, the ChangeSet review, the assistant, the AI draft in the wizard, a model second opinion in the evaluation view, and the live check against real endpoints that found and fixed seven bugs. P6-10 to P6-12 are follow-ups it recorded. |
 | P7 GitHub         | done        | P7-01 to P7-05: the token and sign-in, repository and branch selection, the push preview against the remote tree, the atomic push with a secret scan in front of it, and opening a project out of a repository. P7-06 is a follow-up it recorded.                                                    |
-| P8 Hardening      | in progress | P8-01 is done: Copilot has a full adapter. P8-02 to P8-09 are specified below and not started.                                                                                                                                                                                                       |
+| P8 Hardening      | in progress | P8-01 and P8-02 are done: Copilot and OpenCode have full adapters. P8-03 to P8-09 are specified below and not started, plus P8-10, which P8-02 recorded.                                                                                                                                             |
 
 ## P0 — Foundation (done)
 
@@ -546,9 +546,23 @@ Verification: `pnpm check` green; `pnpm --filter @agent-blueprint/core test` sho
 - Built: Copilot has its own adapter instead of the portable artifact set. Non-primary agents are custom agent files with a tool allowlist derived from their tools and permissions, and an `agents` list from `delegation.canDelegateTo`. Rules with globs are `applyTo` instruction files, so they load for matching files instead of sitting in context always. Workflows keep their orchestration skill and gain a `/`-invocable prompt file that runs it. Hooks, gates and hook-enforced laws compile to `.github/hooks/blueprint.json` with a bash and a PowerShell command each, and a gate refuses the stop by printing a decision when its command fails. MCP tools configure the editor in `.vscode/mcp.json`, names of environment variables only.
 - Not built, and reported instead: `handoffs[]` (it hangs off an agent file while delegate steps hang off a workflow, and the primary agent has no agent file); per-command permission patterns (no Copilot syntax expresses them, and a `preToolUse` script that parsed tool arguments would be the compiler inventing one that fails closed); the `prompt` handler type (its payload field is undocumented, so checks print a reminder as they do on Codex). `permissions` moved from `adapted` to `limited` in the capability matrix, which is what it was already doing.
 
-### P8-02 Full OpenCode adapter
+### P8-02 Full OpenCode adapter (done)
 
+- Package: `packages/exporters/src/opencode/`
+- Depends on: P2
 - Description: `opencode.json` (agents with mode/model/permission lowering, commands for workflows), `.opencode/agents/*.md`, `.opencode/commands/*.md`. Goldens.
+- Verify: `pnpm --filter @agent-blueprint/exporters test`
+- Built: OpenCode is the one target whose permission model is as expressive as the Blueprint's, so this is the adapter that loses the least. `opencode.json` carries the primary agent's permissions as an allow/ask/deny block with command and path patterns, plus `mcp` servers and an `instructions` entry for loose references. Non-primary agents become `mode: subagent` files with their own permission block. Workflows become `/`-invocable commands that run the orchestration skill. Rules whose globs are plain directories become a nested `AGENTS.md`, byte-identical to the one Codex emits, so the two targets share one file.
+- The care went into order: OpenCode reads a pattern object last-match-wins, so the catch-all is written first, the derived rules next and the author's own patterns last. Canonical JSON would have sorted the keys and silently inverted the precedence, so the config is written with `stableJson` and a test asserts the order in the serialized bytes.
+- Not built, and reported instead: hooks and gates, which need a TypeScript plugin (P8-10); a primary agent file and `default_agent`, because `AGENTS.md` already carries that persona and a second copy would be in context twice; `.opencode/rules/` plus `instructions`, because `instructions` adds always-loaded files rather than scoping them. `permissions` moved from `adapted` to `native`.
+
+### P8-10 OpenCode hook plugin
+
+- Package: `packages/exporters/src/opencode/`
+- Depends on: P8-02
+- Description: Generate `.opencode/plugins/blueprint-hooks.ts` so hooks and gates are enforced rather than described. The lowering table is in `docs/harness/opencode.md`; what is missing is not the mapping but confidence in the runtime: the plugin receives Bun's `$`, and the exact call for a command held in a string, its non-zero-exit handling, and the shape of the `client` message a gate would post are not settled by the sources we have. The file is auto-loaded at session start, so a signature error breaks every session — verify against a running OpenCode before generating it.
+- Acceptance: hooks and gates from the fixture produce a plugin that loads in a real OpenCode session; a gate that fails blocks; goldens.
+- Found by: building P8-02.
 
 ### P8-03 Full Pi adapter
 

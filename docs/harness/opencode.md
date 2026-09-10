@@ -1,8 +1,11 @@
 # Harness reference: OpenCode
 
-Verified against official docs on 2026-09-08. **MVP scope (roadmap P2): the adapter emits
-`AGENTS.md` and skills only.** The full native mapping (`opencode.json` agents, permissions,
-commands, plugin hooks) is specified here and scheduled for roadmap P8.
+Verified against official docs on 2026-09-08; the permission, agent, command and MCP shapes
+re-verified on 2026-09-10 while building the adapter. The adapter is complete (roadmap P8-02)
+apart from hooks: `opencode.json`, subagent files and commands are emitted. Hooks and gates
+need a TypeScript plugin, which is code rather than configuration and is recorded as P8-10.
+Where the built mapping differs from the plan written here, the table below says what was built;
+the reasoning is in `docs/04-compiler.md` under "Implementation notes (P8-02)".
 
 Note: current docs use plural directories (`.opencode/agents/`, `commands/`, `skills/`,
 `plugins/`); older third-party posts use singular forms.
@@ -76,39 +79,45 @@ export const BlueprintHooks = async ({ project, client, $, directory, worktree }
 
 ## Support matrix
 
-| Concept                   | Support       | Explanation                                                                          |
-| ------------------------- | ------------- | ------------------------------------------------------------------------------------ |
-| Skills                    | native        | `.opencode/skills/` and `.agents/skills/`                                            |
-| Agents / subagents        | native        | `mode: subagent`                                                                     |
-| Parallel agents           | limited       | Task tool; `subagent_depth`; no explicit parallel control documented                 |
-| Workflows / orchestration | adapted       | Commands with `subtask` plus the orchestration skill                                 |
-| Hooks                     | native (code) | TypeScript plugins, not JSON                                                         |
-| Gates                     | adapted       | `tool.execute.before` throw, or `session.idle` event handler; otherwise instructions |
-| Permissions               | native        | `permission` allow / ask / deny with patterns, per agent                             |
-| Memory                    | unsupported   | `AGENTS.md` only                                                                     |
-| Path-scoped rules         | adapted       | Nested `AGENTS.md` or `instructions` globs                                           |
-| Commands / prompts        | native        | `.opencode/commands/`                                                                |
-| Iron laws                 | adapted       | Section in `AGENTS.md`                                                               |
-| References                | native        | Files beside `SKILL.md`; `instructions` globs                                        |
-| `AGENTS.md`               | native        |                                                                                      |
+| Concept                   | Support     | Explanation                                                                          |
+| ------------------------- | ----------- | ------------------------------------------------------------------------------------ |
+| Skills                    | native      | `.opencode/skills/` and `.agents/skills/`                                            |
+| Agents / subagents        | native      | `mode: subagent`                                                                     |
+| Parallel agents           | limited     | Task tool; `subagent_depth`; no explicit parallel control documented                 |
+| Workflows / orchestration | adapted     | A command in `.opencode/commands/` plus the orchestration skill                      |
+| Hooks                     | adapted     | TypeScript plugins, not JSON; not generated (roadmap P8-10)                          |
+| Gates                     | adapted     | `tool.execute.before` throw, or `session.idle` event handler; otherwise instructions |
+| Permissions               | native      | `permission` allow / ask / deny with patterns, per agent                             |
+| Memory                    | unsupported | `AGENTS.md` only                                                                     |
+| Path-scoped rules         | adapted     | Nested `AGENTS.md` or `instructions` globs                                           |
+| Commands / prompts        | native      | `.opencode/commands/`                                                                |
+| Iron laws                 | adapted     | Section in `AGENTS.md`                                                               |
+| References                | native      | Files beside `SKILL.md`; `instructions` globs                                        |
+| `AGENTS.md`               | native      |                                                                                      |
 
 ## How Agent Blueprint compiles to OpenCode
 
-Adapter `opencode`. **MVP (P2):** `AGENTS.md` (shared emitter) and `.agents/skills/<id>/SKILL.md`
-(shared with Codex and Pi, emitted once). **Full mapping (P8):**
+Adapter `opencode`. **Built (P8-02):**
 
-| Blueprint                                            | Output                                                                                                                                                                                                                     | Support       |
-| ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
-| Primary persona, laws, rules, roster, workflow index | `AGENTS.md`                                                                                                                                                                                                                | native        |
-| Skills                                               | `.agents/skills/<id>/SKILL.md` + resources                                                                                                                                                                                 | native        |
-| Agents                                               | `.opencode/agents/<id>.md`: `description`, `mode` (`primary` for the primary agent, `subagent` otherwise), `model` from `model.hint` (`provider/id` format), `permission` from the agent's permissions, body = persona     | native        |
-| `opencode.json`                                      | `default_agent: <primary id>`, `agent.<id>` entries mirroring the files when needed, `permission` (global, from primary agent), `instructions: ["blueprint/references/*.md"]` for agent-level references, `mcp` from tools | native        |
-| Workflows                                            | `.opencode/commands/<id>.md` with `agent: <primary>`, `subtask: false`, body = orchestration text; plus the orchestration skill                                                                                            | adapted       |
-| Hooks                                                | `.opencode/plugins/blueprint-hooks.ts` generated from the hook list (table below)                                                                                                                                          | native (code) |
-| Gates with commands                                  | `event` handler on `session.idle` running the command and posting a message via `client`; otherwise instructions                                                                                                           | adapted       |
-| Permissions                                          | `permission` object (table below)                                                                                                                                                                                          | native        |
-| Rules with `paths`                                   | `instructions` entries pointing at `.opencode/rules/<id>.md`, with an "Applies to" line, or nested `AGENTS.md` for plain directories                                                                                       | adapted       |
-| Memory                                               | unsupported; seed in `AGENTS.md`                                                                                                                                                                                           | unsupported   |
+| Blueprint                                            | Output                                                                                                                                                                          | Support     |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| Primary persona, laws, rules, roster, workflow index | `AGENTS.md` (shared). The primary agent gets no agent file: its permissions are the global `permission` block                                                                   | native      |
+| Skills                                               | `.agents/skills/<id>/SKILL.md` + resources (shared with Codex and Pi, emitted once)                                                                                             | native      |
+| Non-primary agents                                   | `.opencode/agents/<id>.md`: `description`, `mode: subagent`, `model` from `model.hint` only when it is `provider/id`, `permission` from the agent's permissions, body = persona | native      |
+| `opencode.json`                                      | `$schema`, `permission` (global, from the primary agent), `instructions: [".agents/references/*.md"]` when there are loose references, `mcp` from tools                         | native      |
+| Workflows                                            | `.opencode/commands/<id>.md` whose body points at the orchestration skill, plus the skill itself                                                                                | adapted     |
+| Rules whose globs are plain directories              | nested `AGENTS.md`, byte-identical to the one Codex emits, so the file is shared                                                                                                | adapted     |
+| Rules with other globs                               | inlined in `AGENTS.md` with an "Applies to" line, and reported                                                                                                                  | adapted     |
+| Permissions                                          | `permission` object (table below), globally and per subagent                                                                                                                    | native      |
+| Hooks, gates                                         | not emitted; they need a plugin, which is code (P8-10). Described in `AGENTS.md` and the workflow skills                                                                        | adapted     |
+| Memory                                               | unsupported; seed in `AGENTS.md`                                                                                                                                                | unsupported |
+
+Not built, with the reason: **a primary agent file and `default_agent`**, because the primary
+persona is already `AGENTS.md`, which OpenCode always loads, and a second copy in an agent file
+would put the same persona in context twice. **`.opencode/rules/<id>.md` plus `instructions`
+entries**, because `instructions` adds always-loaded files rather than scoping them, so it would
+duplicate what `AGENTS.md` already carries without gaining any scoping. **`subtask`** on
+commands, because the default already runs the workflow in the session that invoked it.
 
 ### Hook trigger lowering
 
@@ -126,25 +135,36 @@ Actions: `command`-like actions run through `$` (the plugin's shell); `onFailure
 
 ### Permission lowering
 
-| Operation                                                 | `permission` key                                                                        |
-| --------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| `fs.read`                                                 | `read`, `glob`, `grep`, `list`                                                          |
-| `fs.write`                                                | `edit`                                                                                  |
-| `fs.delete`                                               | `bash: { "rm *": … }`                                                                   |
-| `shell.readonly`                                          | `bash` pattern object with a curated read-only list                                     |
-| `shell.mutating`                                          | `bash: { "*": … }`                                                                      |
-| `git.read` / `git.commit` / `git.push` / `git.force-push` | `bash: { "git log *": …, "git commit *": …, "git push *": …, "git push --force *": … }` |
-| `net.docs` / `net.any`                                    | `webfetch`, `websearch`                                                                 |
-| `mcp`                                                     | tool-level entries (verify key names)                                                   |
+| Operation                                                 | `permission` key                                                                                      |
+| --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `fs.read`                                                 | `read`, and `glob` + `grep` with it — a read ban that left those open would not be one                |
+| `fs.write`                                                | `edit`; path patterns become an `edit` object with `"*"` first                                        |
+| `fs.delete`                                               | `bash: { "rm *": … }`                                                                                 |
+| `shell.readonly`                                          | `bash` entries for the read-only prefixes, only when the decision differs from `shell.mutating`       |
+| `shell.mutating`                                          | `bash: { "*": … }`                                                                                    |
+| `git.read` / `git.commit` / `git.push` / `git.force-push` | `bash: { "git log *": …, "git commit *": …, "git push *": …, "git push --force *", "git push -f *" }` |
+| `net.docs` / `net.any`                                    | `webfetch` and `websearch`; see below                                                                 |
+| `mcp`                                                     | not lowered — the docs do not say whether MCP tools have permission keys, so none is guessed          |
 
-Pattern semantics match the harness: last match wins, so the adapter emits the broad `"*"` entry first and specific patterns after it.
+Pattern semantics match the harness: last match wins, so the adapter writes the broad `"*"`
+entry first, then the derived rules, then the author's own patterns, which are the most specific
+thing they wrote. `stableJson` keeps insertion order for exactly this reason; canonical
+(sorted) JSON would silently invert the precedence.
+
+There is one key that cannot hold both answers: OpenCode has a single `webfetch` permission,
+so a Blueprint that allows `net.docs` and denies `net.any` gets `webfetch: "ask"` and a
+`limited` compatibility issue, with the allowed domains named in the `AGENTS.md` command policy.
+Keys with no Blueprint meaning (`task`, `skill`, `lsp`, `question`, `doom_loop`,
+`external_directory`) are left unset so the harness default applies: a guess there would
+restrict an agent in a way nobody asked for.
 
 ## Known limitations and open questions
 
-- Hooks are TypeScript code; generated plugins must be deterministic and dependency-free.
+- Hooks are TypeScript code; generated plugins must be deterministic and dependency-free. Not generated — roadmap P8-10.
 - No memory primitive.
 - Parallelism is not explicitly configurable.
-- Exact permission keys for MCP tools need verification.
+- Whether MCP tools have permission keys is not documented, so permissions do not name them.
+- `list` and `todowrite` appear in some permission listings but not in the current reference; the adapter emits neither.
 
 ## Sources
 
