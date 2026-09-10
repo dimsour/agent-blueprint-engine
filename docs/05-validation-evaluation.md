@@ -34,6 +34,8 @@ Code format: `BP-<AREA>-<nnn>`. Areas: `ID`, `REF`, `DESC`, `AGENT`, `WF`, `SKIL
 
 ## 2. Code catalogue
 
+Every code below is also an entry in `validation/codes.ts`, which carries two pieces of prose the app shows and this table does not: a `summary` (what the code means, in one line) and a `remedy` (what to do about it, in a short paragraph). A finding's `message` says what is wrong _here_ and has to fit on a row; the remedy is the part that says how to make it go away, and the app renders it behind the **How to fix** control on every finding (docs/07, P9-10). `tests/docs.test.ts` fails if a code has no remedy, so adding a code means writing one. The "Fix" columns here are the spec-level note for whoever implements the rule; the remedy is the one written for the person the finding is shown to.
+
 ### 2.1 Implemented: reader (`project/read.ts`, `PROJECT_DIAGNOSTICS`)
 
 | Code             | Severity | Fires when                                                                                                      | Fix                                                       |

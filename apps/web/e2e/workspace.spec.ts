@@ -556,6 +556,26 @@ test.describe('trust surfaces', () => {
     await expect(page).toHaveURL(/id=/)
   })
 
+  test('a finding says how to fix it, not only what is wrong', async ({ page }) => {
+    await openStarter(page)
+    await artifact(page, 'React testing').click()
+    await page.getByLabel('Description', { exact: true }).fill('')
+    await report(page, 'Overview').click()
+
+    const warnings = page.getByRole('button', { name: /warnings?$/ })
+    await expect(warnings).toBeEnabled({ timeout: 10_000 })
+    await warnings.click()
+
+    const findings = page.getByRole('list', { name: 'warning findings' })
+    const help = findings.getByRole('button', { name: 'How to fix BP-DESC-001' }).first()
+    await help.click()
+
+    // What to do about it, and why it is worth doing — neither of which fits on the row.
+    await expect(findings).toContainText('every harness chooses which skill to activate')
+    // And it stays open to be read. Help that closes when focus moves is help for a mouse.
+    await expect(help).toHaveAttribute('aria-expanded', 'true')
+  })
+
   test('a workflow finding opens the step it names', async ({ page }) => {
     await openStarter(page)
     await artifact(page, 'Build a Component').click()

@@ -65,6 +65,20 @@ describe('diagnostic code catalogue', () => {
       expect(entry.summary.endsWith('.'), entry.code).toBe(true)
     }
   })
+
+  /**
+   * A finding says what is wrong. Only the remedy says what to do, and a code without one
+   * leaves the reader exactly where they were — which is the complaint this was written for.
+   */
+  it('tells the user how to fix every code', () => {
+    for (const entry of DIAGNOSTIC_CODES) {
+      expect(entry.remedy.length, entry.code).toBeGreaterThan(40)
+      expect(entry.remedy.endsWith('.'), entry.code).toBe(true)
+      // The remedy has a job the summary does not: it must say what to do, not restate the
+      // problem in other words.
+      expect(entry.remedy, entry.code).not.toBe(entry.summary)
+    }
+  })
 })
 
 /**

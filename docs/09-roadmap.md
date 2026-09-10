@@ -791,6 +791,18 @@ something, it says what and where that thing still exists.
 - Built: **Insert a whole workflow**, with the menu's own label carrying "For a single step, use the palette on the left." The palette gained a line of its own — "One at a time. Drag one onto the canvas, or click to place it below." — because a heading reading `STEPS` above a list of step kinds is not an instruction, and the empty-canvas hint now names the delete key.
 - Built: `deleteKeyCode={['Delete', 'Backspace']}`, and the panel's two delete buttons carry "Or press Delete" so the key is learnable where it is wanted. The existing single `onDelete` handler already made the step and its edges one change; a test now holds that, because the failure mode is two presses of undo and it is invisible until someone tries.
 
+### P9-10 A finding that says what to do (done)
+
+- Package: `packages/core/src/validation/codes.ts`, `apps/web/src/components/views/diagnostic-row.tsx`
+- Depends on: nothing
+- Description: Reported from use, about `BP-REQ-001`: _"Requirement 'Core .NET skills' is not satisfied … Nothing in the Blueprint meets any of its 4 checks."_ That is a complete description of the problem and no help at all, because it does not say whether the Blueprint is missing something or the checks are looking in the wrong place — and those have opposite fixes. The same is true of half the catalogue.
+- Found while reading the code: `DIAGNOSTIC_CODES` has carried a `summary` per code since P1, its own comment says "Shown in the UI next to the finding", and **nothing in the app has ever imported it**. The catalogue was documentation that only the docs test read.
+- Acceptance: every finding, on every surface that lists one, offers the meaning of its code and what to do about it; the guidance is defined once; a code the catalogue does not know renders no control rather than an empty one; reachable and readable from the keyboard.
+- Verify: `pnpm --filter @agent-blueprint/core test`, `pnpm --filter web test`, `pnpm --filter web test:e2e workspace`
+- Built: a `remedy` beside every `summary` — 62 of them, written as instructions to the person the finding is shown to, naming the control that does the work and saying why it matters where the cost of ignoring it is not obvious. `docs.test.ts` now fails a code without one, so adding a code means writing one.
+- Built: `DiagnosticHelp`, dropped into the two components every findings list already went through, so the health bar, the inspector, the evaluation dimensions and the export blockers all gained it at once. Hover or focus gives the one-liner, pressing unfolds the remedy and leaves it open — the same bargain as P9-04's field help, for the same reason: a paragraph behind a hover is a paragraph a keyboard user never sees.
+- Cost, paid once: a findings row used to be a single button. It cannot contain a second one, so the row is now a wrapping flex container with the navigate button, the help button, and a `basis-full` panel that drops onto its own line. The alternative was a popover, which would have covered the next finding in the list.
+
 ### Open questions
 
 1. ~~**The logo needs a mark-only export.**~~ Settled: rather than crop by CSS, the cut is a script. `pnpm --filter web logo` measures nothing at run time — the rectangles live in `e2e/logo-assets.spec.ts`, taken from the artwork's alpha channel — and writes the three assets the app imports. A redrawn logo needs that one command and a re-measurement, and no component changes.

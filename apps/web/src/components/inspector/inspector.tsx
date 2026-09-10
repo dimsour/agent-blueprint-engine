@@ -26,12 +26,13 @@ import {
   TemplateDialog,
 } from '@/components/inspector/dialogs'
 import { PanelSection } from '@/components/layout/ide-shell'
-import { SeverityIcon } from '@/components/views/diagnostic-row'
+import { DiagnosticHelp, SeverityIcon } from '@/components/views/diagnostic-row'
 import { Button } from '@/components/ui/button'
 import { Badge, Card } from '@/components/ui/primitives'
 import { entityOf } from '@/lib/artifact-source'
 import { type RelatedArtifact, relationsOf } from '@/lib/relations'
 import { diagnosticsFor, useWorkspace } from '@/lib/state/workspace-store'
+import { cn } from '@/lib/utils'
 
 type OpenDialog = 'rename' | 'delete' | 'template' | undefined
 
@@ -255,17 +256,25 @@ function DiagnosticCard({
     </>
   )
 
-  if (!onNavigate) return <Card className="flex flex-col gap-1 p-2.5">{body}</Card>
-
+  // The card is the whole target when it navigates, so the help control cannot sit inside it:
+  // a button inside a button is not a thing the browser can render. It goes beside it, in a
+  // wrapping row of its own, which is also where its panel unfolds.
   return (
-    <Card className="hover:bg-muted p-0">
-      <button
-        type="button"
-        onClick={onNavigate}
-        className="flex w-full flex-col gap-1 p-2.5 text-left"
-      >
-        {body}
-      </button>
+    <Card className={cn('p-0', onNavigate && 'hover:bg-muted')}>
+      <div className="flex flex-wrap items-start gap-x-1 p-2.5">
+        {onNavigate ? (
+          <button
+            type="button"
+            onClick={onNavigate}
+            className="flex min-w-0 flex-1 flex-col gap-1 text-left"
+          >
+            {body}
+          </button>
+        ) : (
+          <span className="flex min-w-0 flex-1 flex-col gap-1">{body}</span>
+        )}
+        <DiagnosticHelp code={diagnostic.code} />
+      </div>
     </Card>
   )
 }
