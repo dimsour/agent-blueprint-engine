@@ -502,12 +502,13 @@ Verification: `pnpm check` green; `pnpm --filter @agent-blueprint/core test` sho
 - Verify: `pnpm --filter web test`
 - Built: `lib/github/repos.ts` over the `fetch` client (ADR-23 replaces Octokit here). Listing asks for collaborator and organisation repositories, not only owned ones, and pages by GitHub's `Link` header rather than by counting. Two things are read from GitHub rather than assumed: whether the token may push here (`permissions`, since a visible repository is not a writable one), and whether the repository has any commits at all — a new one's default branch does not exist yet, which the push path treats as the ordinary first-commit case. Creation is deliberately `auto_init: false`, so the Blueprint is the first commit rather than a merge question. `parseRepoRef` accepts a browser URL, a clone URL or `owner/name`.
 
-### P7-03 Preview diff against remote tree
+### P7-03 Preview diff against remote tree (done)
 
 - Depends on: P7-02, P2-03
 - Description: `GitHubTreeFs` (read-only `VirtualFs` over the branch tree); compute added/modified/deleted for `blueprint/` + owned paths; unowned conflicts listed and skipped unless opted in.
 - Acceptance: tests with a mocked tree; second push after no change yields an empty diff.
 - Verify: `pnpm --filter web test`
+- Built: `GitHubTreeFs` reads a branch as a `VirtualFs`, and `planPush` runs the compiler's own `writeCompiled` over a recording file system with that branch behind it — so ownership, staleness and "never overwrite what we did not write" are the same code that governs writing to a folder, not a second implementation of it. Content is compared by Git's own blob hash, computed locally, so a file the branch already has byte for byte is never downloaded: an unchanged project plans in one request. A truncated tree listing is carried through to the UI rather than passed off as complete.
 
 ### P7-04 Atomic push
 
