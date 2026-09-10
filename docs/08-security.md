@@ -10,7 +10,7 @@ This document sets the rules for handling credentials and secrets in Agent Bluep
 4. **Nothing is stored server-side.** The optional route handlers are stateless relays.
 5. **The user is told where a secret is kept and what that means** before it is kept.
 
-## Credential storage in the browser (AI: built, P6-05; GitHub: P7)
+## Credential storage in the browser (AI: built, P6-05; GitHub: built, P7-01)
 
 | Item                                         | Default location | Opt-in location               | Namespace                  |
 | -------------------------------------------- | ---------------- | ----------------------------- | -------------------------- |
@@ -41,7 +41,7 @@ Both routes exist only to work around browser limitations. The app is fully func
 - Streams the upstream response through; no buffering, no logging of body or headers, no analytics.
 - Returns upstream status codes unchanged; error bodies are passed through, not augmented.
 
-### `/api/github/oauth/start` and `/callback` (P7)
+### `/api/github/oauth/start` and `/callback` (built, P7-01)
 
 - Enabled only when `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` are set. Without them the UI shows only the PAT path.
 - `start` redirects to GitHub with a random `state` stored in a short-lived, `HttpOnly`, `SameSite=Lax` cookie.

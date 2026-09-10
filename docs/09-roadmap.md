@@ -20,16 +20,17 @@ The backlog for building Agent Blueprint. Phases follow the plan; tasks inside a
 
 ## Status
 
-| Phase             | State       | Notes                                                                                                                                                                                                                                     |
-| ----------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| P0 Foundation     | done        | Workspace, docs, `@agent-blueprint/core` v0, fixture.                                                                                                                                                                                     |
-| P1 Core semantics | done        | P1-01 to P1-09 implemented and tested, including 29 artifact templates and 10 starter blueprints.                                                                                                                                         |
-| P2 Compiler       | done        | P2-01 to P2-09 implemented: adapter interface, registry, shared emitters, pipeline, build manifest, Claude Code and Codex in full, Copilot/OpenCode/Pi minimal, portability, golden tests.                                                |
-| P3 Web shell      | done        | P3-01 to P3-11 implemented and then reviewed end to end: the review found eight defects (undo across projects, non-deterministic export, a hydration failure and five more), and the gaps it found against docs/07 were built. See P3-12. |
-| P4 Graphs         | done        | P4-01 to P4-04: the overview graph, the workflow editor with all sixteen step types and eight connection kinds, tidy and template insertion, and the delete-impact dialog. Reviewed with P5; see P5-06.                                   |
-| P5 Trust surfaces | done        | P5-01 to P5-05: the health bar opens its findings, the evaluation and compatibility views, the export view with compiled output, and the rename dialog with a slug preview. P5-06 reviewed P4 and P5 end to end and fixed what it found.  |
-| P6 AI             | in progress | P6-01 to P6-04 built in `@agent-blueprint/ai`: the OpenAI-compatible client, structured output, the prompt catalogue and context builder, and the nine operations. P6-05 to P6-09 (the web app's side) are next.                          |
-| P7 onward         | to do       | P7 (GitHub) and P8 (hardening) are specified below and not started.                                                                                                                                                                       |
+| Phase             | State       | Notes                                                                                                                                                                                                                                                                                                |
+| ----------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P0 Foundation     | done        | Workspace, docs, `@agent-blueprint/core` v0, fixture.                                                                                                                                                                                                                                                |
+| P1 Core semantics | done        | P1-01 to P1-09 implemented and tested, including 29 artifact templates and 10 starter blueprints.                                                                                                                                                                                                    |
+| P2 Compiler       | done        | P2-01 to P2-09 implemented: adapter interface, registry, shared emitters, pipeline, build manifest, Claude Code and Codex in full, Copilot/OpenCode/Pi minimal, portability, golden tests.                                                                                                           |
+| P3 Web shell      | done        | P3-01 to P3-11 implemented and then reviewed end to end: the review found eight defects (undo across projects, non-deterministic export, a hydration failure and five more), and the gaps it found against docs/07 were built. See P3-12.                                                            |
+| P4 Graphs         | done        | P4-01 to P4-04: the overview graph, the workflow editor with all sixteen step types and eight connection kinds, tidy and template insertion, and the delete-impact dialog. Reviewed with P5; see P5-06.                                                                                              |
+| P5 Trust surfaces | done        | P5-01 to P5-05: the health bar opens its findings, the evaluation and compatibility views, the export view with compiled output, and the rename dialog with a slug preview. P5-06 reviewed P4 and P5 end to end and fixed what it found.                                                             |
+| P6 AI             | done        | P6-01 to P6-09: the AI package, the settings screen and relay, the ChangeSet review, the assistant, the AI draft in the wizard, a model second opinion in the evaluation view, and the live check against real endpoints that found and fixed seven bugs. P6-10 to P6-12 are follow-ups it recorded. |
+| P7 GitHub         | in progress | P7-01 built: the token, sign-in, and the `fetch` client behind both. P7-02 to P7-05 are next.                                                                                                                                                                                                        |
+| P8                | to do       | P8 (hardening) is specified below and not started.                                                                                                                                                                                                                                                   |
 
 ## P0 — Foundation (done)
 
@@ -484,13 +485,14 @@ Verification: `pnpm check` green; `pnpm --filter @agent-blueprint/core test` sho
 
 ## P7 — GitHub
 
-### P7-01 Auth: PAT and OAuth
+### P7-01 Auth: PAT and OAuth (done)
 
 - Package: `apps/web/src/lib/github/auth.ts`, `app/api/github/oauth/{start,callback}/route.ts`
 - Depends on: P3-01
 - Description: PAT entry (fine-grained scopes explained); OAuth start/callback when `GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET` are set; token to the client only; stored in sessionStorage by default.
 - Acceptance: routes tested with mocked GitHub; token absent from server logs and persisted state.
 - Verify: `pnpm --filter web test`
+- Built: a Settings card that takes a token and proves it, by asking GitHub who it belongs to before storing anything; sign-in through the deployment's OAuth app when it has one, delivered to the opener by same-origin `postMessage` and kept nowhere on the server. The transport is `fetch` rather than Octokit (ADR-23), with every error constructed by hand so no request header can reach a message or a stack. A fine-grained token's access is reported as unknown rather than absent: GitHub publishes no scopes for one, and a cross beside a working token would be a lie.
 
 ### P7-02 Repository and branch selection
 

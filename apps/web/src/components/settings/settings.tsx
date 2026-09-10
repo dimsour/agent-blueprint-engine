@@ -8,15 +8,16 @@
  * much room they take, and gives a way to remove them. The AI endpoint sits here too, with
  * its key kept where the user chose and nowhere else; the GitHub token arrives with pushing.
  */
-import { CloudUploadIcon, Trash2Icon } from 'lucide-react'
+import { Trash2Icon } from 'lucide-react'
 import Link from 'next/link'
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
 import { AISettings } from '@/components/settings/ai-settings'
+import { GitHubSettings } from '@/components/settings/github-settings'
 import { ThemeToggle } from '@/components/theme'
 import { Button } from '@/components/ui/button'
-import { Badge, Card } from '@/components/ui/primitives'
+import { Card } from '@/components/ui/primitives'
 import { useClientValue } from '@/lib/client-value'
 import { formatBytes } from '@/lib/utils'
 import { forgetAllCredentials } from '@/lib/credentials'
@@ -27,28 +28,7 @@ import {
   type ProjectSummary,
 } from '@/lib/storage'
 
-function Pending({
-  icon,
-  title,
-  detail,
-}: {
-  icon: React.ReactNode
-  title: string
-  detail: string
-}) {
-  return (
-    <Card className="flex items-start gap-3 p-3 opacity-70">
-      <span className="text-muted-foreground mt-0.5 [&_svg]:size-4">{icon}</span>
-      <span className="min-w-0 flex-1">
-        <span className="block text-sm font-medium">{title}</span>
-        <span className="text-muted-foreground block text-xs">{detail}</span>
-      </span>
-      <Badge variant="outline">Not yet</Badge>
-    </Card>
-  )
-}
-
-export function Settings() {
+export function Settings({ oauthAvailable }: { oauthAvailable: boolean }) {
   const [projects, setProjects] = useState<ProjectSummary[]>([])
   const [usage, setUsage] = useState<{ used: number; quota: number } | undefined>()
   // Forgetting every credential has to be visible in the card that shows one; remounting it is
@@ -171,12 +151,12 @@ export function Settings() {
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="text-sm font-semibold">Other credentials</h2>
-        <Pending
-          icon={<CloudUploadIcon />}
-          title="GitHub token"
-          detail="A personal access token, or sign-in. Arrives with pushing to GitHub."
-        />
+        <h2 className="text-sm font-semibold">GitHub</h2>
+        <p className="text-muted-foreground text-sm">
+          A token lets this app push a project to a repository and open one back from it. Like the
+          AI key, it stays in this browser and is never written into a Blueprint or an export.
+        </p>
+        <GitHubSettings key={credentialsVersion} oauthAvailable={oauthAvailable} />
         <Button
           variant="outline"
           className="self-start"
