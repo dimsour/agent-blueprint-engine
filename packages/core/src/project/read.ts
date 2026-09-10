@@ -3,7 +3,13 @@ import type { ZodError } from 'zod'
 import { normalizeBlueprint } from '../blueprint/normalize'
 import { ENTITY_KIND_INFO, ENTITY_KINDS, type EntityKind } from '../model/kinds'
 import type { Blueprint, EntityRef, Manifest, SkillResource } from '../model/types'
-import { migrateEntity, migrateManifest } from '../migrations/index'
+import {
+  type Migration,
+  migrateEntity,
+  migrateManifest,
+  migrationPath,
+  UnsupportedSchemaVersionError,
+} from '../migrations/index'
 import {
   BLUEPRINT_SCHEMA_VERSION,
   DEFAULT_SOURCE_DIR,
@@ -38,6 +44,8 @@ export interface ReadProjectResult {
   diagnostics: Diagnostic[]
   /** Schema version found on disk before migration. */
   sourceSchemaVersion: string
+  /** The migrations that ran to bring it to the current version; empty when it was current. */
+  migrations: Migration[]
 }
 
 export const PROJECT_DIAGNOSTICS = {
@@ -101,7 +109,17 @@ export async function readProject(
   const rawVersion = (rawManifest as Record<string, unknown>).schemaVersion
   const sourceSchemaVersion =
     typeof rawVersion === 'string' || typeof rawVersion === 'number' ? String(rawVersion) : ''
-  const migratedManifest = migrateManifest(rawManifest as Record<string, unknown>)
+  // A version with no path to the current one is the reader's problem to name, not an error
+  // from the migration registry to leak upward: the caller catches `ProjectReadError`.
+  let migratedManifest: Record<string, unknown>
+  try {
+    migratedManifest = migrateManifest(rawManifest as Record<string, unknown>)
+  } catch (error) {
+    if (error instanceof UnsupportedSchemaVersionError) {
+      throw new ProjectReadError(error.message, 'UNSUPPORTED_SCHEMA_VERSION', manifestFile)
+    }
+    throw error
+  }
   const parsedManifest = manifestSchema.safeParse(migratedManifest)
   if (!parsedManifest.success) {
     throw new ProjectReadError(
@@ -158,7 +176,12 @@ export async function readProject(
     ...collections,
   })
 
-  return { blueprint, diagnostics, sourceSchemaVersion }
+  return {
+    blueprint,
+    diagnostics,
+    sourceSchemaVersion,
+    migrations: migrationPath(sourceSchemaVersion),
+  }
 }
 
 async function discoverIds(fs: VirtualFs, sourceDir: string, kind: EntityKind): Promise<string[]> {

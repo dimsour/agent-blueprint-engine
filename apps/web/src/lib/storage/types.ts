@@ -53,7 +53,7 @@ export interface ProjectStore {
 export class StorageError extends Error {
   constructor(
     message: string,
-    readonly code: 'not-found' | 'unavailable' | 'permission-denied' | 'invalid',
+    readonly code: 'not-found' | 'unavailable' | 'permission-denied' | 'invalid' | 'unsupported',
   ) {
     super(message)
     this.name = 'StorageError'

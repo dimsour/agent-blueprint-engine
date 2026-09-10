@@ -135,6 +135,16 @@ Export is the export view (P5-04), not a dialog: `⌘E` and the palette open it,
 
 The round trip is the contract: for every starter, export then import produces a Blueprint whose `diffBlueprints` against the original has no ops.
 
+#### What the first save would do (P8-05)
+
+The preview also answers two questions a project from elsewhere raises before it is stored.
+
+**Which version was it written at.** `readProject` returns `sourceSchemaVersion` and the chain of `migrations` it ran, and the dialog lists them with each migration's own `description`. `MIGRATIONS` is empty today — there is one schema version — so this shows nothing until there is a schema change, and then it shows it without further UI work. A version with no path to the current one is a fatal `ProjectReadError` with code `UNSUPPORTED_SCHEMA_VERSION`, which reaches the user as the message on the toast: which version it was, and that the application is the thing that needs updating.
+
+**What saving would rewrite.** `previewImport` compares the files that arrived with `renderProjectFiles` of the Blueprint they parsed into, restricted to the source directory, and lists what differs. For a project this app wrote the list is empty. For a hand-edited one it is not: a default spelled out in full, keys in another order, a missing trailing newline. The dialog says so, and says that opening changes nothing — the rewrite happens on the first save. This is the same information `git status` would show afterwards, offered beforehand.
+
+Everything outside the source directory is skipped: it is compiler output, which the compiler owns and rewrites on its own terms, and the build manifest describes the repository the files came from rather than this copy.
+
 ## Wizard (`/new`, P3 for steps, P6-07 for the AI draft)
 
 | Step | Prompt                  | Creates or edits                                                                       |

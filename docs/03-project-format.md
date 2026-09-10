@@ -314,11 +314,11 @@ Returns `{ blueprint, diagnostics, sourceSchemaVersion }`. Tolerant by design: a
 
 Fatal (`ProjectReadError`, with `code`):
 
-| Code                         | When                                                                                                 |
-| ---------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `MANIFEST_MISSING`           | no `<sourceDir>/blueprint.yaml`                                                                      |
-| `MANIFEST_INVALID`           | not YAML, not a mapping, or fails `manifestSchema`                                                   |
-| `UNSUPPORTED_SCHEMA_VERSION` | (thrown as `UnsupportedSchemaVersionError` from migrations) no migration path to the current version |
+| Code                         | When                                                                                                                                                                                                                           |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `MANIFEST_MISSING`           | no `<sourceDir>/blueprint.yaml`                                                                                                                                                                                                |
+| `MANIFEST_INVALID`           | not YAML, not a mapping, or fails `manifestSchema`                                                                                                                                                                             |
+| `UNSUPPORTED_SCHEMA_VERSION` | no migration path from the version on disk to the current one. `readProject` translates the registry's `UnsupportedSchemaVersionError` into this, so a caller that handles `ProjectReadError` handles every fatal read (P8-05) |
 
 Diagnostics (`PROJECT_DIAGNOSTICS`):
 
@@ -422,14 +422,14 @@ interface Migration {
 }
 ```
 
-`MIGRATIONS` is an ordered chain (`from` of each = `to` of the previous). `migrationPath(version)` returns the chain to `CURRENT_SCHEMA_VERSION` or throws `UnsupportedSchemaVersionError`; `migrateManifest(raw)` and `migrateEntity(kind, raw, fromVersion)` apply it. A numeric `schemaVersion: 1.0` in YAML is accepted and normalized to the string `"1.0"`.
+`MIGRATIONS` is an ordered chain (`from` of each = `to` of the previous), and is **empty today**: there is one schema version. `migrationPath(version)` returns the chain to `CURRENT_SCHEMA_VERSION` or throws `UnsupportedSchemaVersionError`; `migrateManifest(raw)` and `migrateEntity(kind, raw, fromVersion)` apply it. `readProject` returns the chain it ran as `migrations` alongside `sourceSchemaVersion`, so the app can show what happened to a project before it is stored. A numeric `schemaVersion: 1.0` in YAML is accepted and normalized to the string `"1.0"`.
 
 To add one:
 
 1. Bump `BLUEPRINT_SCHEMA_VERSION` in `src/schema/blueprint.ts`.
 2. Append `{ from: '1.0', to: '1.1', … }` to `MIGRATIONS`.
 3. Add a fixture project at the old version under `packages/fixtures/projects/` and a test in `packages/core/tests/migrations.test.ts` that reads it and asserts the migrated shape.
-4. Document the change in this file and in `docs/10-decisions.md`.
+4. Document the change in this file and in `docs/10-decisions.md`. The import dialog needs nothing: it renders `migrations` from `readProject`, so a new entry with a clear `description` shows up on its own.
 
 ## 11. Worked example: the fixture
 

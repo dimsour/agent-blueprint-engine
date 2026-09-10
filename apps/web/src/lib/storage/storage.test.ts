@@ -280,3 +280,20 @@ describe('binary files through every tier', () => {
     expect(Array.from(stored as Uint8Array)).toEqual(Array.from(PNG))
   })
 })
+
+describe('a project this version cannot read', () => {
+  it('says which version it was and what to do, rather than leaking a raw error', async () => {
+    const files = readStarterFiles(starterIds[0]!)
+    files['blueprint/blueprint.yaml'] = String(files['blueprint/blueprint.yaml']).replace(
+      'schemaVersion: "1.0"',
+      'schemaVersion: "9.0"',
+    )
+
+    const error = await previewImport(files, 'from-the-future.zip').catch((cause: unknown) => cause)
+    expect(error).toBeInstanceOf(StorageError)
+    expect((error as StorageError).code).toBe('unsupported')
+    // The dashboard shows `error.message` in a toast, so it has to stand on its own.
+    expect((error as StorageError).message).toContain('9.0')
+    expect((error as StorageError).message).toContain('Update the application')
+  })
+})

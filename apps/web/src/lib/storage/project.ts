@@ -10,6 +10,7 @@ import {
   countEntities,
   type Diagnostic,
   MemoryFs,
+  type Migration,
   ProjectReadError,
   readProject,
   renderProjectFiles,
@@ -23,20 +24,26 @@ export interface LoadedProject {
   blueprint: Blueprint
   /** Problems found while reading; the UI shows these before the project opens. */
   diagnostics: Diagnostic[]
+  /** The schema version the files were written at, before any migration. */
+  sourceSchemaVersion: string
+  /** The migrations that ran on the way in; empty when the project was already current. */
+  migrations: Migration[]
 }
 
 /** Parses a file map into a Blueprint. Throws `StorageError` when it is not a project. */
 export async function parseProject(files: ProjectFiles): Promise<LoadedProject> {
   try {
-    const { blueprint, diagnostics } = await readProject(new MemoryFs(files))
-    return { blueprint, diagnostics }
+    const { blueprint, diagnostics, sourceSchemaVersion, migrations } = await readProject(
+      new MemoryFs(files),
+    )
+    return { blueprint, diagnostics, sourceSchemaVersion, migrations }
   } catch (error) {
     if (error instanceof ProjectReadError) {
       throw new StorageError(
         error.code === 'MANIFEST_MISSING'
           ? 'That folder is not an Agent Blueprint project: it has no blueprint/blueprint.yaml.'
           : error.message,
-        'invalid',
+        error.code === 'UNSUPPORTED_SCHEMA_VERSION' ? 'unsupported' : 'invalid',
       )
     }
     throw error

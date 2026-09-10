@@ -30,7 +30,7 @@ The backlog for building Agent Blueprint. Phases follow the plan; tasks inside a
 | P5 Trust surfaces | done        | P5-01 to P5-05: the health bar opens its findings, the evaluation and compatibility views, the export view with compiled output, and the rename dialog with a slug preview. P5-06 reviewed P4 and P5 end to end and fixed what it found.                                                             |
 | P6 AI             | done        | P6-01 to P6-09: the AI package, the settings screen and relay, the ChangeSet review, the assistant, the AI draft in the wizard, a model second opinion in the evaluation view, and the live check against real endpoints that found and fixed seven bugs. P6-10 to P6-12 are follow-ups it recorded. |
 | P7 GitHub         | done        | P7-01 to P7-05: the token and sign-in, repository and branch selection, the push preview against the remote tree, the atomic push with a secret scan in front of it, and opening a project out of a repository. P7-06 is a follow-up it recorded.                                                    |
-| P8 Hardening      | in progress | P8-01 to P8-04 are done: every harness has a full adapter, and a project can hold a binary asset. P8-05 to P8-09 are specified below and not started, plus P8-10 and P8-11, the two hook runtimes those adapters recorded.                                                                           |
+| P8 Hardening      | in progress | P8-01 to P8-05 are done: every harness has a full adapter, a project can hold a binary asset, and an import says what the first save would change. P8-06 to P8-09 are specified below and not started, plus P8-10 and P8-11, the two hook runtimes those adapters recorded.                          |
 
 ## P0 — Foundation (done)
 
@@ -591,9 +591,15 @@ Verification: `pnpm check` green; `pnpm --filter @agent-blueprint/core test` sho
 - Closed the consequence P7's review recorded: a push deletes anything under `blueprint/` the project writer does not produce, and a binary asset used to be exactly such a file. The writer produces it now, so it survives; a test asserts the deletion that would otherwise have happened, and another asserts that a genuinely stale file is still removed.
 - Found while building it: the secret scan reads lines, so it skips a file that is not text rather than searching it. Recorded in docs/08 rather than pretended otherwise.
 
-### P8-05 Migrations UI
+### P8-05 Migrations UI (done)
 
+- Package: `packages/core/src/project/read.ts`, `apps/web/src/lib/storage`, `apps/web/src/components/dashboard/import-dialog.tsx`
+- Depends on: P3-11
 - Description: Opening an older project shows the migration path and a preview diff before saving.
+- Verify: `pnpm check`
+- Built: `readProject` now returns the `migrations` it ran alongside `sourceSchemaVersion`, and the import dialog lists them with each migration's own description. `previewImport` also computes the **rewrite preview**: the files that arrived compared with what the writer would produce, restricted to the source directory. The dialog says how many source files the first save would rewrite, names them, and says that opening changes nothing — the same information `git status` would show afterwards, offered beforehand.
+- Fixed on the way: `ProjectReadError` declared an `UNSUPPORTED_SCHEMA_VERSION` code that nothing ever threw. `migrateManifest` threw `UnsupportedSchemaVersionError` instead, which escaped `parseProject` untranslated and reached the user as a raw string. `readProject` translates it now, so a caller that handles `ProjectReadError` handles every fatal read. The test that should have caught this accepted either error type; it asserts the contract now.
+- Honest about scope: `MIGRATIONS` is empty — there is one schema version — so the migration list has nothing to show until there is a schema change, and the dialog test drives it directly. The rewrite preview is reachable today and is what makes this task worth having now.
 
 ### P8-06 Accessibility and keyboard pass
 

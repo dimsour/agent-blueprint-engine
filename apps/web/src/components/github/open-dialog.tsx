@@ -25,7 +25,6 @@ import {
 } from '@/components/ui/overlays'
 import { Input } from '@/components/ui/primitives'
 import { readGitHubToken } from '@/lib/github/auth'
-import { GitHubError } from '@/lib/github/client'
 import { readProjectFromGitHub } from '@/lib/github/open'
 import { parseRepoRef } from '@/lib/github/repos'
 import type { ProjectFiles } from '@/lib/storage'
@@ -91,7 +90,7 @@ function OpenFromGitHub({
       await onRead(project.files, `${chosen.owner}/${chosen.name} on ${project.branch}`)
       onOpenChange(false)
     } catch (cause) {
-      setError(cause instanceof GitHubError ? cause.message : String(cause))
+      setError(cause instanceof Error ? cause.message : String(cause))
     } finally {
       setBusy(false)
     }

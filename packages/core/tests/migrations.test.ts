@@ -43,15 +43,27 @@ describe('migrations', () => {
     expect(() => migrateManifest({})).toThrow(UnsupportedSchemaVersionError)
   })
 
-  it('surfaces an unsupported version from readProject', async () => {
+  it('surfaces an unsupported version from readProject as a read error', async () => {
     const files = readFixtureFiles('dotnet-testing-expert')
     files['blueprint/blueprint.yaml'] = files['blueprint/blueprint.yaml']!.replace(
       'schemaVersion: "1.0"',
       'schemaVersion: "9.0"',
     )
-    await expect(readProject(new MemoryFs(files))).rejects.toSatisfy(
-      (error: unknown) =>
-        error instanceof UnsupportedSchemaVersionError || error instanceof ProjectReadError,
+
+    // A caller catches `ProjectReadError`; an error from the migration registry escaping past
+    // it is the same failure wearing a type nobody handles.
+    const error = await readProject(new MemoryFs(files)).catch((cause: unknown) => cause)
+    expect(error).toBeInstanceOf(ProjectReadError)
+    expect((error as ProjectReadError).code).toBe('UNSUPPORTED_SCHEMA_VERSION')
+    expect((error as ProjectReadError).message).toContain('9.0')
+    expect((error as ProjectReadError).path).toBe('blueprint/blueprint.yaml')
+  })
+
+  it('reports an empty migration chain for a project already at the current version', async () => {
+    const { sourceSchemaVersion, migrations } = await readProject(
+      new MemoryFs(readFixtureFiles('dotnet-testing-expert')),
     )
+    expect(sourceSchemaVersion).toBe(CURRENT_SCHEMA_VERSION)
+    expect(migrations).toEqual([])
   })
 })

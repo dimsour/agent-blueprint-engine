@@ -8,8 +8,14 @@
  * pressed, and errors do not block the import: a project with problems is exactly the
  * project a person needs to open in order to fix it.
  */
-import { countEntities, ENTITY_KIND_INFO, ENTITY_KINDS, getCollection } from '@agent-blueprint/core'
-import { AlertTriangleIcon, CircleAlertIcon, LoaderIcon } from 'lucide-react'
+import {
+  countEntities,
+  CURRENT_SCHEMA_VERSION,
+  ENTITY_KIND_INFO,
+  ENTITY_KINDS,
+  getCollection,
+} from '@agent-blueprint/core'
+import { AlertTriangleIcon, ArrowUpIcon, CircleAlertIcon, LoaderIcon } from 'lucide-react'
 import { useState } from 'react'
 
 import { Button } from '@/components/ui/button'
@@ -34,7 +40,7 @@ export function ImportDialog({
   onOpen: () => Promise<void> | void
 }) {
   const [busy, setBusy] = useState(false)
-  const { blueprint, errors, warnings, diagnostics } = preview
+  const { blueprint, errors, warnings, diagnostics, migrations, rewrites } = preview
 
   const kinds = ENTITY_KINDS.map((kind) => ({
     kind,
@@ -60,6 +66,56 @@ export function ImportDialog({
             </li>
           ))}
         </ul>
+
+        {migrations.length > 0 ? (
+          <div className="flex flex-col gap-2">
+            <span className="flex items-center gap-1.5 text-sm">
+              <ArrowUpIcon className="size-3.5" />
+              Written at schema {preview.sourceSchemaVersion}, brought up to{' '}
+              {CURRENT_SCHEMA_VERSION}
+            </span>
+            <ol aria-label="Migrations" className="rounded-md border">
+              {migrations.map((migration) => (
+                <li
+                  key={`${migration.from}-${migration.to}`}
+                  className="flex gap-2 border-b px-3 py-1.5 text-xs last:border-b-0"
+                >
+                  <span className="text-muted-foreground shrink-0 font-mono">
+                    {migration.from} → {migration.to}
+                  </span>
+                  <span className="min-w-0">{migration.description}</span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        ) : null}
+
+        {rewrites.length > 0 ? (
+          <div className="flex flex-col gap-2">
+            <span className="text-sm">
+              Saving rewrites {rewrites.length} source file{rewrites.length === 1 ? '' : 's'}
+            </span>
+            <ul
+              aria-label="Files saving would change"
+              className="max-h-32 overflow-auto rounded-md border"
+            >
+              {rewrites.map((rewrite) => (
+                <li
+                  key={rewrite.path}
+                  className="flex gap-2 border-b px-3 py-1.5 text-xs last:border-b-0"
+                >
+                  <span className="text-muted-foreground w-14 shrink-0">{rewrite.kind}</span>
+                  <span className="min-w-0 truncate font-mono">{rewrite.path}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="text-muted-foreground text-xs">
+              {migrations.length > 0
+                ? 'The migration above accounts for some of these. The rest are files whose content the writer states differently.'
+                : 'These files were hand-edited, or written by another tool. Opening changes nothing; the first save writes them in the form this app produces.'}
+            </p>
+          </div>
+        ) : null}
 
         {diagnostics.length === 0 ? (
           <p className="text-muted-foreground text-sm">
