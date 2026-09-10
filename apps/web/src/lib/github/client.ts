@@ -106,6 +106,48 @@ export async function githubRequest<T>(
   return { data: parsed as T, headers: response.headers }
 }
 
+/**
+ * Every page of a list, following GitHub's own `Link` header.
+ *
+ * Guessing the next page from a count is how a list quietly truncates when a page size
+ * changes; the header is what GitHub says is next, and the absence of it is what "that was all"
+ * looks like. The cap is there because an account with more repositories than this has a search
+ * box, not a scrollbar, and a runaway loop against a rate-limited API is worse than a short list.
+ */
+export async function githubPaginate<T>(
+  token: string,
+  request: GitHubRequest,
+  maxPages = 10,
+): Promise<T[]> {
+  const { query: firstQuery, ...rest } = request
+  const items: T[] = []
+  let next: string | undefined = request.path
+  let query = firstQuery
+
+  for (let page = 0; next && page < maxPages; page += 1) {
+    const response: GitHubResponse<T[]> = await githubRequest<T[]>(token, {
+      ...rest,
+      path: next,
+      ...(query ? { query } : {}),
+    })
+    if (Array.isArray(response.data)) items.push(...response.data)
+    next = nextPageUrl(response.headers)
+    // The `Link` URL already carries the query; re-adding ours would overwrite its cursor.
+    query = undefined
+  }
+  return items
+}
+
+function nextPageUrl(headers: Headers): string | undefined {
+  const link = headers.get('link')
+  if (!link) return undefined
+  for (const part of link.split(',')) {
+    const match = /<([^>]+)>\s*;\s*rel="next"/.exec(part.trim())
+    if (match) return match[1]
+  }
+  return undefined
+}
+
 function parseJson(text: string): unknown {
   if (!text) return undefined
   try {

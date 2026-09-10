@@ -494,12 +494,13 @@ Verification: `pnpm check` green; `pnpm --filter @agent-blueprint/core test` sho
 - Verify: `pnpm --filter web test`
 - Built: a Settings card that takes a token and proves it, by asking GitHub who it belongs to before storing anything; sign-in through the deployment's OAuth app when it has one, delivered to the opener by same-origin `postMessage` and kept nowhere on the server. The transport is `fetch` rather than Octokit (ADR-23), with every error constructed by hand so no request header can reach a message or a stack. A fine-grained token's access is reported as unknown rather than absent: GitHub publishes no scopes for one, and a cross beside a working token would be a lie.
 
-### P7-02 Repository and branch selection
+### P7-02 Repository and branch selection (done)
 
 - Depends on: P7-01
 - Description: Octokit: list orgs/repos, create repo, list/create branch.
 - Acceptance: mocked tests.
 - Verify: `pnpm --filter web test`
+- Built: `lib/github/repos.ts` over the `fetch` client (ADR-23 replaces Octokit here). Listing asks for collaborator and organisation repositories, not only owned ones, and pages by GitHub's `Link` header rather than by counting. Two things are read from GitHub rather than assumed: whether the token may push here (`permissions`, since a visible repository is not a writable one), and whether the repository has any commits at all — a new one's default branch does not exist yet, which the push path treats as the ordinary first-commit case. Creation is deliberately `auto_init: false`, so the Blueprint is the first commit rather than a merge question. `parseRepoRef` accepts a browser URL, a clone URL or `owner/name`.
 
 ### P7-03 Preview diff against remote tree
 
