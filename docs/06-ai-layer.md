@@ -251,6 +251,8 @@ Settings as **Stream the answer**, and it makes `timeoutMs` mean the whole answe
 | `invalid-output`    | schema validation failed after repairs                    | Show raw output, offer regenerate                   |
 | `context-too-large` | 400 token limit                                           | Reduce context budget and retry once                |
 
+The web app turns one of these into user-facing text in exactly one place, `lib/ai/failure.ts` (P9-16). `AIError.message` is already written for a person and carries no key, no URL and no stack, so `describeFailure` shows it as it is and adds a second line only where there is something to do: a **timeout** names the timeout field by the label it currently has — "Give up after silence of" while streaming, "Wait for an answer" when not — and the value it is set to, because a timeout is a setting rather than a fault; **auth** points at the key; **network** mentions CORS and the relay. Everything else gets the message alone, because inventing advice for a 503 is worse than the endpoint's own words. `wasStopped` is the same module's answer to the other half: an abort is a decision and is never reported as a failure.
+
 ## Operations
 
 Each operation lives in `packages/ai/src/operations/<name>.ts`, takes an `OperationContext` and

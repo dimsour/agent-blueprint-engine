@@ -159,7 +159,7 @@ describe('AssistantPanel', () => {
     await user.click(screen.getByRole('button', { name: 'Ask' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('rejected the key')
-    expect(screen.getByText(/Nothing was changed/)).toBeInTheDocument()
+    expect(screen.getByText('Check the key in Settings.')).toBeInTheDocument()
     expect(useWorkspace.getState().blueprint).toEqual(before)
   })
 

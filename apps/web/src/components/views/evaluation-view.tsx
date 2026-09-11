@@ -26,12 +26,12 @@ import {
   MinusIcon,
   RefreshCwIcon,
   SparklesIcon,
+  SquareIcon,
   XIcon,
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import {
-  AIError,
   checkId,
   findContradictions,
   judgeRequirements,
@@ -40,6 +40,8 @@ import {
 
 import { validateNow } from '@/lib/actions'
 import { withAiFindings, withoutDuplicates } from '@/lib/ai/merge'
+import { advance, type Progress, Waiting } from '@/components/ai/waiting'
+import { describeFailure, type Failure, wasStopped } from '@/lib/ai/failure'
 import { configuredClient, structuredFor } from '@/lib/ai/settings'
 import { useClientValue } from '@/lib/client-value'
 import { DiagnosticRow } from '@/components/views/diagnostic-row'
@@ -70,7 +72,8 @@ export function EvaluationView() {
 
   const [aiFindings, setAiFindings] = useState<Diagnostic[]>([])
   const [asking, setAsking] = useState(false)
-  const [aiError, setAiError] = useState<string | undefined>()
+  const [progress, setProgress] = useState<Progress | undefined>()
+  const [aiError, setAiError] = useState<Failure | undefined>()
   /** What a model decided about each ai-judged check, including the passes (P6-12). */
   const [verdicts, setVerdicts] = useState<Map<string, RequirementVerdict>>(new Map())
   // Held across renders rather than in state: stopping must not wait for one (P6-11).
@@ -112,18 +115,29 @@ export function EvaluationView() {
     inFlight.current = controller
     setAsking(true)
     setAiError(undefined)
+    setProgress({ received: 0, since: Date.now() })
     try {
-      const deps = {
+      // Two questions run at once, so the count is their sum: what the user needs to know is
+      // that something is still arriving, not which of the two it came from.
+      const received = new Map<string, number>()
+      const deps = (call: string) => ({
         client: configured.client,
-        structured: structuredFor(configured, { signal: controller.signal }),
-      }
+        structured: structuredFor(configured, {
+          signal: controller.signal,
+          onProgress: (chars: number) => {
+            received.set(call, chars)
+            const total = [...received.values()].reduce((sum, count) => sum + count, 0)
+            setProgress((current) => advance(current, total))
+          },
+        }),
+      })
       const ctx = { blueprint, diagnostics }
       // Settled rather than all: these are two independent questions, and one of them failing
       // is no reason to throw away the answer to the other. A rate-limited endpoint refusing
       // the second call used to lose the contradictions the first had already found.
       const [contradictions, requirements] = await Promise.allSettled([
-        findContradictions(deps, ctx),
-        judgeRequirements(deps, ctx),
+        findContradictions(deps('contradictions'), ctx),
+        judgeRequirements(deps('requirements'), ctx),
       ])
       const found = [contradictions, requirements].flatMap((outcome) =>
         outcome.status === 'fulfilled' ? outcome.value.diagnostics : [],
@@ -152,24 +166,15 @@ export function EvaluationView() {
         // The two questions are settled rather than awaited together, so a cancellation
         // arrives here as a rejected outcome and never reaches the catch below. Reporting it
         // would tell the user their own decision had failed.
-        if (!(reason instanceof AIError && reason.code === 'aborted')) {
-          setAiError(
-            reason instanceof Error ? reason.message : 'Part of the analysis could not be run.',
-          )
-        }
+        if (!wasStopped(reason)) setAiError(describeFailure(reason))
       }
     } catch (error) {
       // Stopping is a decision, not a failure.
-      if (!(error instanceof AIError && error.code === 'aborted')) {
-        setAiError(
-          error instanceof AIError || error instanceof Error
-            ? error.message
-            : 'The endpoint could not be reached.',
-        )
-      }
+      if (!wasStopped(error)) setAiError(describeFailure(error))
     } finally {
       inFlight.current = undefined
       setAsking(false)
+      setProgress(undefined)
     }
   }
 
@@ -217,15 +222,20 @@ export function EvaluationView() {
         </Button>
         {asking ? (
           <Button variant="outline" size="sm" onClick={stopAiAnalysis}>
+            <SquareIcon className="size-3" />
             Stop
           </Button>
         ) : null}
+        {progress ? <Waiting progress={progress} /> : null}
       </div>
 
       {aiError ? (
-        <p role="alert" className="text-sm">
-          {aiError}
-        </p>
+        <div className="flex flex-col gap-0.5">
+          <p role="alert" className="text-sm">
+            {aiError.message}
+          </p>
+          {aiError.hint ? <p className="text-muted-foreground text-xs">{aiError.hint}</p> : null}
+        </div>
       ) : null}
       {aiFindings.length > 0 ? (
         <p className="text-muted-foreground text-sm">

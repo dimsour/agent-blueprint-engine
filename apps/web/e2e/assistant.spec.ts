@@ -337,7 +337,7 @@ test.describe('waiting for a slow model', () => {
     await page.getByLabel('Draft this with AI', { exact: true }).fill('A PR review crew.')
     await page.getByRole('button', { name: 'Draft', exact: true }).click()
 
-    // While nothing has come back, it says so, and says why it might take a while.
+    // While nothing has come back, it says so — the state and a clock, nothing else.
     await expect(page.getByText(/Thinking…/)).toBeVisible()
     // Then the answer arrives and the count says how much of it.
     await expect(page.getByRole('list', { name: 'Proposed changes' })).toBeVisible()
@@ -358,6 +358,47 @@ test.describe('waiting for a slow model', () => {
     await expect(page.getByRole('button', { name: 'Draft', exact: true })).toBeEnabled()
     await expect(page.getByRole('alert')).toHaveText('')
     await expect(page.getByRole('list', { name: 'Proposed changes' })).toHaveCount(0)
+    await expect(page.getByText(/Thinking…/)).toHaveCount(0)
+  })
+
+  /**
+   * The same two controls, on every screen that asks a model (P9-16).
+   *
+   * The wizard had the progress and the Stop from the start; the assistant and the evaluation
+   * view had a spinner and, at best, a Stop with nothing beside it. Reported from use.
+   */
+  test('the assistant says what is happening and can be stopped', async ({ page }) => {
+    await trickle(page, { artifact: { id: 'xunit', name: 'xUnit' } }, 20_000)
+    await openStarter(page)
+
+    await tree(page)
+      .getByRole('button', { name: /^React testing/ })
+      .click()
+    await page.getByRole('button', { name: /^AI/ }).click()
+    await page.getByRole('button', { name: 'Add verification' }).click()
+    await page.getByRole('button', { name: 'Ask' }).click()
+
+    await expect(page.getByText(/Thinking…/)).toBeVisible()
+    await page.getByRole('button', { name: 'Stop' }).click()
+
+    await expect(page.getByRole('button', { name: 'Ask' })).toBeEnabled()
+    await expect(page.getByText(/Thinking…/)).toHaveCount(0)
+  })
+
+  test('the evaluation view says what is happening and can be stopped', async ({ page }) => {
+    await trickle(page, { contradictions: [] }, 20_000)
+    await openStarter(page)
+
+    await page
+      .getByRole('navigation', { name: 'Blueprint artifacts' })
+      .getByRole('button', { name: 'Evaluation', exact: true })
+      .click()
+    await page.getByRole('button', { name: 'Run AI analysis' }).click()
+
+    await expect(page.getByText(/Thinking…/)).toBeVisible()
+    await page.getByRole('button', { name: 'Stop' }).click()
+
+    await expect(page.getByRole('button', { name: 'Run AI analysis' })).toBeEnabled()
     await expect(page.getByText(/Thinking…/)).toHaveCount(0)
   })
 })

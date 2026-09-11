@@ -132,7 +132,9 @@ describe('FixFindingDialog', () => {
     await user.click(screen.getByRole('button', { name: 'Fix it' }))
 
     expect(await screen.findByRole('alert')).toBeVisible()
-    expect(screen.getByText(/Nothing was changed/)).toBeVisible()
+    // A 401 is an auth failure, and the hint names the control that fixes it rather than
+    // the generic reassurance every failure used to get (P9-16).
+    expect(screen.getByText('Check the key in Settings.')).toBeVisible()
     expect(screen.getByRole('button', { name: 'Fix it' })).toBeEnabled()
   })
 })

@@ -37,9 +37,25 @@ export function Waiting({ progress }: { progress: Progress }) {
   const seconds = Math.max(0, Math.round((now - progress.since) / 1000))
   return (
     <p className="text-muted-foreground text-xs tabular-nums">
+      {/*
+        Just the state and the clock. It used to add "a local model can take a while before it
+        starts writing", which is advice — and advice on every request, for a case that may
+        not apply, is noise. When the wait actually ends in a timeout, `describeFailure` says
+        what to do about it, which is where that belongs (P9-16).
+      */}
       {progress.received === 0
-        ? `Thinking… ${seconds}s. A local model can take a while before it starts writing.`
-        : `Writing… ${progress.received.toLocaleString()} characters in ${seconds}s.`}
+        ? `Thinking… ${seconds}s`
+        : `Writing… ${progress.received.toLocaleString()} characters in ${seconds}s`}
     </p>
   )
+}
+
+/**
+ * The elapsed clock on its own, for a request whose answer does not stream.
+ *
+ * `probe()` asks for a model list and one tiny completion; there is no token count to show,
+ * but "nothing has happened for forty seconds" is still the thing the user needs to know.
+ */
+export function Elapsed({ since }: { since: number }) {
+  return <Waiting progress={{ received: 0, since }} />
 }

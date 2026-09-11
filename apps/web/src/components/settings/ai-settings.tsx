@@ -21,13 +21,15 @@ import {
   type PresetId,
   type ProbeResult,
 } from '@agent-blueprint/ai'
-import { CheckIcon, KeyRoundIcon, Loader2Icon, XIcon } from 'lucide-react'
-import { useId, useState } from 'react'
+import { CheckIcon, KeyRoundIcon, Loader2Icon, SquareIcon, XIcon } from 'lucide-react'
+import { useId, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
+import { Elapsed } from '@/components/ai/waiting'
 import { Field, TextField } from '@/components/editors/fields'
 import { Button } from '@/components/ui/button'
 import { Badge, Card, Input } from '@/components/ui/primitives'
+import { describeFailure, wasStopped } from '@/lib/ai/failure'
 import { useClientValue } from '@/lib/client-value'
 import {
   clientConfig,
@@ -86,6 +88,9 @@ export function AISettings() {
   const [key, setKey] = useState('')
   const [probe, setProbe] = useState<ProbeResult | undefined>()
   const [testing, setTesting] = useState(false)
+  const [testingSince, setTestingSince] = useState<number | undefined>()
+  // Held across renders rather than in state: stopping must not wait for one.
+  const inFlight = useRef<AbortController | undefined>(undefined)
 
   // Web storage does not exist while this renders on the server, so the first HTML is the
   // defaults and the first client render corrects it. Going through a string keeps the
@@ -114,9 +119,14 @@ export function AISettings() {
       setStored(key)
       setKey('')
     }
+    const controller = new AbortController()
+    inFlight.current = controller
     setTesting(true)
+    setTestingSince(Date.now())
     try {
-      const result = await createAIClient(clientConfig(settings, apiKey)).probe()
+      const result = await createAIClient(clientConfig(settings, apiKey)).probe({
+        signal: controller.signal,
+      })
       setProbe(result)
       // What the probe found about schema support is worth more than what we assumed, and
       // storing it here is what keeps every later call from having to discover it again.
@@ -125,8 +135,17 @@ export function AISettings() {
       writeAISettings(settled)
       if (result.reachable && result.authenticated) toast.success('The endpoint answered.')
       else toast.error(result.error?.message ?? 'The endpoint did not answer.')
+    } catch (error) {
+      // Stopping is a decision, not a failure. Anything else is worth reporting: this button
+      // exists to find out whether the endpoint answers, so silence is the wrong answer.
+      if (!wasStopped(error)) {
+        const failure = describeFailure(error)
+        toast.error(failure.message, failure.hint ? { description: failure.hint } : {})
+      }
     } finally {
+      inFlight.current = undefined
       setTesting(false)
+      setTestingSince(undefined)
     }
   }
 
@@ -281,16 +300,25 @@ export function AISettings() {
         </label>
       ) : null}
 
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <Button onClick={() => void save()} disabled={testing || !settings.baseUrl}>
           {testing ? <Loader2Icon className="animate-spin" /> : <KeyRoundIcon />}
-          Save and test
+          {testing ? 'Testing…' : 'Save and test'}
         </Button>
+        {testing ? (
+          <Button variant="outline" onClick={() => inFlight.current?.abort()}>
+            <SquareIcon />
+            Stop
+          </Button>
+        ) : null}
         {stored ? (
           <Button variant="outline" onClick={forget}>
             Forget key
           </Button>
         ) : null}
+        {/* No token count to show — a probe is a model list and one tiny completion — but
+            "nothing has happened for forty seconds" is still what the user needs to know. */}
+        {testingSince !== undefined ? <Elapsed since={testingSince} /> : null}
       </div>
 
       {probe ? <ProbeSummary result={probe} /> : null}

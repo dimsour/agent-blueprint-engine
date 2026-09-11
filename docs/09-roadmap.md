@@ -867,6 +867,19 @@ something, it says what and where that thing still exists.
 - The existing action was part of the problem: **Draft the whole Blueprint** sits in the same menu and does rename the project, which is why nobody pressed it from inside one. Its hint now says what it does and points at the new one.
 - Found by the check while recording the fixture: an added agent that no workflow runs and nothing delegates to raises `BP-AGENT-010`, so the "good" recorded answer had to include the workflow that runs it. That is the operation working — a capability that is not reachable is not a capability.
 
+### P9-16 The same wait, on every screen that waits (done)
+
+- Package: `apps/web/src/components/ai/waiting.tsx`, `apps/web/src/lib/ai/failure.ts`, and the four surfaces that ask a model
+- Depends on: P9-08
+- Description: Reported from use. P9-08 gave the wizard's _Draft_ a progress line and a Stop button; the surfaces built before and after it did not get them. The assistant and the evaluation view had a spinner and a bare Stop, and Settings' _Save and test_ had neither — a probe against an unreachable local endpoint left the button spinning with no way out.
+- Also reported: the waiting line ended with "A local model can take a while before it starts writing." That is advice, shown on every request, for a case that may not apply.
+- Acceptance: every screen that sends a request shows the state, a clock and a Stop; the waiting line says only the state and the clock; a timeout says which setting to change.
+- Verify: `pnpm --filter web test`, `pnpm --filter web test:e2e assistant`
+- Built: `Waiting` reaches all four, plus `Elapsed` for the probe — no token count, because a probe does not stream, but "nothing has happened for forty seconds" is still what the user needs. The evaluation view runs two operations at once and sums their counts: what matters is that something is still arriving, not which of the two it came from.
+- Built: `lib/ai/failure.ts`, replacing four copies of the same `instanceof` ladder with one that adds a second line where there is something to do. A **timeout** names the field by the label it currently has — "Give up after silence of" while streaming, "Wait for an answer" when not — and the value it is set to. **auth** points at the key; **network** mentions CORS and the relay; everything else gets the endpoint's own words, because inventing advice for a 503 is worse than none.
+- Where the advice went is the point: it moved from every request that has not failed to the one that did.
+- Two existing tests changed rather than broke: they stub a 401 and asserted the generic "Nothing was changed", which is now the specific "Check the key in Settings." A better assertion than the one it replaced.
+
 ### Open questions
 
 1. ~~**The logo needs a mark-only export.**~~ Settled: rather than crop by CSS, the cut is a script. `pnpm --filter web logo` measures nothing at run time — the rectangles live in `e2e/logo-assets.spec.ts`, taken from the artwork's alpha channel — and writes the three assets the app imports. A redrawn logo needs that one command and a re-measurement, and no component changes.

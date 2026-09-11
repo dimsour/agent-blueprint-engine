@@ -12,7 +12,7 @@
  * model proposed now in it to be corrected before Create.
  */
 import { applyChangeSet, type Blueprint, type ChangeOp } from '@agent-blueprint/core'
-import { AIError, generateBlueprint } from '@agent-blueprint/ai'
+import { generateBlueprint } from '@agent-blueprint/ai'
 import { ArrowRightIcon, Loader2Icon, SparklesIcon, SquareIcon } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useId, useRef, useState } from 'react'
@@ -22,6 +22,7 @@ import { ChangeSetReview } from '@/components/ai/changeset-review'
 import { advance, type Progress, Waiting } from '@/components/ai/waiting'
 import { Button } from '@/components/ui/button'
 import { Card, Textarea } from '@/components/ui/primitives'
+import { describeFailure, type Failure, wasStopped } from '@/lib/ai/failure'
 import { configuredClient, structuredFor } from '@/lib/ai/settings'
 import { useClientValue } from '@/lib/client-value'
 
@@ -43,7 +44,7 @@ export function DraftWithAI({
   const [busy, setBusy] = useState(false)
   const [progress, setProgress] = useState<Progress | undefined>()
   const [proposal, setProposal] = useState<Draft | undefined>()
-  const [failure, setFailure] = useState<string | undefined>()
+  const [failure, setFailure] = useState<Failure | undefined>()
   // Held across renders rather than in state: stopping must not wait for one.
   const inFlight = useRef<AbortController | undefined>(undefined)
 
@@ -79,11 +80,7 @@ export function DraftWithAI({
       setProposal(result)
     } catch (error) {
       // Stopping is a decision, not a failure.
-      if (!(error instanceof AIError && error.code === 'aborted')) {
-        setFailure(
-          error instanceof AIError || error instanceof Error ? error.message : 'It failed.',
-        )
-      }
+      if (!wasStopped(error)) setFailure(describeFailure(error))
     } finally {
       inFlight.current = undefined
       setBusy(false)
@@ -155,9 +152,12 @@ export function DraftWithAI({
       </div>
 
       {failure ? (
-        <p role="alert" className="text-sm">
-          {failure}
-        </p>
+        <div className="flex flex-col gap-0.5">
+          <p role="alert" className="text-sm">
+            {failure.message}
+          </p>
+          {failure.hint ? <p className="text-muted-foreground text-xs">{failure.hint}</p> : null}
+        </div>
       ) : null}
 
       {proposal ? (

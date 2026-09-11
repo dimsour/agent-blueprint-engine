@@ -256,6 +256,12 @@ A dialog over the workspace, opened from the top bar, the palette or the shortcu
   and every ref navigates. A quality review is per dimension, next to the artifacts it names.
 - With no endpoint configured the panel is a link to Settings, not a spinner that fails later.
 
+### Waiting for a model (P9-08, extended in P9-16)
+
+Every screen that sends a request shows the same two things, from the same components: **Stop**, and a line saying what is happening — `Thinking… 34s` until the first token, then `Writing… 4,182 characters in 51s`. The count only moves when the answer is arriving, which is the thing a spinner cannot tell you. The four are the wizard's _Draft_, the assistant, the evaluation view's _Run AI analysis_ and the finding's _Fix with AI_; Settings' _Save and test_ gets Stop and the clock but no count, because a probe does not stream.
+
+The line says nothing else. It used to add that a local model can take a while before it starts writing, which is advice — and advice on every request, for a case that may not apply, is noise. It belongs at the moment the wait actually fails, which is what `describeFailure` does (docs/06): a timeout names the timeout field, by the label it currently has, and the value it is set to.
+
 ## Command palette (`⌘K`, P3)
 
 Actions, grouped:

@@ -13,7 +13,7 @@
  * forty findings costs forty buttons and no dialogs.
  */
 import { type Diagnostic, diagnosticCode } from '@agent-blueprint/core'
-import { aiDiagnosticCode, AIError, fixabilityOf, fixFinding } from '@agent-blueprint/ai'
+import { aiDiagnosticCode, fixabilityOf, fixFinding } from '@agent-blueprint/ai'
 import { ArrowRightIcon, Loader2Icon, SparklesIcon, SquareIcon } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
@@ -30,6 +30,7 @@ import {
   DialogTitle,
 } from '@/components/ui/overlays'
 import { Badge, Card, Textarea } from '@/components/ui/primitives'
+import { describeFailure, type Failure, wasStopped } from '@/lib/ai/failure'
 import { configuredClient, structuredFor } from '@/lib/ai/settings'
 import { useWorkspace } from '@/lib/state/workspace-store'
 
@@ -56,7 +57,7 @@ export function FixFindingDialog({
   const [busy, setBusy] = useState(false)
   const [progress, setProgress] = useState<Progress | undefined>()
   const [proposal, setProposal] = useState<Proposal | undefined>()
-  const [failure, setFailure] = useState<string | undefined>()
+  const [failure, setFailure] = useState<Failure | undefined>()
   const [rejected, setRejected] = useState<RejectedOp[]>([])
   // Held across renders rather than in state: stopping must not wait for one.
   const inFlight = useRef<AbortController | undefined>(undefined)
@@ -98,13 +99,7 @@ export function FixFindingDialog({
     } catch (error) {
       // Stopping is a decision, not a failure: reporting it as one would make the dialog look
       // broken every time somebody changed their mind.
-      if (!(error instanceof AIError && error.code === 'aborted')) {
-        setFailure(
-          error instanceof AIError || error instanceof Error
-            ? error.message
-            : 'The endpoint could not be reached.',
-        )
-      }
+      if (!wasStopped(error)) setFailure(describeFailure(error))
     } finally {
       inFlight.current = undefined
       setBusy(false)
@@ -191,10 +186,11 @@ export function FixFindingDialog({
             {failure ? (
               <Card className="flex flex-col gap-1 p-3">
                 <p role="alert" className="text-sm">
-                  {failure}
+                  {failure.message}
                 </p>
                 <p className="text-muted-foreground text-xs">
-                  Nothing was changed. Try again, or check the endpoint in Settings.
+                  {failure.hint ??
+                    'Nothing was changed. Try again, or check the endpoint in Settings.'}
                 </p>
               </Card>
             ) : null}

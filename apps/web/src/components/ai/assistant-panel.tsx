@@ -20,13 +20,13 @@ import {
   type ChangeOp,
   type EntityKind,
 } from '@agent-blueprint/core'
-import { AIError } from '@agent-blueprint/ai'
-import { ArrowRightIcon, Loader2Icon, SparklesIcon } from 'lucide-react'
+import { ArrowRightIcon, Loader2Icon, SparklesIcon, SquareIcon } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { ChangeSetReview, RejectedOps, type RejectedOp } from '@/components/ai/changeset-review'
+import { advance, type Progress, Waiting } from '@/components/ai/waiting'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -37,6 +37,7 @@ import {
 } from '@/components/ui/overlays'
 import { Badge, Card, Textarea } from '@/components/ui/primitives'
 import { ASSISTANT_ACTIONS, ASSISTANT_GROUPS, type AssistantResult } from '@/lib/ai/actions'
+import { describeFailure, wasStopped } from '@/lib/ai/failure'
 import { configuredClient, structuredFor } from '@/lib/ai/settings'
 import { useWorkspace } from '@/lib/state/workspace-store'
 
@@ -57,10 +58,11 @@ export function AssistantPanel({
   const [text, setText] = useState('')
   const [kind, setKind] = useState<EntityKind>('skill')
   const [busy, setBusy] = useState(false)
+  const [progress, setProgress] = useState<Progress | undefined>()
   // Held across renders rather than in state: stopping must not wait for one (P6-11).
   const inFlight = useRef<AbortController | undefined>(undefined)
   const [result, setResult] = useState<AssistantResult | undefined>()
-  const [failure, setFailure] = useState<string | undefined>()
+  const [failure, setFailure] = useState<ReturnType<typeof describeFailure> | undefined>()
   const [rejected, setRejected] = useState<RejectedOp[]>([])
   const textId = useId()
   const kindId = useId()
@@ -80,12 +82,16 @@ export function AssistantPanel({
     setFailure(undefined)
     setResult(undefined)
     setRejected([])
+    setProgress({ received: 0, since: Date.now() })
     try {
       setResult(
         await action.run(
           {
             client: configured.client,
-            structured: structuredFor(configured, { signal: controller.signal }),
+            structured: structuredFor(configured, {
+              signal: controller.signal,
+              onProgress: (received) => setProgress((current) => advance(current, received)),
+            }),
           },
           {
             blueprint,
@@ -98,18 +104,11 @@ export function AssistantPanel({
     } catch (error) {
       // Stopping is a decision, not a failure: reporting it as one would make the panel look
       // broken every time somebody changed their mind.
-      if (!(error instanceof AIError && error.code === 'aborted')) {
-        setFailure(
-          error instanceof AIError
-            ? error.message
-            : error instanceof Error
-              ? error.message
-              : 'The endpoint could not be reached.',
-        )
-      }
+      if (!wasStopped(error)) setFailure(describeFailure(error))
     } finally {
       inFlight.current = undefined
       setBusy(false)
+      setProgress(undefined)
     }
   }
 
@@ -247,9 +246,11 @@ export function AssistantPanel({
                   </Button>
                   {busy ? (
                     <Button variant="outline" onClick={stop}>
+                      <SquareIcon />
                       Stop
                     </Button>
                   ) : null}
+                  {progress ? <Waiting progress={progress} /> : null}
                 </div>
               </div>
             ) : (
@@ -259,10 +260,11 @@ export function AssistantPanel({
             {failure ? (
               <Card className="flex flex-col gap-1 p-3">
                 <p role="alert" className="text-sm">
-                  {failure}
+                  {failure.message}
                 </p>
                 <p className="text-muted-foreground text-xs">
-                  Nothing was changed. Try again, or check the endpoint in Settings.
+                  {failure.hint ??
+                    'Nothing was changed. Try again, or check the endpoint in Settings.'}
                 </p>
               </Card>
             ) : null}
