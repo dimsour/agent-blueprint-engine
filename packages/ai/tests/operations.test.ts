@@ -459,9 +459,17 @@ describe('fixFinding', () => {
   }
 
   it('clears the finding without letting the model rename what it fixed', async () => {
+    // Blanked so the recorded answer's description is a real change: a fix may only touch the
+    // fields its code is about (P9-18), and a description returned unchanged changes nothing.
+    const blueprint = {
+      ...fixture,
+      skills: fixture.skills.map((skill) =>
+        skill.id === 'xunit' ? { ...skill, description: '' } : skill,
+      ),
+    }
     const result = await fixFinding(
       depsFor('fix-finding', [0, 1]),
-      { blueprint: fixture },
+      { blueprint },
       {
         diagnostic: missingDescription,
       },
@@ -472,7 +480,7 @@ describe('fixFinding', () => {
     expect(result.changeSet.ops).toHaveLength(1)
     expect(result.changeSet.ops[0]!.id).toBe('update:skill:xunit')
 
-    const applied = applyChangeSet(fixture, result.changeSet)
+    const applied = applyChangeSet(blueprint, result.changeSet)
     expect(applied.rejected).toEqual([])
     expect(applied.blueprint.skills.map((skill) => skill.id)).toEqual(
       fixture.skills.map((skill) => skill.id),
@@ -599,17 +607,37 @@ describe('fixFinding, checked against the validator', () => {
     expect(result.notes.join(' ')).toContain('applying this clears BP-DESC-001')
   })
 
-  it('says so when the fix does not close the finding', async () => {
-    const blueprint = withoutDescription()
-    // The same answer twice: neither attempt supplies the description, so neither clears it.
-    const stubborn = recording('fix-finding')[3]!
+  it('says so when the fix changes something and still does not close the finding', async () => {
+    // A body that gains an Instructions section but never the Verification one the finding
+    // asked for: a real change, and not the change that was asked for.
+    const halfDone = JSON.stringify({
+      artifacts: [
+        {
+          kind: 'skill',
+          artifact: {
+            id: 'test-design',
+            name: 'Test design',
+            body: '## Instructions\n\nName the test for the behaviour, not the method.',
+          },
+        },
+      ],
+      note: 'Tidied the instructions.',
+    })
     const result = await fixFinding(
-      { client: replayClient([stubborn, stubborn]).client },
-      { blueprint },
-      { diagnostic: finding },
+      { client: replayClient([halfDone, halfDone]).client },
+      { blueprint: fixture },
+      {
+        diagnostic: {
+          code: 'BP-SKILL-011',
+          severity: 'info',
+          message: 'Skill "Test design" has no Verification section.',
+          ref: { kind: 'skill', id: 'test-design' },
+        },
+      },
     )
 
-    expect(result.notes.join(' ')).toContain('Still raised after this change: BP-DESC-001')
+    expect(result.changeSet.ops).toHaveLength(1)
+    expect(result.notes.join(' ')).toContain('Still raised after this change: BP-SKILL-011')
   })
 
   it('does not claim to have checked a code the validator cannot raise', async () => {
@@ -993,5 +1021,179 @@ describe('fixFindings', () => {
         },
       ),
     ).rejects.toThrow(/None of these/)
+  })
+})
+
+/**
+ * A fix that keeps the rest of the artifact (P9-18).
+ *
+ * Reported from use, on a real skill: asked to add a Verification section, the model returned
+ * the skill with the section added — and `activation` emptied, `referenceIds` and
+ * `allowedToolIds` gone, `tags` dropped. It answered the question and lost half the artifact
+ * doing it. The prompt already says to return every other field as given; a prompt is advice,
+ * and this is the part that holds.
+ */
+describe('fixFindings keeps what the finding was not about', () => {
+  function richSkill(): Blueprint {
+    return upsertEntity(fixture, 'skill', {
+      id: 'xunit',
+      name: 'xUnit Testing',
+      description: 'Write idiomatic xUnit tests for .NET code.',
+      whenToUse: 'When writing or changing tests in a .NET project.',
+      tags: ['testing', 'tests', 'xunit'],
+      activation: {
+        filePatterns: ['**/*.Tests.cs', '**/*Tests.cs'],
+        intents: ['test', 'unit test', 'xunit'],
+        agentRoles: ['worker', 'reviewer'],
+      },
+      referenceIds: ['testing-patterns'],
+      body: '# What this skill does\n\nWrite executable xUnit tests for .NET code.',
+    })
+  }
+
+  const finding = {
+    code: 'BP-SKILL-011',
+    severity: 'info' as const,
+    message: 'Skill "xUnit Testing" has no Verification section.',
+    ref: { kind: 'skill' as const, id: 'xunit' },
+  }
+
+  /** Exactly what was reported: the body fixed, everything else emptied or dropped. */
+  const lossy = JSON.stringify({
+    artifacts: [
+      {
+        kind: 'skill',
+        artifact: {
+          id: 'xunit',
+          name: 'xUnit Testing',
+          description: 'Write idiomatic xUnit tests for .NET code.',
+          whenToUse: 'When writing or changing tests in a .NET project.',
+          tags: [],
+          activation: { filePatterns: [], intents: [], agentRoles: [] },
+          body: '# What this skill does\n\nWrite executable xUnit tests.\n\n## Verification\n\n`dotnet test` reports the new tests as passing.',
+        },
+      },
+    ],
+    note: 'Added a Verification section.',
+  })
+
+  it('restores every field the finding was not about', async () => {
+    const blueprint = richSkill()
+    const before = findEntity(blueprint, 'skill', 'xunit')!
+    const result = await fixFindings(
+      { client: replayClient([lossy]).client },
+      { blueprint },
+      { diagnostics: [finding] },
+    )
+
+    const after = findEntity(
+      applyChangeSet(blueprint, result.changeSet).blueprint,
+      'skill',
+      'xunit',
+    )!
+
+    // The fix landed.
+    expect(after.body).toContain('## Verification')
+    // And nothing else moved: BP-SKILL-011 is about the body, so the body is all that may change.
+    expect(after.tags).toEqual(before.tags)
+    expect(after.activation).toEqual(before.activation)
+    expect(after.referenceIds).toEqual(['testing-patterns'])
+    expect(after.whenToUse).toBe(before.whenToUse)
+  })
+
+  it('says what it kept, rather than keeping it quietly', async () => {
+    const result = await fixFindings(
+      { client: replayClient([lossy]).client },
+      { blueprint: richSkill() },
+      { diagnostics: [finding] },
+    )
+
+    const notes = result.notes.join(' ')
+    expect(notes).toContain('Kept')
+    expect(notes).toContain('tags')
+    expect(notes).toContain('activation')
+  })
+
+  it('lets a finding change the fields it is about', async () => {
+    // BP-SKILL-010 is about `activation`, so an activation the model rewrites is the fix.
+    const blueprint = richSkill()
+    const answer = JSON.stringify({
+      artifacts: [
+        {
+          kind: 'skill',
+          artifact: {
+            id: 'xunit',
+            name: 'xUnit Testing',
+            activation: { intents: ['write a unit test'] },
+          },
+        },
+      ],
+    })
+    const result = await fixFindings(
+      { client: replayClient([answer]).client },
+      { blueprint },
+      {
+        diagnostics: [
+          {
+            code: 'BP-SKILL-010',
+            severity: 'warning',
+            message: 'Skill "xUnit Testing" has no activation conditions and no owner.',
+            ref: { kind: 'skill', id: 'xunit' },
+          },
+        ],
+      },
+    )
+
+    const after = findEntity(
+      applyChangeSet(blueprint, result.changeSet).blueprint,
+      'skill',
+      'xunit',
+    )!
+    expect(after.activation.intents).toEqual(['write a unit test'])
+    // And the body it was not asked about is still there.
+    expect(after.body).toContain('What this skill does')
+  })
+
+  it('restores what came back empty when the code names no fields', async () => {
+    // A contradiction is about what two artifacts say, so there is no allow-list. The weaker
+    // rule stands in: an emptied field is put back, a filled one wins.
+    const blueprint = richSkill()
+    const answer = JSON.stringify({
+      artifacts: [
+        {
+          kind: 'skill',
+          artifact: {
+            id: 'xunit',
+            name: 'xUnit Testing',
+            description: 'Write xUnit tests that assert on behaviour, never on mocks.',
+            tags: [],
+            body: '# What this skill does\n\nAssert on behaviour.',
+          },
+        },
+      ],
+    })
+    const result = await fixFindings(
+      { client: replayClient([answer]).client },
+      { blueprint },
+      {
+        diagnostics: [
+          {
+            code: 'BP-CONTRA-001',
+            severity: 'warning',
+            message: 'Two artifacts disagree about mocking.',
+            ref: { kind: 'skill', id: 'xunit' },
+          },
+        ],
+      },
+    )
+
+    const after = findEntity(
+      applyChangeSet(blueprint, result.changeSet).blueprint,
+      'skill',
+      'xunit',
+    )!
+    expect(after.description).toContain('never on mocks')
+    expect(after.tags).toEqual(['testing', 'tests', 'xunit'])
+    expect(result.notes.join(' ')).toContain('Put back')
   })
 })

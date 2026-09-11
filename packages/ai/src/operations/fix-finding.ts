@@ -28,6 +28,7 @@ import {
   findEntity,
   refKey,
   ruleByCode,
+  stableJson,
   validateBlueprint,
 } from '@agent-blueprint/core'
 
@@ -486,6 +487,9 @@ export async function fixFindings(
     ...(ctx.instruction !== undefined ? { instruction: ctx.instruction } : {}),
   }
 
+  /** Whether the last answer contained any artifact at all, as opposed to none. */
+  let answered = false
+
   const attempt = async (stillWrong?: readonly string[]): Promise<Assembly> => {
     const answer = await ask(
       deps,
@@ -495,6 +499,7 @@ export async function fixFindings(
       context,
     )
 
+    answered = answer.value.artifacts.length > 0
     const drafts = draftsFrom(ctx.blueprint, fixable, answer.value.artifacts, notes)
     const assembly = assembleChangeSet({
       blueprint: ctx.blueprint,
@@ -515,9 +520,12 @@ export async function fixFindings(
   let outcome = outcomeOf(ctx.blueprint, fixable, assembly)
 
   // One more attempt, not a loop: a model that cannot clear a finding when told exactly what
-  // is still wrong will not manage it on the fifth try, and the user is waiting.
+  // is still wrong will not manage it on the fifth try, and the user is waiting. Gated on
+  // having answered rather than on having produced ops — an artifact that came back with
+  // nothing changed in the fields the finding was about is a wrong answer worth correcting,
+  // where an empty list is a model declining, which gets its own note instead.
   const complaints = complaintsFrom(fixable, outcome)
-  if (complaints.length > 0 && assembly.changeSet.ops.length > 0) {
+  if (complaints.length > 0 && answered) {
     const retry = await attempt(complaints)
     const retryOutcome = outcomeOf(ctx.blueprint, fixable, retry)
     // Kept only if it is actually better: more of the findings closed, or the same number
@@ -596,13 +604,101 @@ function draftsFrom(
 
   return proposals.map((proposal) => {
     const id = pinned.get(proposal)
+    const named =
+      id !== undefined && isRecord(proposal.artifact)
+        ? { ...proposal.artifact, id }
+        : proposal.artifact
     return {
       kind: proposal.kind,
-      value:
-        id !== undefined && isRecord(proposal.artifact)
-          ? { ...proposal.artifact, id }
-          : proposal.artifact,
+      value: onlyWhatWasAsked(blueprint, diagnostics, proposal.kind, named, notes),
       ...(proposal.note !== undefined ? { note: proposal.note } : {}),
     }
   })
+}
+
+/** Nothing in it: missing, an empty string, an empty list, or an object with no keys. */
+function isEmpty(value: unknown): boolean {
+  if (value === undefined || value === null) return true
+  if (typeof value === 'string') return value.trim() === ''
+  if (Array.isArray(value)) return value.length === 0
+  if (isRecord(value)) return Object.values(value).every(isEmpty)
+  return false
+}
+
+/**
+ * A fix changes what the finding was about and nothing else (P9-18).
+ *
+ * Reported from use: asked to add a `## Verification` section to a skill, a model returned the
+ * skill with the section added — and with `activation` emptied, `referenceIds` and
+ * `allowedToolIds` gone and `tags` dropped. It had answered the question and lost half the
+ * artifact doing it. The prompt says to return every other field exactly as given, and a
+ * prompt is advice; this is the part that holds.
+ *
+ * The rule is the same one the rest of the operation already knows. `FIELDS_BY_CODE` says
+ * which fields each code is about, so when every finding about an artifact names its fields,
+ * those are the only fields that may change: the proposal is merged onto the artifact as it
+ * stands, and everything outside that list comes back untouched. That also keeps what the
+ * model was never shown — `metadata` the reader preserved, a workflow's hand-tidied positions
+ * — which the AI schemas strip and a wholesale replacement would therefore silently drop.
+ *
+ * Where a finding has no field list — a contradiction, an orphan — there is no allow-list to
+ * apply, so the weaker rule stands in: anything the model left empty or omitted is restored,
+ * and anything it filled in wins. That cannot invent content; it can only give back what was
+ * already there.
+ */
+function onlyWhatWasAsked(
+  blueprint: Blueprint,
+  diagnostics: readonly Diagnostic[],
+  kind: EntityKind,
+  proposed: unknown,
+  notes: string[],
+): unknown {
+  const id = idOf(proposed)
+  if (id === undefined || !isRecord(proposed)) return proposed
+
+  // A create: there is nothing to preserve, and nothing to compare against.
+  const original = findEntity(blueprint, kind, id)
+  if (!original) return proposed
+
+  const about = diagnostics.filter(
+    (diagnostic) => diagnostic.ref?.kind === kind && diagnostic.ref.id === id,
+  )
+  if (about.length === 0) return proposed
+
+  const lists = about.map((diagnostic) => FIELDS_BY_CODE[diagnostic.code])
+  const allowed = lists.every((list) => list !== undefined)
+    ? new Set(lists.flatMap((list) => list ?? []))
+    : undefined
+
+  const merged: Record<string, unknown> = { ...(original as unknown as Record<string, unknown>) }
+  const rejected: string[] = []
+  const restored: string[] = []
+
+  for (const [field, value] of Object.entries(proposed)) {
+    if (field === 'id') continue
+    if (allowed) {
+      if (allowed.has(field)) merged[field] = value
+      else if (!equal(value, merged[field])) rejected.push(field)
+      continue
+    }
+    if (isEmpty(value) && !isEmpty(merged[field])) restored.push(field)
+    else merged[field] = value
+  }
+
+  if (rejected.length > 0) {
+    notes.push(
+      `Kept ${rejected.join(', ')} on "${id}" as ${rejected.length === 1 ? 'it was' : 'they were'}: the ${about.length === 1 ? 'finding was' : 'findings were'} about ${[...(allowed ?? [])].join(', ')}.`,
+    )
+  }
+  if (restored.length > 0) {
+    notes.push(
+      `Put back ${restored.join(', ')} on "${id}", which came back empty and was not what the ${about.length === 1 ? 'finding was' : 'findings were'} about.`,
+    )
+  }
+  return merged
+}
+
+/** Deep enough for the shapes an entity holds: strings, numbers, arrays and plain objects. */
+function equal(a: unknown, b: unknown): boolean {
+  return stableJson(a) === stableJson(b)
 }

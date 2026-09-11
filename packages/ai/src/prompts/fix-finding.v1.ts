@@ -93,8 +93,13 @@ const WORKED_EXAMPLE = `Worked example. Given:
     Query by role. Assert on what the user would see.
 
 A good answer returns one artifact: the same skill with \`description\` filled in, and
-\`id\`, \`name\`, \`whenToUse\`, \`tags\` and the whole body returned unchanged. A bad answer
-rewrites the body, drops the tags, renames the id, or returns only the description.`
+\`id\`, \`name\`, \`whenToUse\`, \`tags\` and the whole body returned unchanged.
+
+A bad answer rewrites the body, renames the id, or returns only the description. The most
+common bad answer is subtler than any of those: it returns \`tags: []\`, or \`activation\` with
+every list emptied, or leaves out \`referenceIds\` and \`allowedToolIds\` entirely — answering
+the question and deleting half the artifact while doing it. An empty list is not "unchanged".
+Copy every field across.`
 
 function about(finding: FindingBrief): string {
   if (!finding.ref) return 'About: the Blueprint as a whole, rather than one artifact.'

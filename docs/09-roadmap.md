@@ -893,6 +893,20 @@ something, it says what and where that thing still exists.
 - The id-pinning guard from P9-13 generalised rather than being dropped: a returned artifact is paired with a finding's id only when exactly one of that kind came back under an unrecognised id and exactly one finding of that kind went unanswered. Anything less certain is reported, because guessing there overwrites the wrong artifact silently.
 - **Fix all N** appears only on a dimension with two or more fixable findings. With one, the row's own control already does it; with none, no button is more honest than one that opens on a refusal. Named after the dimension, so ten of them are not ten buttons called "Fix all".
 
+### P9-18 A fix that does not delete what it was not asked about (done)
+
+- Package: `packages/ai/src/operations/fix-finding.ts`
+- Depends on: P9-13
+- Description: Reported from use, with the diff. Asked to add a `## Verification` section to the "xUnit Testing" skill, the model returned the skill with the section added — and `activation` emptied of its five file patterns, four intents and two agent roles, `referenceIds` and `allowedToolIds` gone, `tags` dropped. It answered the question and deleted half the artifact doing it, and the review showed that as one innocuous line: "Added ## Instructions and ## Verification sections."
+- The prompt already said to return every other field exactly as given. It has said so since P9-12. A prompt is advice, and this needed to be a guarantee.
+- Acceptance: a fix may change the fields its findings are about and no others; what the model omits or empties elsewhere is restored; the notes say what was kept.
+- Verify: `pnpm --filter @agent-blueprint/ai test`
+- Built: `onlyWhatWasAsked`, using the table the operation already had. When every finding about an artifact has a `FIELDS_BY_CODE` entry, those fields are an allow-list: the proposal is merged onto the artifact as it stands and everything else comes back untouched. `BP-SKILL-011` is about `body`, so the body is all that could have changed — and `activation`, `tags` and the reference lists were never at risk.
+- A side effect worth having: the merge starts from the stored artifact, so it also keeps what the model was never shown. The AI schemas strip `metadata` (the unknown keys the project reader preserves) and a workflow's node positions; a wholesale replacement dropped both silently, and had done since P6.
+- Where a code names no fields — a contradiction, an orphan — there is no allow-list, so the weaker rule stands in: a field that came back empty or missing is restored, a field that was filled in wins. Neither rule can invent content. Both say in the notes what they kept, because a silent correction is the same class of problem as a silent deletion.
+- Also strengthened, because it costs nothing: the worked example in the prompt now names this failure specifically — _"An empty list is not 'unchanged'. Copy every field across."_
+- Found while fixing it: the retry was gated on the first attempt producing ops. An answer whose every field is rejected produces none, which is a wrong answer worth correcting rather than a model declining. It is gated on having returned an artifact now.
+
 ### Open questions
 
 1. ~~**The logo needs a mark-only export.**~~ Settled: rather than crop by CSS, the cut is a script. `pnpm --filter web logo` measures nothing at run time — the rectangles live in `e2e/logo-assets.spec.ts`, taken from the artwork's alpha channel — and writes the three assets the app imports. A redrawn logo needs that one command and a re-measurement, and no component changes.
