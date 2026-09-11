@@ -6,7 +6,7 @@
  * because a proposal you cannot judge against the ask is a proposal you have to take on faith.
  */
 import { readFixtureFiles } from '@agent-blueprint/fixtures'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -80,7 +80,7 @@ afterEach(() => {
 describe('FixFindingDialog', () => {
   it('sends you to Settings rather than to an endpoint that does not exist', async () => {
     await loadFixture()
-    render(<FixFindingDialog diagnostic={MISSING_DESCRIPTION} open onOpenChange={() => {}} />)
+    render(<FixFindingDialog diagnostics={[MISSING_DESCRIPTION]} open onOpenChange={() => {}} />)
 
     expect(screen.getByText('No AI endpoint yet')).toBeVisible()
     expect(screen.getByRole('link', { name: /Set one up/ })).toHaveAttribute('href', '/settings')
@@ -90,7 +90,7 @@ describe('FixFindingDialog', () => {
   it('shows the instructions the model is given, so the answer can be judged', async () => {
     configure()
     await loadFixture()
-    render(<FixFindingDialog diagnostic={MISSING_DESCRIPTION} open onOpenChange={() => {}} />)
+    render(<FixFindingDialog diagnostics={[MISSING_DESCRIPTION]} open onOpenChange={() => {}} />)
 
     // Verbatim from the catalogue's `remedy` — the same sentence the "How to fix" note shows.
     expect(
@@ -104,7 +104,7 @@ describe('FixFindingDialog', () => {
     const blueprint = await loadFixture()
     stubEndpoint(ANSWER)
 
-    render(<FixFindingDialog diagnostic={MISSING_DESCRIPTION} open onOpenChange={() => {}} />)
+    render(<FixFindingDialog diagnostics={[MISSING_DESCRIPTION]} open onOpenChange={() => {}} />)
     await user.click(screen.getByRole('button', { name: 'Fix it' }))
 
     // The review is open and the Blueprint is untouched until something is accepted.
@@ -128,7 +128,7 @@ describe('FixFindingDialog', () => {
         new Response(JSON.stringify({ error: { message: 'Invalid API key.' } }), { status: 401 }),
       )) as unknown as typeof globalThis.fetch
 
-    render(<FixFindingDialog diagnostic={MISSING_DESCRIPTION} open onOpenChange={() => {}} />)
+    render(<FixFindingDialog diagnostics={[MISSING_DESCRIPTION]} open onOpenChange={() => {}} />)
     await user.click(screen.getByRole('button', { name: 'Fix it' }))
 
     expect(await screen.findByRole('alert')).toBeVisible()
@@ -152,7 +152,7 @@ describe('feeding the model more than the catalogue knows (P9-13)', () => {
       return Promise.resolve(answerFor(ANSWER, init))
     }) as unknown as typeof globalThis.fetch
 
-    render(<FixFindingDialog diagnostic={MISSING_DESCRIPTION} open onOpenChange={() => {}} />)
+    render(<FixFindingDialog diagnostics={[MISSING_DESCRIPTION]} open onOpenChange={() => {}} />)
     await user.type(
       screen.getByLabelText('Anything else it should know'),
       'It is about xUnit v3 specifically.',
@@ -169,11 +169,102 @@ describe('feeding the model more than the catalogue knows (P9-13)', () => {
     await loadFixture()
     stubEndpoint(ANSWER)
 
-    render(<FixFindingDialog diagnostic={MISSING_DESCRIPTION} open onOpenChange={() => {}} />)
+    render(<FixFindingDialog diagnostics={[MISSING_DESCRIPTION]} open onOpenChange={() => {}} />)
     await user.click(screen.getByRole('button', { name: 'Fix it' }))
     await screen.findByRole('button', { name: /Apply/ })
 
     // Checked against the validator before the user is shown it, not asserted.
     expect(screen.getByText(/clears BP-DESC-001/)).toBeVisible()
+  })
+})
+
+/**
+ * A whole dimension at once (P9-17).
+ *
+ * The batch exists because two findings so often name the same artifact. Fixing those
+ * separately means two edits of one file, the second computed from a Blueprint that does not
+ * yet have the first in it — so applying both silently loses one.
+ */
+describe('fixing several findings together', () => {
+  const TWO_ON_ONE_SKILL = [
+    {
+      code: 'BP-SKILL-011',
+      severity: 'info' as const,
+      message: 'Skill "xUnit" has no Verification section.',
+      ref: { kind: 'skill' as const, id: 'xunit' },
+    },
+    {
+      code: 'BP-EVAL-SKILL-002',
+      severity: 'info' as const,
+      message: 'Skill "xUnit" has no Instructions section.',
+      ref: { kind: 'skill' as const, id: 'xunit' },
+    },
+  ]
+
+  const ONE_EDIT = {
+    artifacts: [
+      {
+        kind: 'skill',
+        artifact: {
+          id: 'xunit',
+          name: 'xUnit',
+          description: 'Write idiomatic xUnit tests.',
+          whenToUse: 'When writing or changing tests in a .NET project.',
+          body: '## Instructions\n\n1. One assertion per behaviour.\n\n## Verification\n\nRun `dotnet test` and read the counts.',
+        },
+      },
+    ],
+    note: 'Gave the body both sections in one edit.',
+  }
+
+  it('asks once and proposes one edit per artifact, however many findings named it', async () => {
+    const user = userEvent.setup()
+    configure()
+    const blueprint = await loadFixture()
+    const sent: string[] = []
+    globalThis.fetch = ((_url: string, init?: RequestInit) => {
+      sent.push(String(init?.body ?? ''))
+      return Promise.resolve(answerFor(ONE_EDIT, init))
+    }) as unknown as typeof globalThis.fetch
+
+    render(
+      <FixFindingDialog
+        diagnostics={TWO_ON_ONE_SKILL}
+        title="Skills"
+        open
+        onOpenChange={() => {}}
+      />,
+    )
+    expect(screen.getByText(/2 findings in Skills/)).toBeVisible()
+
+    await user.click(screen.getByRole('button', { name: 'Fix them' }))
+    const list = await screen.findByRole('list', { name: 'Proposed changes' })
+
+    expect(sent).toHaveLength(1)
+    expect(within(list).getAllByRole('listitem')).toHaveLength(1)
+
+    await user.click(screen.getByRole('button', { name: /Apply/ }))
+    const body = useWorkspace.getState().blueprint!.skills.find((s) => s.id === 'xunit')!.body
+    expect(body).toContain('## Instructions')
+    expect(body).toContain('## Verification')
+    expect(useWorkspace.getState().blueprint!.skills).toHaveLength(blueprint.skills.length)
+  })
+
+  it('shows the instructions once per code, not once per finding', async () => {
+    configure()
+    await loadFixture()
+    render(
+      <FixFindingDialog
+        diagnostics={TWO_ON_ONE_SKILL}
+        title="Skills"
+        open
+        onOpenChange={() => {}}
+      />,
+    )
+
+    // Two findings, two distinct codes, two remedies. Seven skills missing the same section
+    // would still be one line.
+    expect(screen.getByText(/how the agent knows the skill worked/)).toBeVisible()
+    expect(screen.getByText(/The description says when the skill applies/)).toBeVisible()
   })
 })

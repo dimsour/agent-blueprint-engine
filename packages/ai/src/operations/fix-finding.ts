@@ -1,5 +1,5 @@
 /**
- * Clearing one finding.
+ * Clearing findings.
  *
  * Every other operation starts from what the user wants; this one starts from what the
  * validator already worked out, which means almost everything the model needs is already
@@ -26,13 +26,14 @@ import {
   ENTITY_KINDS,
   type EntityRef,
   findEntity,
+  refKey,
   ruleByCode,
   validateBlueprint,
 } from '@agent-blueprint/core'
 
 import { AIError } from '../client/errors'
 import { renderEntity } from '../context/render'
-import { fixFindingV1 } from '../prompts/fix-finding.v1'
+import { type FindingBrief, fixFindingV1 } from '../prompts/fix-finding.v1'
 import { fixFindingOutputSchema } from '../schemas/outputs'
 import { assembleChangeSet, type Assembly, type Draft } from './assemble'
 import { fingerprint } from './check'
@@ -137,6 +138,13 @@ function guidanceFor(diagnostic: Diagnostic): { summary: string; remedy: string 
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/** The id a model wrote on an artifact, when it wrote one that is a string. */
+function idOf(artifact: unknown): string | undefined {
+  if (!isRecord(artifact)) return undefined
+  const id = artifact.id
+  return typeof id === 'string' ? id : undefined
 }
 /**
  * Which fields of an artifact a code is actually about (P9-13).
@@ -246,14 +254,16 @@ function sourceOf(blueprint: Blueprint, ref: EntityRef): string | undefined {
 
 interface Outcome {
   /**
-   * Whether `validateBlueprint` can decide this code at all. Only codes the catalogue marks
-   * `source: 'validation'` come from the rules; the quality findings are computed by the
-   * evaluation pass and the reader's come from files, so re-running the validator says
-   * nothing about either. Claiming "cleared" for one of those would be a lie by omission.
+   * The findings `validateBlueprint` can decide at all, by fingerprint.
+   *
+   * Only codes the catalogue marks `source: 'validation'` come from the rules; the quality
+   * findings are computed by the evaluation pass and the reader's come from files, so
+   * re-running the validator says nothing about either. Claiming "cleared" for one of those
+   * would be a lie by omission.
    */
-  checked: boolean
-  /** The finding is no longer raised against the Blueprint this proposal would produce. */
-  cleared: boolean
+  checkable: Set<string>
+  /** Of those, the ones still raised against the Blueprint this proposal would produce. */
+  standing: Set<string>
   /** Findings the proposal introduced that were not there before. */
   introduced: Diagnostic[]
 }
@@ -266,17 +276,26 @@ interface Outcome {
  * the finding standing earns one more attempt with the validator's own words; one that clears
  * the finding but breaks something else says so in the review rather than being found later.
  */
-function outcomeOf(blueprint: Blueprint, diagnostic: Diagnostic, assembly: Assembly): Outcome {
-  const checked = diagnosticCode(diagnostic.code)?.source === 'validation'
+function outcomeOf(
+  blueprint: Blueprint,
+  diagnostics: readonly Diagnostic[],
+  assembly: Assembly,
+): Outcome {
+  const checkable = new Set(
+    diagnostics
+      .filter((diagnostic) => diagnosticCode(diagnostic.code)?.source === 'validation')
+      .map(fingerprint),
+  )
   if (assembly.changeSet.ops.length === 0) {
-    return { checked, cleared: false, introduced: [] }
+    return { checkable, standing: new Set(checkable), introduced: [] }
   }
   const before = new Set(validateBlueprint(blueprint).map(fingerprint))
   const applied = applyChangeSet(blueprint, assembly.changeSet)
   const after = validateBlueprint(applied.blueprint)
+  const stillThere = new Set(after.map(fingerprint))
   return {
-    checked,
-    cleared: !after.some((finding) => fingerprint(finding) === fingerprint(diagnostic)),
+    checkable,
+    standing: new Set([...checkable].filter((key) => stillThere.has(key))),
     introduced: after.filter(
       (finding) => !before.has(fingerprint(finding)) && finding.severity !== 'info',
     ),
@@ -291,9 +310,10 @@ function outcomeOf(blueprint: Blueprint, diagnostic: Diagnostic, assembly: Assem
  * different law with the same warning. A new error is: a fix that breaks the Blueprint is
  * worse than no fix.
  */
-function complaintsFrom(diagnostic: Diagnostic, outcome: Outcome): string[] {
+function complaintsFrom(diagnostics: readonly Diagnostic[], outcome: Outcome): string[] {
   const lines: string[] = []
-  if (outcome.checked && !outcome.cleared) {
+  for (const diagnostic of diagnostics) {
+    if (!outcome.standing.has(fingerprint(diagnostic))) continue
     lines.push(`${diagnostic.code} is still raised: ${diagnostic.message}`)
   }
   for (const finding of outcome.introduced) {
@@ -303,74 +323,16 @@ function complaintsFrom(diagnostic: Diagnostic, outcome: Outcome): string[] {
   return lines
 }
 
-/** What to tell the user. A fix that did not fix it has to say so before it is applied. */
-function verdictOf(diagnostic: Diagnostic, outcome: Outcome, empty: boolean): string[] {
-  if (empty) {
-    return [
-      'The model proposed no change. This finding may need a decision rather than an edit — the "How to fix" note says what it is asking for.',
-    ]
-  }
-  const lines = [
-    !outcome.checked
-      ? `Not re-checked: ${diagnostic.code} comes from the quality review rather than the validator, so whether this closes it is a judgement.`
-      : outcome.cleared
-        ? `Checked: applying this clears ${diagnostic.code}.`
-        : `Checked: ${diagnostic.code} is still raised after this change. It may be worth applying anyway, but it does not close the finding on its own.`,
-  ]
-  if (outcome.introduced.length > 0) {
-    lines.push(
-      `It also introduces ${outcome.introduced.length} new ${outcome.introduced.length === 1 ? 'finding' : 'findings'}: ${outcome.introduced.map((finding) => finding.code).join(', ')}.`,
-    )
-  }
-  return lines
-}
-
-export interface FixFindingOptions {
-  diagnostic: Diagnostic
-}
-
-export async function fixFinding(
-  deps: OperationDeps,
-  ctx: OperationContext,
-  { diagnostic }: FixFindingOptions,
-): Promise<ChangeSetResult> {
-  const fixability = fixabilityOf(diagnostic)
-  if (!fixability.fixable) {
-    throw new AIError('bad-request', fixability.reason)
-  }
-
-  // The artifact the finding is about, so the context builder puts it in full rather than as
-  // one line of a roster. Without this the model is asked to revise something it can only see
-  // summarised, which is how a "fix" comes back having invented the body it replaced.
-  const context = contextFor(
-    { ...ctx, ...(diagnostic.ref ? { selection: diagnostic.ref } : {}) },
-    deps,
-    fixFindingV1.system,
-  )
+/** One finding, with everything the catalogue and the rules already know about its code. */
+function briefOf(diagnostic: Diagnostic): FindingBrief {
   const guidance = guidanceFor(diagnostic)
   const invariant = invariantFor(diagnostic.code)
-
-  /**
-   * The artifact again, immediately before the ask.
-   *
-   * It is already in the context, thousands of tokens earlier, under a heading about what the
-   * user is looking at. Repeating it next to the instruction is the difference between
-   * "revise the skill you read a while ago" and "here it is, change this field" — and it
-   * costs one artifact's worth of budget, which is the cheapest accuracy available here.
-   */
-  const current = diagnostic.ref ? sourceOf(ctx.blueprint, diagnostic.ref) : undefined
-  const alsoNamed = (diagnostic.related ?? [])
-    .map((ref) => sourceOf(ctx.blueprint, ref))
-    .filter((text): text is string => text !== undefined)
-    .join('\n\n')
-
-  const base = {
+  return {
     code: diagnostic.code,
     summary: guidance.summary,
     remedy: guidance.remedy,
     message: diagnostic.message,
     severity: diagnostic.severity,
-    kinds: fixability.kinds,
     // The invariant the rule enforces, which is the exit condition. Evaluation-only codes have
     // no rule behind them, and there the summary is all there is.
     ...(invariant !== undefined ? { invariant } : {}),
@@ -378,59 +340,171 @@ export async function fixFinding(
     ...(diagnostic.related ? { related: diagnostic.related } : {}),
     ...(diagnostic.data ? { evidence: diagnostic.data } : {}),
     ...(FIELDS_BY_CODE[diagnostic.code] ? { fields: FIELDS_BY_CODE[diagnostic.code] } : {}),
-    ...(current !== undefined ? { current } : {}),
-    ...(alsoNamed !== '' ? { alsoNamed } : {}),
-    ...(ctx.instruction !== undefined ? { instruction: ctx.instruction } : {}),
+  }
+}
+
+/** Every artifact the findings name, each once, as its source file. */
+function artifactsNamedBy(blueprint: Blueprint, diagnostics: readonly Diagnostic[]): string {
+  const seen = new Set<string>()
+  const rendered: string[] = []
+  for (const diagnostic of diagnostics) {
+    for (const ref of [diagnostic.ref, ...(diagnostic.related ?? [])]) {
+      if (!ref || seen.has(refKey(ref))) continue
+      seen.add(refKey(ref))
+      const source = sourceOf(blueprint, ref)
+      if (source) rendered.push(source)
+    }
+  }
+  return rendered.join('\n\n')
+}
+
+/** What the user is told about a batch: which of the findings this actually closes. */
+function verdictOf(diagnostics: readonly Diagnostic[], outcome: Outcome, empty: boolean): string[] {
+  if (empty) {
+    return [
+      diagnostics.length === 1
+        ? 'The model proposed no change. This finding may need a decision rather than an edit — the "How to fix" note says what it is asking for.'
+        : 'The model proposed no change. These findings may need decisions rather than edits — each one\'s "How to fix" note says what it is asking for.',
+    ]
   }
 
+  const checked = diagnostics.filter((diagnostic) => outcome.checkable.has(fingerprint(diagnostic)))
+  const cleared = checked.filter((diagnostic) => !outcome.standing.has(fingerprint(diagnostic)))
+  const standing = checked.filter((diagnostic) => outcome.standing.has(fingerprint(diagnostic)))
+  const unchecked = diagnostics.length - checked.length
+
+  const lines: string[] = []
+  if (cleared.length > 0) {
+    const all = cleared.length === diagnostics.length && unchecked === 0
+    lines.push(
+      all
+        ? `Checked: applying this clears ${codeList(cleared)}.`
+        : `Checked: applying this clears ${cleared.length} of ${diagnostics.length} — ${codeList(cleared)}.`,
+    )
+  }
+  if (standing.length > 0) {
+    lines.push(
+      `Still raised after this change: ${codeList(standing)}. Worth applying anyway, but it does not close ${standing.length === 1 ? 'that one' : 'those'}.`,
+    )
+  }
+  if (unchecked > 0) {
+    lines.push(
+      `${unchecked} of these come from the quality review rather than the validator, so whether this closes them is a judgement, not a check.`,
+    )
+  }
+  if (outcome.introduced.length > 0) {
+    lines.push(
+      `It also introduces ${outcome.introduced.length} new ${outcome.introduced.length === 1 ? 'finding' : 'findings'}: ${outcome.introduced.map((found) => found.code).join(', ')}.`,
+    )
+  }
+  return lines
+}
+
+/** Codes and the artifacts they are about, deduplicated, for a sentence. */
+function codeList(diagnostics: readonly Diagnostic[]): string {
+  const labels = diagnostics.map(
+    (diagnostic) => `${diagnostic.code}${diagnostic.ref ? ` on "${diagnostic.ref.id}"` : ''}`,
+  )
+  return [...new Set(labels)].join(', ')
+}
+
+export interface FixFindingOptions {
+  diagnostic: Diagnostic
+}
+
+export interface FixFindingsOptions {
+  diagnostics: readonly Diagnostic[]
+}
+
+/** One finding. The single-finding case of `fixFindings`, and the only difference is the list. */
+export async function fixFinding(
+  deps: OperationDeps,
+  ctx: OperationContext,
+  { diagnostic }: FixFindingOptions,
+): Promise<ChangeSetResult> {
+  const fixability = fixabilityOf(diagnostic)
+  // Thrown rather than noted: a caller asking to fix exactly this one is asking a question
+  // whose answer is no, and `fixabilityOf` is how the UI knows not to offer the button.
+  if (!fixability.fixable) throw new AIError('bad-request', fixability.reason)
+  return fixFindings(deps, ctx, { diagnostics: [diagnostic] })
+}
+
+/**
+ * Several findings, in one ask (P9-17).
+ *
+ * Not a loop over `fixFinding`, and the reason is not speed. Two findings so often name the
+ * same artifact — a skill with no `## Instructions` usually has no `## Verification` either —
+ * that fixing them one at a time means two edits to one file, where the second is computed
+ * from a Blueprint that does not yet have the first in it and silently overwrites it. One ask
+ * produces one version of that artifact with both addressed, which is also the only version a
+ * reviewer can sensibly read.
+ */
+export async function fixFindings(
+  deps: OperationDeps,
+  ctx: OperationContext,
+  { diagnostics }: FixFindingsOptions,
+): Promise<ChangeSetResult> {
   const notes: string[] = []
+  const fixable: Diagnostic[] = []
+  for (const diagnostic of diagnostics) {
+    const fixability = fixabilityOf(diagnostic)
+    if (fixability.fixable) fixable.push(diagnostic)
+    else notes.push(`${diagnostic.code} was left alone: ${fixability.reason}`)
+  }
+
+  if (fixable.length === 0) {
+    throw new AIError(
+      'bad-request',
+      diagnostics.length === 0
+        ? 'There is nothing to fix.'
+        : 'None of these can be cleared by writing artifacts.',
+    )
+  }
+
+  const kinds = [...new Set(fixable.flatMap((diagnostic) => kindsFor(diagnostic)))]
+
+  /**
+   * The artifact in full, rather than as one line of a roster.
+   *
+   * With one finding the context builder is told to select it, which is what puts it in whole.
+   * With several there is no one selection to make, so the artifacts go in beside the ask
+   * instead — which is where they were repeated anyway, for the reason P9-13 records.
+   */
+  const [first] = fixable
+  const only = fixable.length === 1 ? first : undefined
+  const context = contextFor(
+    { ...ctx, ...(only?.ref ? { selection: only.ref } : {}) },
+    deps,
+    fixFindingV1.system,
+  )
+  const artifacts = artifactsNamedBy(ctx.blueprint, fixable)
+
+  const base = {
+    findings: fixable.map(briefOf),
+    kinds,
+    ...(artifacts !== '' ? { artifacts } : {}),
+    ...(ctx.instruction !== undefined ? { instruction: ctx.instruction } : {}),
+  }
 
   const attempt = async (stillWrong?: readonly string[]): Promise<Assembly> => {
     const answer = await ask(
       deps,
       fixFindingV1,
       { ...base, ...(stillWrong ? { stillWrong } : {}) },
-      fixFindingOutputSchema(fixability.kinds),
+      fixFindingOutputSchema(kinds),
       context,
     )
 
-    /**
-     * The artifact the finding is about keeps its id, whatever the model called it.
-     *
-     * Same trap as improveArtifact: a model asked to add a description often tidies the id on
-     * the way past, and an id it changed is a create op beside an untouched original — which
-     * reads as a duplicate rather than as the fix. Pinned only when exactly one artifact of
-     * that kind came back: with two, there is no way to tell which is the edit and which is
-     * the new one, and guessing would overwrite the wrong artifact silently.
-     */
-    const target = diagnostic.ref
-    const sameKind = target
-      ? answer.value.artifacts.filter((proposal) => proposal.kind === target.kind)
-      : []
-    const pinnedId = target && sameKind.length === 1 ? target.id : undefined
-    const pinned = pinnedId === undefined ? undefined : sameKind[0]
-    if (target && sameKind.length > 1) {
-      notes.push(
-        `The model returned ${sameKind.length} ${target.kind} artifacts, so none was assumed to be "${target.id}". Check the review for a duplicate before applying.`,
-      )
-    }
-
-    const drafts: Draft[] = answer.value.artifacts.map((proposal) => ({
-      kind: proposal.kind,
-      value:
-        proposal === pinned && pinnedId !== undefined && isRecord(proposal.artifact)
-          ? { ...proposal.artifact, id: pinnedId }
-          : proposal.artifact,
-      ...(proposal.note !== undefined ? { note: proposal.note } : {}),
-    }))
-
+    const drafts = draftsFrom(ctx.blueprint, fixable, answer.value.artifacts, notes)
     const assembly = assembleChangeSet({
       blueprint: ctx.blueprint,
       source: 'ai',
-      // Stable, and names the finding rather than the moment: asking twice for the same
-      // finding produces the same id, which keeps a regenerate from stacking up reviews.
-      id: `ai:${fixFindingV1.id}:${diagnostic.code}:${diagnostic.ref?.id ?? 'blueprint'}`,
-      summary: `Fix ${diagnostic.code}${diagnostic.ref ? ` on ${diagnostic.ref.kind} "${diagnostic.ref.id}"` : ''}`,
+      // Stable, and names what is being fixed rather than the moment: asking twice for the
+      // same findings produces the same id, which keeps a regenerate from stacking reviews.
+      id: `ai:${fixFindingV1.id}:${fixable.map(fingerprint).sort().join('+')}`,
+      summary: only
+        ? `Fix ${only.code}${only.ref ? ` on ${only.ref.kind} "${only.ref.id}"` : ''}`
+        : `Fix ${fixable.length} findings`,
       drafts,
     })
     if (answer.value.note !== undefined) notes.push(answer.value.note)
@@ -438,20 +512,19 @@ export async function fixFinding(
   }
 
   let assembly = await attempt()
-  let outcome = outcomeOf(ctx.blueprint, diagnostic, assembly)
+  let outcome = outcomeOf(ctx.blueprint, fixable, assembly)
 
   // One more attempt, not a loop: a model that cannot clear a finding when told exactly what
-  // is still wrong will not manage it on the fifth try, and the user is waiting. Only when
-  // there is something concrete to say — an answer with no ops gets its own note instead.
-  const complaints = complaintsFrom(diagnostic, outcome)
+  // is still wrong will not manage it on the fifth try, and the user is waiting.
+  const complaints = complaintsFrom(fixable, outcome)
   if (complaints.length > 0 && assembly.changeSet.ops.length > 0) {
     const retry = await attempt(complaints)
-    const retryOutcome = outcomeOf(ctx.blueprint, diagnostic, retry)
-    // Kept only if it is actually better. A second attempt that clears no more and breaks
-    // more than the first is not an improvement, and the user would never know.
+    const retryOutcome = outcomeOf(ctx.blueprint, fixable, retry)
+    // Kept only if it is actually better: more of the findings closed, or the same number
+    // closed with less broken. A second answer nobody can tell apart is not an improvement.
     const better =
-      (retryOutcome.cleared && !outcome.cleared) ||
-      (retryOutcome.cleared === outcome.cleared &&
+      retryOutcome.standing.size < outcome.standing.size ||
+      (retryOutcome.standing.size === outcome.standing.size &&
         retryOutcome.introduced.length < outcome.introduced.length)
     if (better) {
       assembly = retry
@@ -464,8 +537,72 @@ export async function fixFinding(
     notes: [
       ...notes,
       ...assembly.notes,
-      ...verdictOf(diagnostic, outcome, assembly.changeSet.ops.length === 0),
+      ...verdictOf(fixable, outcome, assembly.changeSet.ops.length === 0),
     ],
     contextTrimmed: context.trimmed,
   }
+}
+
+/**
+ * The artifacts the model wrote, with the ids the findings named put back where they belong.
+ *
+ * Same trap as `improveArtifact`: a model asked to add a description tidies the id on the way
+ * past, and an id it changed is a create op beside an untouched original — which reads as a
+ * duplicate rather than as the fix. Pairing is only safe when it is unambiguous: exactly one
+ * artifact of a kind came back under an id nothing recognises, and exactly one finding of that
+ * kind is missing an answer. Anything less certain is reported rather than guessed at, because
+ * guessing here overwrites the wrong artifact silently.
+ */
+function draftsFrom(
+  blueprint: Blueprint,
+  diagnostics: readonly Diagnostic[],
+  proposals: readonly { kind: EntityKind; artifact: unknown; note?: string | undefined }[],
+  notes: string[],
+): Draft[] {
+  const pinned = new Map<unknown, string>()
+
+  const refs = diagnostics
+    .map((diagnostic) => diagnostic.ref)
+    .filter((ref): ref is EntityRef => ref !== undefined)
+
+  for (const kind of new Set(refs.map((ref) => ref.kind))) {
+    const returned = proposals.filter((proposal) => proposal.kind === kind)
+    const returnedIds = new Set(returned.map((proposal) => idOf(proposal.artifact)))
+    const named = refs.filter((ref) => ref.kind === kind).map((ref) => ref.id)
+
+    const unanswered = [...new Set(named)].filter((id) => !returnedIds.has(id))
+    const strays = returned.filter((proposal) => {
+      const id = idOf(proposal.artifact)
+      return (
+        id !== undefined && !named.includes(id) && findEntity(blueprint, kind, id) === undefined
+      )
+    })
+
+    const [stray] = strays
+    const [orphaned] = unanswered
+    if (
+      stray !== undefined &&
+      orphaned !== undefined &&
+      strays.length === 1 &&
+      unanswered.length === 1
+    ) {
+      pinned.set(stray, orphaned)
+    } else if (unanswered.length > 0 && strays.length > 0) {
+      notes.push(
+        `The model returned ${strays.length} new ${kind} artifacts while ${unanswered.length} it was asked about came back unchanged, so nothing was assumed to be a rename. Check the review for a duplicate before applying.`,
+      )
+    }
+  }
+
+  return proposals.map((proposal) => {
+    const id = pinned.get(proposal)
+    return {
+      kind: proposal.kind,
+      value:
+        id !== undefined && isRecord(proposal.artifact)
+          ? { ...proposal.artifact, id }
+          : proposal.artifact,
+      ...(proposal.note !== undefined ? { note: proposal.note } : {}),
+    }
+  })
 }

@@ -32,6 +32,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import {
+  fixabilityOf,
   checkId,
   findContradictions,
   judgeRequirements,
@@ -40,6 +41,7 @@ import {
 
 import { validateNow } from '@/lib/actions'
 import { withAiFindings, withoutDuplicates } from '@/lib/ai/merge'
+import { FixFindingDialog } from '@/components/ai/fix-finding-dialog'
 import { advance, type Progress, Waiting } from '@/components/ai/waiting'
 import { describeFailure, type Failure, wasStopped } from '@/lib/ai/failure'
 import { configuredClient, structuredFor } from '@/lib/ai/settings'
@@ -271,6 +273,7 @@ export function EvaluationView() {
                   <Badge variant="outline" className="shrink-0">
                     ×{dimension.weight}
                   </Badge>
+                  <FixDimension label={dimension.label} findings={dimension.findings} />
                 </span>
 
                 {dimension.findings.length > 0 ? (
@@ -378,5 +381,44 @@ export function EvaluationView() {
         {report.computedFrom.rulesVersion}. The report is a value, never stored in the project.
       </p>
     </div>
+  )
+}
+
+/**
+ * "Fix all with AI" for one dimension (P9-17).
+ *
+ * Reported from use: every finding had a control and the section above them had none, so
+ * clearing seven skills meant seven dialogs and seven round trips. Worse than slow — two
+ * findings about one skill produce two edits of it, the second computed from a Blueprint that
+ * does not yet have the first, so applying both loses one.
+ *
+ * Offered only when more than one finding here is something a model could write. With exactly
+ * one, the row's own control already does it and a second button beside it says the same thing
+ * twice; with none, the honest answer is no button rather than one that opens on a refusal.
+ */
+function FixDimension({ label, findings }: { label: string; findings: readonly Diagnostic[] }) {
+  const [open, setOpen] = useState(false)
+  const fixable = findings.filter((finding) => fixabilityOf(finding).fixable)
+  if (fixable.length < 2) return null
+
+  return (
+    <>
+      <Button
+        variant="outline"
+        size="sm"
+        className="shrink-0"
+        // Named after the dimension: a page of ten of these otherwise has ten buttons called
+        // "Fix all", which is ten identical rows to a screen reader.
+        aria-label={`Fix all ${label} findings with AI`}
+        title={`Ask a model to clear all ${fixable.length} in one go. You review every change.`}
+        onClick={() => setOpen(true)}
+      >
+        <SparklesIcon className="size-3" />
+        Fix all {fixable.length}
+      </Button>
+      {open ? (
+        <FixFindingDialog diagnostics={fixable} title={label} open onOpenChange={setOpen} />
+      ) : null}
+    </>
   )
 }

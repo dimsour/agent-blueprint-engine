@@ -880,6 +880,19 @@ something, it says what and where that thing still exists.
 - Where the advice went is the point: it moved from every request that has not failed to the one that did.
 - Two existing tests changed rather than broke: they stub a 401 and asserted the generic "Nothing was changed", which is now the specific "Check the key in Settings." A better assertion than the one it replaced.
 
+### P9-17 Fix a whole dimension, not a finding at a time (done)
+
+- Package: `packages/ai/src/operations/fix-finding.ts`, `apps/web/src/components/views/evaluation-view.tsx`
+- Depends on: P9-12, P9-13
+- Description: Reported from use. P9-12 put a **Fix with AI** control on every finding and nothing on the section above them, so clearing the seven skills a generated Blueprint arrives with meant seven dialogs and seven round trips.
+- The reason it is not a loop over the existing control is the part worth recording. Two findings so often name the **same artifact** — a skill with no `## Instructions` almost always has no `## Verification` either — that fixing them one at a time produces two edits of one file, where the second is computed from a Blueprint that does not yet have the first in it. Applying both silently loses one. Slowness was the visible problem; that was the real one.
+- Acceptance: one ask per dimension; each artifact returned once however many findings named it; the review says which of them the validator agrees are cleared; nothing offered where nothing could be written.
+- Verify: `pnpm --filter @agent-blueprint/ai test`, `pnpm --filter web test`
+- Built: `fixFindings` takes a list and `fixFinding` is its one-element case, so there is one prompt and one code path. The prompt states the rule in its own words — _"Several findings often name the same artifact. Return that artifact once, with every one of its findings addressed in the same version of it. Returning it twice is two competing edits, and the second silently wins."_
+- Built: the verdict became a tally. With a batch it says which codes are cleared, which still stand, and how many came from the quality pass and so cannot be re-checked at all — the P9-13 distinction, now counted.
+- The id-pinning guard from P9-13 generalised rather than being dropped: a returned artifact is paired with a finding's id only when exactly one of that kind came back under an unrecognised id and exactly one finding of that kind went unanswered. Anything less certain is reported, because guessing there overwrites the wrong artifact silently.
+- **Fix all N** appears only on a dimension with two or more fixable findings. With one, the row's own control already does it; with none, no button is more honest than one that opens on a refusal. Named after the dimension, so ten of them are not ten buttons called "Fix all".
+
 ### Open questions
 
 1. ~~**The logo needs a mark-only export.**~~ Settled: rather than crop by CSS, the cut is a script. `pnpm --filter web logo` measures nothing at run time — the rectangles live in `e2e/logo-assets.spec.ts`, taken from the artwork's alpha channel — and writes the three assets the app imports. A redrawn logo needs that one command and a re-measurement, and no component changes.

@@ -6,6 +6,7 @@
  */
 import { answerFor, stubEndpoint } from '@/lib/ai/stub-endpoint'
 import { readFixtureFiles } from '@agent-blueprint/fixtures'
+import { readStarterFiles } from '@agent-blueprint/templates'
 import { evaluateBlueprint, validateBlueprint } from '@agent-blueprint/core'
 import { compileBlueprint, portabilityOf } from '@agent-blueprint/exporters'
 import { render, screen, waitFor, within } from '@testing-library/react'
@@ -502,5 +503,39 @@ describe('EvaluationView: a check a model judged', () => {
     const after = screen.getAllByRole('list', { name: 'Checks' })
     expect(await within(after[0]!).findByText('pass')).toBeInTheDocument()
     expect(within(after[0]!).getByText('judged by a model')).toBeInTheDocument()
+  })
+})
+
+/**
+ * The dimension-level fix (P9-17).
+ *
+ * Every finding had a control and the section above them had none, so clearing seven skills
+ * meant seven dialogs and seven round trips.
+ */
+describe('fixing a whole dimension', () => {
+  it('offers one control per dimension that has more than one fixable finding', async () => {
+    const { blueprint } = await parseProject(readFixtureFiles('dotnet-testing-expert'))
+    // Blunt three skills at once: each raises both section findings, which is six.
+    useWorkspace.getState().load('test', {
+      ...blueprint,
+      skills: blueprint.skills.map((skill) => ({ ...skill, body: 'A topic.' })),
+    })
+
+    render(<EvaluationView />)
+    const fixAll = await screen.findByRole('button', { name: 'Fix all Skills findings with AI' })
+    expect(fixAll).toBeVisible()
+    // Named after the dimension, so ten of these are ten different buttons to a screen reader.
+    expect(fixAll).toHaveAccessibleName(/Skills/)
+  })
+
+  it('offers none where there is nothing a model could write', async () => {
+    // A clean starter has no skill findings, so no button — rather than one that opens on a
+    // refusal, which teaches the reader the feature does not work.
+    const { blueprint } = await parseProject(readStarterFiles('react-expert'))
+    useWorkspace.getState().load('test', blueprint)
+
+    render(<EvaluationView />)
+    await screen.findByRole('list', { name: 'Dimension scores' })
+    expect(screen.queryByRole('button', { name: /^Fix all Skills/ })).toBeNull()
   })
 })

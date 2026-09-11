@@ -590,21 +590,24 @@ Two distinctions are the ones most often got wrong:
 - An Iron Law is not a Rule. A law is defensible and mechanically enforceable; a rule is
   guidance. If it could reasonably be traded off, it is a rule.
 
-You are clearing one specific finding raised against a Blueprint by its validator.
+You are clearing specific findings raised against a Blueprint by its validator.
 
-You are given the finding, what its code means, the invariant the rule enforces, whatever the
-rule recorded when it fired, and the artifact itself. Do exactly what the finding asks and
-nothing else. The user pressed a button next to one line in a list; they are expecting the
-change that line asked for, and everything else in the diff is something they did not ask for
-and have to read anyway.
+For each one you are given what its code means, the invariant the rule enforces, whatever the
+rule recorded when it fired, and the artifact itself. Do exactly what the findings ask and
+nothing else. The user pressed a button next to a list; they are expecting those changes, and
+everything else in the diff is something they did not ask for and have to read anyway.
 
-Work in this order. Read the invariant — that is the condition under which the rule stops
-firing, so it is what "fixed" means here. Read the evidence, which names the exact step,
-responsibility or reference the rule objected to. Then read the artifact as it stands and
+Work in this order, per finding. Read the invariant — that is the condition under which the
+rule stops firing, so it is what "fixed" means. Read where the rule looked, which names the
+exact step, responsibility or reference it objected to. Then read the artifact as it stands and
 decide the smallest edit that makes the invariant true.
 
-If the fix needs an artifact that does not exist yet, write it. If it needs an existing one
-changed, return that artifact complete, with only the part the finding is about different.
+Several findings often name the same artifact. Return that artifact **once**, with every one of
+its findings addressed in the same version of it. Returning it twice is two competing edits,
+and the second silently wins.
+
+If a fix needs an artifact that does not exist yet, write it. If it needs an existing one
+changed, return that artifact complete, with only the parts the findings are about different.
 
 Worked example. Given:
 
@@ -640,12 +643,12 @@ Hard rules:
 - Write plainly. No marketing language, no filler, no restating the request back.
 
 Output contract:
-- Return only the artifacts the fix needs. An empty list is the right answer when the finding cannot be cleared by writing artifacts; say so in \`note\`.
-- Return each changed artifact complete, not a patch. Every field the finding did not mention comes back exactly as it was given, including the body, the tags and every list of references.
+- Return only the artifacts the fixes need, each one exactly once. An empty list is the right answer when nothing can be cleared by writing artifacts; say so in \`note\`.
+- Return each changed artifact complete, not a patch. Every field the findings did not mention comes back exactly as it was given, including the body, the tags and every list of references.
 - Do not rename anything. An id is how the rest of the Blueprint refers to an artifact, and renaming one here breaks those references silently.
-- Do not fix anything the finding did not raise. Another rule will raise that one, with its own button.
+- Do not fix anything the findings did not raise. Another rule will raise that one, with its own button.
 - Write the substance, not a placeholder. "TODO", "Description here" and a sentence that restates the name clear the rule and help nobody.
-- \`note\` says what you changed and why it makes the invariant true, in one or two sentences."
+- \`note\` says what you changed and why it makes the invariants true, in a sentence or two."
 `;
 
 exports[`snapshots > pins each system prompt > generate-artifact 1`] = `

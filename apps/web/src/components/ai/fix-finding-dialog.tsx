@@ -13,7 +13,7 @@
  * forty findings costs forty buttons and no dialogs.
  */
 import { type Diagnostic, diagnosticCode } from '@agent-blueprint/core'
-import { aiDiagnosticCode, fixabilityOf, fixFinding } from '@agent-blueprint/ai'
+import { aiDiagnosticCode, fixabilityOf, fixFindings } from '@agent-blueprint/ai'
 import { ArrowRightIcon, Loader2Icon, SparklesIcon, SquareIcon } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
@@ -41,16 +41,21 @@ interface Proposal {
 }
 
 export function FixFindingDialog({
-  diagnostic,
+  diagnostics,
+  title,
   open,
   onOpenChange,
 }: {
-  diagnostic: Diagnostic
+  /** One finding, or every finding of a dimension. The dialog reads the same either way. */
+  diagnostics: readonly Diagnostic[]
+  /** What the batch is, when it is a batch. A single finding describes itself. */
+  title?: string
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
+  const only = diagnostics.length === 1 ? diagnostics[0] : undefined
   const blueprint = useWorkspace((state) => state.blueprint)
-  const diagnostics = useWorkspace((state) => state.diagnostics)
+  const findings = useWorkspace((state) => state.diagnostics)
   const apply = useWorkspace((state) => state.apply)
 
   const [instruction, setInstruction] = useState('')
@@ -79,7 +84,7 @@ export function FixFindingDialog({
     setProgress({ received: 0, since: Date.now() })
     try {
       setProposal(
-        await fixFinding(
+        await fixFindings(
           {
             client: client.client,
             structured: structuredFor(client, {
@@ -89,11 +94,11 @@ export function FixFindingDialog({
           },
           {
             blueprint,
-            ...(diagnostic.ref ? { selection: diagnostic.ref } : {}),
-            ...(diagnostics.length > 0 ? { diagnostics } : {}),
+            ...(only?.ref ? { selection: only.ref } : {}),
+            ...(findings.length > 0 ? { diagnostics: findings } : {}),
             ...(instruction.trim() ? { instruction: instruction.trim() } : {}),
           },
-          { diagnostic },
+          { diagnostics },
         ),
       )
     } catch (error) {
@@ -117,13 +122,22 @@ export function FixFindingDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <SparklesIcon className="size-4" />
-            Fix this finding
+            {only ? 'Fix this finding' : `Fix ${diagnostics.length} findings`}
           </DialogTitle>
           <DialogDescription className="flex flex-wrap items-baseline gap-2">
-            <Badge variant="outline" className="font-mono">
-              {diagnostic.code}
-            </Badge>
-            <span className="min-w-0">{diagnostic.message}</span>
+            {only ? (
+              <>
+                <Badge variant="outline" className="font-mono">
+                  {only.code}
+                </Badge>
+                <span className="min-w-0">{only.message}</span>
+              </>
+            ) : (
+              <span className="min-w-0">
+                {diagnostics.length} findings{title ? ` in ${title}` : ''}, in one ask — so two
+                about the same artifact become one edit rather than two that overwrite each other.
+              </span>
+            )}
           </DialogDescription>
         </DialogHeader>
 
@@ -146,11 +160,20 @@ export function FixFindingDialog({
             {/* The instructions the model is given, shown rather than hidden. It is the same
                 sentence the "How to fix" note carries, so the user can see what was asked
                 for and judge the answer against it. */}
-            <Card className="flex flex-col gap-1 p-3">
+            <Card className="flex flex-col gap-1.5 p-3">
               <p className="text-xs font-medium">What the model is asked to do</p>
-              <p className="text-muted-foreground text-xs leading-relaxed">
-                {remedyOf(diagnostic)}
-              </p>
+              {/* Per code rather than per finding: seven skills missing the same section are
+                  one instruction, and reading it seven times teaches nothing. */}
+              {[...new Map(diagnostics.map((found) => [found.code, found])).values()].map(
+                (found) => (
+                  <p key={found.code} className="text-muted-foreground text-xs leading-relaxed">
+                    {diagnostics.length > 1 ? (
+                      <span className="font-mono">{found.code}: </span>
+                    ) : null}
+                    {remedyOf(found)}
+                  </p>
+                ),
+              )}
             </Card>
 
             {/* The escape hatch for the finding the model reads the wrong way. Everything
@@ -172,7 +195,7 @@ export function FixFindingDialog({
             <div className="flex flex-wrap items-center gap-2">
               <Button disabled={busy || !blueprint} onClick={() => void run()}>
                 {busy ? <Loader2Icon className="animate-spin" /> : <SparklesIcon />}
-                {busy ? 'Fixing…' : proposal ? 'Ask again' : 'Fix it'}
+                {busy ? 'Fixing…' : proposal ? 'Ask again' : only ? 'Fix it' : 'Fix them'}
               </Button>
               {busy ? (
                 <Button variant="outline" onClick={stop}>

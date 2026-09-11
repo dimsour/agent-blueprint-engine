@@ -157,7 +157,7 @@ export function DiagnosticFix({ diagnostic }: { diagnostic: Diagnostic }) {
       </TooltipProvider>
 
       {/* Mounted only while open, so a list of forty findings costs no dialogs. */}
-      {open ? <FixFindingDialog diagnostic={diagnostic} open onOpenChange={setOpen} /> : null}
+      {open ? <FixFindingDialog diagnostics={[diagnostic]} open onOpenChange={setOpen} /> : null}
     </>
   )
 }

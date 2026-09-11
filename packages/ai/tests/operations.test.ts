@@ -30,6 +30,7 @@ import {
   findMissing,
   fixabilityOf,
   fixFinding,
+  fixFindings,
   invariantFor,
   generateArtifact,
   generateBlueprint,
@@ -509,7 +510,7 @@ describe('fixFinding', () => {
 
     // Neither is "xunit": with two, picking one would overwrite an artifact silently.
     expect(result.changeSet.ops.every((op) => op.type === 'create')).toBe(true)
-    expect(result.notes.join(' ')).toMatch(/2 skill artifacts/)
+    expect(result.notes.join(' ')).toMatch(/returned 2 new skill artifacts/)
   })
 
   it('refuses the codes no artifact edit can clear, and says what does', async () => {
@@ -608,7 +609,7 @@ describe('fixFinding, checked against the validator', () => {
       { diagnostic: finding },
     )
 
-    expect(result.notes.join(' ')).toContain('is still raised after this change')
+    expect(result.notes.join(' ')).toContain('Still raised after this change: BP-DESC-001')
   })
 
   it('does not claim to have checked a code the validator cannot raise', async () => {
@@ -627,7 +628,9 @@ describe('fixFinding, checked against the validator', () => {
 
     // BP-SAFETY-003 comes from the evaluation pass, so re-running the validator proves
     // nothing about it. Saying "cleared" would be a lie by omission.
-    expect(result.notes.join(' ')).toContain('Not re-checked')
+    expect(result.notes.join(' ')).toContain(
+      'come from the quality review rather than the validator',
+    )
     expect(result.notes.join(' ')).not.toContain('clears BP-SAFETY-003')
   })
 })
@@ -653,13 +656,13 @@ describe('what the model is told about a finding', () => {
 
     const sent = client.sent[0]!.messages.map((message) => message.content).join('\n')
     // The invariant is the exit condition, from the rule's own description.
-    expect(sent).toContain('The rule enforces this:')
+    expect(sent).toContain('Cleared when:')
     // The evidence names the step, so the model does not have to guess which of nine it is.
     expect(sent).toContain('nodeId')
     // The fields say what to change and, by omission, what to return untouched.
-    expect(sent).toContain('The finding is about these fields: nodes')
+    expect(sent).toContain('Fields to change: nodes')
     // And the artifact is repeated next to the ask, not only thousands of tokens earlier.
-    expect(sent).toContain('## The artifact as it stands')
+    expect(sent).toContain('## The artifacts as they stand')
   })
 })
 
@@ -857,5 +860,138 @@ describe('addCapability', () => {
     expect(findEntity(after, 'agent', fixture.agents[0]!.id)!.ironLawIds).toContain(
       'no-unreviewed-merge',
     )
+  })
+})
+
+/**
+ * Several findings, in one ask (P9-17).
+ *
+ * Not a loop over `fixFinding`, and the reason is not speed: two findings so often name the
+ * same artifact — a skill with no Instructions usually has no Verification either — that
+ * fixing them separately means two edits to one file, the second computed from a Blueprint
+ * that does not yet have the first in it.
+ */
+describe('fixFindings', () => {
+  function blunted(): Blueprint {
+    return {
+      ...fixture,
+      skills: fixture.skills.map((skill) =>
+        skill.id === 'test-design' ? { ...skill, body: 'Think about what to assert.' } : skill,
+      ),
+    }
+  }
+
+  /** The two findings a body with neither heading raises, on the one artifact. */
+  const both = [
+    {
+      code: 'BP-SKILL-011',
+      severity: 'info' as const,
+      message: 'Skill "Test design" has no Verification section.',
+      ref: { kind: 'skill' as const, id: 'test-design' },
+    },
+    {
+      code: 'BP-EVAL-SKILL-002',
+      severity: 'info' as const,
+      message: 'Skill "Test design" has no Instructions section.',
+      ref: { kind: 'skill' as const, id: 'test-design' },
+    },
+  ]
+
+  const fixed = JSON.stringify({
+    artifacts: [
+      {
+        kind: 'skill',
+        artifact: {
+          id: 'test-design',
+          name: 'Test design',
+          description: 'Deciding what a test should assert and naming it for the behaviour.',
+          whenToUse: 'When deciding what a test should assert.',
+          body: '## Instructions\n\n1. Name the behaviour before naming the method.\n2. Assert on what a caller can observe.\n\n## Verification\n\nRun `dotnet test` and read the names; each one reads as a sentence about behaviour.',
+        },
+      },
+    ],
+    note: 'Gave the body both sections in one edit.',
+  })
+
+  it('answers two findings about one artifact with one version of it', async () => {
+    const blueprint = blunted()
+    const result = await fixFindings(
+      { client: replayClient([fixed]).client },
+      { blueprint },
+      { diagnostics: both },
+    )
+
+    // One op, not two competing edits to the same file.
+    expect(result.changeSet.ops).toHaveLength(1)
+    const body = findEntity(
+      applyChangeSet(blueprint, result.changeSet).blueprint,
+      'skill',
+      'test-design',
+    )!.body
+    expect(body).toContain('## Instructions')
+    expect(body).toContain('## Verification')
+  })
+
+  it('sends both findings in one ask, each with its own steering', async () => {
+    const client = replayClient([fixed])
+    await fixFindings({ client: client.client }, { blueprint: blunted() }, { diagnostics: both })
+
+    expect(client.sent).toHaveLength(1)
+    const sent = client.sent[0]!.messages.map((message) => message.content).join('\n')
+    expect(sent).toContain('Clear these 2 findings, in one answer.')
+    expect(sent).toContain('BP-SKILL-011')
+    expect(sent).toContain('BP-EVAL-SKILL-002')
+    // And the artifact once beside the ask, not once per finding. (It appears in the
+    // context block too, which is a different job and is where every artifact appears.)
+    const beside = sent.slice(sent.indexOf('## The artifacts as they stand'))
+    expect(beside.split('# Skill: test-design').length - 1).toBe(1)
+  })
+
+  it('says which of them it actually closes', async () => {
+    const result = await fixFindings(
+      { client: replayClient([fixed]).client },
+      { blueprint: blunted() },
+      { diagnostics: both },
+    )
+
+    // BP-SKILL-011 is a validator rule and is checked; BP-EVAL-SKILL-002 comes from the
+    // quality pass, so the note says it is a judgement rather than claiming success.
+    const notes = result.notes.join(' ')
+    expect(notes).toContain('BP-SKILL-011')
+    expect(notes).toContain('quality review rather than the validator')
+  })
+
+  it('leaves alone what no artifact edit can clear, and says which', async () => {
+    const result = await fixFindings(
+      { client: replayClient([fixed]).client },
+      { blueprint: blunted() },
+      {
+        diagnostics: [
+          ...both,
+          {
+            code: 'BP-TARGET-001',
+            severity: 'info',
+            message: 'No export target is enabled.',
+          },
+        ],
+      },
+    )
+
+    expect(result.notes.join(' ')).toContain('BP-TARGET-001 was left alone')
+    expect(result.notes.join(' ')).toContain('Compatibility view')
+  })
+
+  it('refuses a batch where nothing can be fixed, rather than asking for nothing', async () => {
+    await expect(
+      fixFindings(
+        { client: replayClient([fixed]).client },
+        { blueprint: fixture },
+        {
+          diagnostics: [
+            { code: 'BP-TARGET-001', severity: 'info', message: 'No export target is enabled.' },
+          ],
+        },
+      ),
+    ).rejects.toThrow(/None of these/)
   })
 })
