@@ -1055,6 +1055,16 @@ something, it says what and where that thing still exists.
 - Built: `compileCodexPlugin`, `codexPluginPhrasing`, the sidecar moved to its own module so both layouts share it, `emitPortableSkillSet` taking a phrasing, `PLUGIN_LAYOUT_TARGETS` now naming both harnesses, the golden `dotnet-testing-expert.codex-plugin`.
 - Not built: an always-loaded instruction file — Codex plugins have none, so the guide is a skill the model loads when its description matches; hook scripts in the plugin, until Codex documents how a plugin hook finds its own files.
 
+### P9-33 The README on GitHub says where it is (done)
+
+- Package: `packages/exporters` (`shared/readme.ts`, `pipeline.ts`), `apps/web` (`lib/github/plan.ts`, push dialog)
+- Depends on: P9-27
+- Description: Reported from use: the README on the pushed branch did not say how to install the plugin. The compiler cannot know where a repository lives, so the README's Installing section carried `<owner>/<repo>` for the reader to fill in — the one place the commands matter, and the one place they were not usable. The push dialog knows the repository, and the plan already compiles the files it pushes.
+- Acceptance: `compileBlueprint` takes `repository`; `planPush` passes the repository it is pushing to, so the README that goes up names it in its install commands and nowhere carries the placeholder; an export to a ZIP, which knows no repository, keeps the placeholder; a project pushed in the project layout and pushed again as a plugin has its README rewritten, since the compiler owns it.
+- Verify: `pnpm --filter web test`
+- Built: `ReadmeOptions.repository` through `CompileOptions.repository` to `planPush`'s third argument. The plan test proves the second-push rewrite and the dialog test reads the README out of the tree the push sent.
+- Found on the way: nothing in the plan skips the README of a repository this app made — the file is the compiler's by the manifest and is rewritten whenever it changes. A README that was on the branch before the first push ever ran is the one case it stays: it is listed under the files the app does not own, and written only when accepted; the dialog already says so.
+
 ### Open questions
 
 1. ~~**The logo needs a mark-only export.**~~ Settled: rather than crop by CSS, the cut is a script. `pnpm --filter web logo` measures nothing at run time — the rectangles live in `e2e/logo-assets.spec.ts`, taken from the artwork's alpha channel — and writes the three assets the app imports. A redrawn logo needs that one command and a re-measurement, and no component changes.

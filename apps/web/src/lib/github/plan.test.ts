@@ -59,6 +59,34 @@ describe('planning a push', () => {
     expect(second.unchanged).toBe(Object.keys(remote).length)
   })
 
+  /**
+   * Switching a pushed project to a plugin (P9-27) rewrites the README with the install
+   * commands, and a push knows the repository, so the commands name it (P9-33).
+   */
+  it('rewrites its own README when the layout changes, naming the repository', async () => {
+    const blueprint = await fixture()
+    const first = await planPush(blueprint, undefined)
+    const remote = applied({}, first)
+
+    const asPlugin = {
+      ...blueprint,
+      targets: [
+        { harnessId: 'claude-code' as const, enabled: true, options: { layout: 'plugin' } },
+      ],
+    }
+    const second = await planPush(asPlugin, branch(remote), { repository: 'octocat/blueprints' })
+
+    expect(second.conflicts).toEqual([])
+    const readme = second.changes.find((change) => change.path === 'README.md')
+    expect(readme?.kind).toBe('update')
+    expect(readme?.content).toContain('/plugin marketplace add octocat/blueprints')
+    expect(readme?.content).toContain('/plugin install dotnet-testing-expert@dotnet-testing-expert')
+    expect(readme?.content).not.toContain('<owner>/<repo>')
+    // The project-layout files it wrote before go, and the plugin's come.
+    expect(second.changes.some((c) => c.path === 'CLAUDE.md' && c.kind === 'delete')).toBe(true)
+    expect(second.changes.some((c) => c.path === '.claude-plugin/marketplace.json')).toBe(true)
+  })
+
   it('leaves a file it did not write alone, and writes it only when that is accepted', async () => {
     const blueprint = await fixture()
     const handWritten = '# Our own instructions\n\nWritten before any of this existed.\n'

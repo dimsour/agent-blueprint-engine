@@ -233,7 +233,7 @@ describe('pushing to GitHub', () => {
       ...blueprint,
       targets: [{ harnessId: 'claude-code', enabled: true, options: { layout: 'plugin' } }],
     })
-    await github()
+    const { requests } = await github()
     const user = await openDialog()
     await chooseRepository(user)
     const changes = await screen.findByRole('list', { name: 'Changes' })
@@ -248,6 +248,14 @@ describe('pushing to GitHub', () => {
     expect(document.body.textContent).toContain(
       '/plugin install dotnet-testing-expert@dotnet-testing-expert',
     )
+    // And the README that went up names this repository in its own install commands (P9-33),
+    // rather than a placeholder the reader has to fill in.
+    const tree = requests.find((r) => r.method === 'POST' && r.url.endsWith('/git/trees'))
+    const readme = (tree?.body.tree as { path: string; content?: string }[]).find(
+      (item) => item.path === 'README.md',
+    )
+    expect(readme?.content).toContain('/plugin marketplace add octocat/blueprints')
+    expect(readme?.content).not.toContain('<owner>/<repo>')
   })
 
   it('counts an accepted conflict as one more file in the commit', async () => {

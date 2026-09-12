@@ -202,6 +202,7 @@ function Push() {
       const plan = await planPush(
         blueprint,
         tree ? { fs, truncated: tree.truncated, prime: (files) => fs.prime(files) } : undefined,
+        { repository: `${chosen.owner}/${chosen.name}` },
       )
 
       // Conflicts are scanned too, so a warning does not appear only once one has been ticked.

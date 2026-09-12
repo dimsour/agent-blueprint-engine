@@ -143,9 +143,14 @@ class RecordingFs implements VirtualFs {
 export async function planPush(
   blueprint: Blueprint,
   remote: RemoteBranch | undefined,
+  options: { repository?: string } = {},
 ): Promise<PushPlan> {
   const sourceDir = blueprint.settings.sourceDir || DEFAULT_SOURCE_DIR
-  const compiled = compileBlueprint(blueprint)
+  // A push knows where the files are going, so the README can say how to install from there.
+  const compiled = compileBlueprint(
+    blueprint,
+    options.repository ? { repository: options.repository } : {},
+  )
   const manifest = await buildManifestFor(compiled)
   const source = projectFilesOf(blueprint)
 

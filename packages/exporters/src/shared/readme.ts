@@ -116,7 +116,19 @@ function usageOf(blueprint: Blueprint, target: HarnessId, plugin: boolean): Harn
   }
 }
 
-export function emitReadme(blueprint: Blueprint, targets: readonly HarnessId[]): GeneratedFile {
+export interface ReadmeOptions {
+  /**
+   * Where the repository lives on GitHub, as `owner/name`, when the caller knows — a push
+   * does; an export to a ZIP does not. With it the install commands are the real ones.
+   */
+  repository?: string
+}
+
+export function emitReadme(
+  blueprint: Blueprint,
+  targets: readonly HarnessId[],
+  options: ReadmeOptions = {},
+): GeneratedFile {
   const plugins = new Set(pluginTargets(blueprint, targets))
   const usage = (target: HarnessId) => usageOf(blueprint, target, plugins.has(target))
   const md = new Markdown()
@@ -135,11 +147,19 @@ export function emitReadme(blueprint: Blueprint, targets: readonly HarnessId[]):
   if (plugins.size > 0) {
     md.heading(2, 'Installing')
     md.paragraph(
-      'Once this repository is on GitHub, the plugin installs from it; `<owner>/<repo>` is the repository path there.',
+      options.repository
+        ? `The plugin installs from this repository, \`${options.repository}\` on GitHub.`
+        : 'Once this repository is on GitHub, the plugin installs from it; `<owner>/<repo>` is the repository path there.',
     )
     for (const target of plugins) {
       md.paragraph(`**${HARNESS_LABELS[target]}:**`)
-      md.raw(['```', ...installCommands(blueprint, target, '<owner>/<repo>'), '```'].join('\n'))
+      md.raw(
+        [
+          '```',
+          ...installCommands(blueprint, target, options.repository ?? '<owner>/<repo>'),
+          '```',
+        ].join('\n'),
+      )
     }
   }
 

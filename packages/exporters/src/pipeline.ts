@@ -50,6 +50,8 @@ export interface CompileOptions {
   targets?: HarnessId[]
   /** Emit the repository README. Default true. */
   includeReadme?: boolean
+  /** The repository's `owner/name` on GitHub, when known; the README's install commands use it. */
+  repository?: string
 }
 
 export interface CompileOutput {
@@ -121,7 +123,9 @@ export function compileBlueprint(
   }
 
   if (options.includeReadme !== false && targets.length > 0) {
-    produced.push(emitReadme(blueprint, targets))
+    produced.push(
+      emitReadme(blueprint, targets, options.repository ? { repository: options.repository } : {}),
+    )
   }
 
   const merged = mergeFileSets(produced)
