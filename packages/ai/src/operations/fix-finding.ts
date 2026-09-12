@@ -69,6 +69,7 @@ const NOT_ARTIFACT_WORK: Record<string, string> = {
   'BP-TARGET-003': 'Correct the target’s options in the Compatibility view.',
   'BP-COMPILE-001': 'Two targets want the same path. Rename one artifact, or turn one target off.',
   'BP-CLAUDE-001': 'Rename either the workflow or the skill from the inspector.',
+  'BP-CLAUDE-002': 'Rename either the rule or the skill from the inspector.',
   'BP-CODEX-001': 'Rename either the workflow or the skill from the inspector.',
   'BP-COPILOT-001': 'Rename either the workflow or the skill from the inspector.',
   'BP-OPENCODE-001': 'Rename either the workflow or the skill from the inspector.',

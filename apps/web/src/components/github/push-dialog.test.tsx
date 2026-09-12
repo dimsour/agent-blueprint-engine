@@ -226,6 +226,30 @@ describe('pushing to GitHub', () => {
     expect(requests.filter((request) => request.url.endsWith('/git/commits')).length).toBe(1)
   })
 
+  it('says how to install what it pushed, when it pushed a plugin', async () => {
+    sessionStorage.setItem('ab:credentials:github', 'ghp_token')
+    const blueprint = await load()
+    useWorkspace.getState().load('test', {
+      ...blueprint,
+      targets: [{ harnessId: 'claude-code', enabled: true, options: { layout: 'plugin' } }],
+    })
+    await github()
+    const user = await openDialog()
+    await chooseRepository(user)
+    const changes = await screen.findByRole('list', { name: 'Changes' })
+    expect(within(changes).getByText('.claude-plugin/marketplace.json')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /Push/ }))
+    await screen.findByRole('link', { name: /See it on GitHub/ })
+
+    // The exact commands, with the repository this dialog pushed to.
+    expect(screen.getByText(/Install it in Claude Code/)).toBeInTheDocument()
+    expect(document.body.textContent).toContain('/plugin marketplace add octocat/blueprints')
+    expect(document.body.textContent).toContain(
+      '/plugin install dotnet-testing-expert@dotnet-testing-expert',
+    )
+  })
+
   it('counts an accepted conflict as one more file in the commit', async () => {
     sessionStorage.setItem('ab:credentials:github', 'ghp_token')
     await load()

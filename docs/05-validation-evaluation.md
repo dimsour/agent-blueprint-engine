@@ -97,17 +97,18 @@ Manifest problems are thrown as `ProjectReadError` (`MANIFEST_MISSING`, `MANIFES
 
 ### 2.4 Compilation and portability (implemented: `@agent-blueprint/exporters`, surfaced through validation)
 
-| Code                                                                              | Severity | Spec                                                                                                        |
-| --------------------------------------------------------------------------------- | -------- | ----------------------------------------------------------------------------------------------------------- |
-| `BP-PORT-001`                                                                     | warning  | A feature used by the Blueprint is `unsupported` on an enabled target (from the adapter capability matrix). |
-| `BP-PORT-002`                                                                     | info     | A feature is `adapted` or `limited` on an enabled target; message carries the adapter's explanation.        |
-| `BP-TARGET-003`                                                                   | error    | `TargetConfig.options` failed the adapter schema; the target was skipped.                                   |
-| `BP-COMPILE-001`                                                                  | error    | Two adapters produced different content for one path; neither was written. This is an adapter bug.          |
-| `BP-CLAUDE-001`, `BP-CODEX-001`, `BP-COPILOT-001`, `BP-OPENCODE-001`, `BP-PI-001` | error    | A workflow and a skill share an id, so they compile to the same file and overwrite each other.              |
-| `BP-CODEX-002`                                                                    | warning  | `AGENTS.md` is still over the Codex instruction budget after optional sections moved to a skill.            |
-| `BP-COPILOT-002`                                                                  | warning  | A custom agent file is longer than the 30 000 characters Copilot reads.                                     |
-| `BP-OPENCODE-002`                                                                 | warning  | An agent and a workflow share an id, so OpenCode has a `@name` and a `/name` that are not the same thing.   |
-| `BP-PI-002`                                                                       | error    | An agent and a workflow share an id, so both compile to the same Pi prompt template.                        |
+| Code                                                                              | Severity | Spec                                                                                                                   |
+| --------------------------------------------------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `BP-PORT-001`                                                                     | warning  | A feature used by the Blueprint is `unsupported` on an enabled target (from the adapter capability matrix).            |
+| `BP-PORT-002`                                                                     | info     | A feature is `adapted` or `limited` on an enabled target; message carries the adapter's explanation.                   |
+| `BP-TARGET-003`                                                                   | error    | `TargetConfig.options` failed the adapter schema; the target was skipped.                                              |
+| `BP-COMPILE-001`                                                                  | error    | Two adapters produced different content for one path; neither was written. This is an adapter bug.                     |
+| `BP-CLAUDE-001`, `BP-CODEX-001`, `BP-COPILOT-001`, `BP-OPENCODE-001`, `BP-PI-001` | error    | A workflow and a skill share an id, so they compile to the same file and overwrite each other.                         |
+| `BP-CLAUDE-002`                                                                   | error    | Plugin layout only: a path-scoped rule compiles to the skill `rule-<id>`, and a skill or workflow has that id (P9-27). |
+| `BP-CODEX-002`                                                                    | warning  | `AGENTS.md` is still over the Codex instruction budget after optional sections moved to a skill.                       |
+| `BP-COPILOT-002`                                                                  | warning  | A custom agent file is longer than the 30 000 characters Copilot reads.                                                |
+| `BP-OPENCODE-002`                                                                 | warning  | An agent and a workflow share an id, so OpenCode has a `@name` and a `/name` that are not the same thing.              |
+| `BP-PI-002`                                                                       | error    | An agent and a workflow share an id, so both compile to the same Pi prompt template.                                   |
 
 ### 2.5 Evaluation-only findings (implemented: `evaluation/score.ts`)
 

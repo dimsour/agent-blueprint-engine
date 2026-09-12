@@ -10,8 +10,9 @@
  */
 import { HARNESS_IDS, HARNESS_LABELS, type HarnessId } from '@agent-blueprint/core'
 import {
-  adapterFor,
+  capabilitiesOf,
   CONCEPT_LABELS,
+  PLUGIN_LAYOUT_TARGETS,
   portabilityOf,
   type SupportLevel,
 } from '@agent-blueprint/exporters'
@@ -20,7 +21,7 @@ import { useMemo } from 'react'
 
 import { Badge, Card } from '@/components/ui/primitives'
 import { cn } from '@/lib/utils'
-import { enabledTargetIds, withTarget } from '@/lib/targets'
+import { enabledTargetIds, isPluginLayout, withTarget, withTargetOptions } from '@/lib/targets'
 import { useWorkspace } from '@/lib/state/workspace-store'
 
 const SUPPORT: Record<SupportLevel, { icon: React.ReactNode; label: string; tone: string }> = {
@@ -61,6 +62,15 @@ export function CompatibilityView() {
   const toggle = (harnessId: HarnessId) => {
     updateBlueprint({ targets: withTarget(blueprint, harnessId, !enabled.includes(harnessId)) })
   }
+
+  // A plugin is the same Blueprint installed from a marketplace instead of opened as a
+  // repository (P9-27). The switch is per target, because only some harnesses have plugins.
+  const setLayout = (harnessId: HarnessId, plugin: boolean) => {
+    updateBlueprint({
+      targets: withTargetOptions(blueprint, harnessId, { layout: plugin ? 'plugin' : undefined }),
+    })
+  }
+  const pluginCapable = enabled.filter((id) => PLUGIN_LAYOUT_TARGETS.includes(id))
 
   return (
     <div className="flex flex-col gap-6 p-4">
@@ -112,6 +122,26 @@ export function CompatibilityView() {
             )
           })}
         </ul>
+        {pluginCapable.length > 0 ? (
+          <ul aria-label="Packaging" className="flex flex-col gap-1">
+            {pluginCapable.map((id) => (
+              <li key={id}>
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={isPluginLayout(blueprint, id)}
+                    onChange={(event) => setLayout(id, event.target.checked)}
+                  />
+                  Package for {HARNESS_LABELS[id]} as a plugin
+                  <span className="text-muted-foreground text-xs">
+                    — installable from this repository with a marketplace command, instead of files
+                    at the root
+                  </span>
+                </label>
+              </li>
+            ))}
+          </ul>
+        ) : null}
       </section>
 
       <section className="flex flex-col gap-2">
@@ -148,7 +178,7 @@ export function CompatibilityView() {
                     </th>
                     {enabled.map((id) => {
                       const support = row.byTarget[id] ?? 'unsupported'
-                      const explanation = adapterFor(id).capabilities[row.concept].explanation
+                      const explanation = capabilitiesOf(blueprint, id)[row.concept].explanation
                       return (
                         <td key={id} className="px-3 py-2">
                           <span

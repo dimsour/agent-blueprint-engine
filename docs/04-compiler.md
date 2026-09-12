@@ -254,16 +254,17 @@ subagent primitive, or to persona-switch prompts where subagents are unsupported
 
 ## Claude Code adapter mapping (summary; full table in `docs/harness/claude-code.md`)
 
-| Blueprint                                           | Output                                         |
-| --------------------------------------------------- | ---------------------------------------------- |
-| Primary agent + laws + rules + roster + memory seed | `CLAUDE.md`                                    |
-| Rules with `paths`                                  | `.claude/rules/<id>.md`                        |
-| Skills                                              | `.claude/skills/<id>/SKILL.md` + resources     |
-| Other agents                                        | `.claude/agents/<id>.md`                       |
-| Workflows                                           | `.claude/skills/<id>/SKILL.md` (orchestration) |
-| Hooks, gates, permissions, auto-memory flag         | `.claude/settings.json`                        |
-| MCP tools                                           | `.mcp.json`                                    |
-| Agent-level references                              | `.claude/references/<id>.md` + `@` import      |
+| Blueprint                                           | Output                                                                                                                                                                                                                            |
+| --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Primary agent + laws + rules + roster + memory seed | `CLAUDE.md`                                                                                                                                                                                                                       |
+| Rules with `paths`                                  | `.claude/rules/<id>.md`                                                                                                                                                                                                           |
+| Skills                                              | `.claude/skills/<id>/SKILL.md` + resources                                                                                                                                                                                        |
+| Other agents                                        | `.claude/agents/<id>.md`                                                                                                                                                                                                          |
+| Workflows                                           | `.claude/skills/<id>/SKILL.md` (orchestration)                                                                                                                                                                                    |
+| Hooks, gates, permissions, auto-memory flag         | `.claude/settings.json`                                                                                                                                                                                                           |
+| MCP tools                                           | `.mcp.json`                                                                                                                                                                                                                       |
+| Agent-level references                              | `.claude/references/<id>.md` + `@` import                                                                                                                                                                                         |
+| With `layout: plugin` (P9-27)                       | `plugins/claude-code/` (manifest, `instructions.md`, `skills/`, `agents/`, `hooks/`, `.mcp.json`) and `.claude-plugin/marketplace.json`; no `CLAUDE.md`, rules or permissions — see `docs/harness/claude-code.md` "Plugin layout" |
 
 ## Codex adapter mapping (summary; full table in `docs/harness/codex.md`)
 
@@ -333,6 +334,12 @@ subagent primitive, or to persona-switch prompts where subagents are unsupported
 ├── opencode.json, .opencode/{agents,commands}/          opencode
 └── .pi/{prompts,settings.json,APPEND_SYSTEM.md}         pi
 ```
+
+With `layout: plugin` on the Claude Code target (P9-27), its files move under `plugins/claude-code/`
+and `.claude-plugin/marketplace.json` appears at the root; nothing of it is written at the root
+otherwise. A target option changes what a harness can carry, so `HarnessAdapter.capabilitiesFor`
+returns the matrix for the parsed options and `portabilityOf` reads that rather than the
+static `capabilities`.
 
 ## Worked example: `packages/fixtures/projects/dotnet-testing-expert`
 

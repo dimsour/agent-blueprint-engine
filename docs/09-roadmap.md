@@ -1035,6 +1035,16 @@ something, it says what and where that thing still exists.
 - Built: `agentBudgetSchema`, `EFFORT_LEVEL_INFO`, the two frontmatter lines, the TOML key and the issue, a `NumberField` in the form kit.
 - Not built: a budget on the primary agent, which has no file of its own on any harness (Claude's `effort` there is a session setting, not a project one); Copilot, OpenCode and Pi agent files, none of which documents an effort field.
 
+### P9-27 A Blueprint as a plugin, installed from its own repository (done)
+
+- Package: `packages/exporters` (`claude-code/plugin.ts`, `emit.ts`, `options.ts`, `shared/readme.ts`, `portability.ts`), `packages/core` (`BP-CLAUDE-002`), `apps/web` (compatibility view, push dialog)
+- Depends on: P9-22, P9-25, P9-26, P9-30, P9-31
+- Description: Asked for. A compiled repository configures the project it is opened in and nothing else; a Claude Code plugin is installed once from a marketplace and follows the user everywhere. Claude Code's marketplace is a JSON file in a GitHub repository, so the repository the push dialog already makes is one manifest away from being installable with two commands.
+- Acceptance: with `layout: plugin` on the Claude Code target the adapter writes `plugins/claude-code/` (manifest, instructions, skills, agents, hooks and scripts, references, MCP) and `.claude-plugin/marketplace.json`, and nothing at the root; the compatibility view has a switch per plugin-capable target and shows the matrix for that layout; the README says how to install; the push dialog shows the exact commands with the repository it pushed to; MCP secrets become `userConfig` entries marked sensitive; a golden pins the fixture as a plugin.
+- Verify: `pnpm --filter @agent-blueprint/exporters test`, `pnpm --filter web test`
+- Built: the adapter split into `options.ts`, `emit.ts` (what one artifact becomes, shared by both layouts) and `plugin.ts`; `HarnessAdapter.capabilitiesFor(options)` so the compatibility matrix is the one for the layout chosen; `pluginPhrasing` so the instructions say `/<id>:<workflow>`; a `SessionStart` hook that prints `instructions.md`, the one door a plugin has into every session; the golden `dotnet-testing-expert.plugin`.
+- Not built: a marketplace with more than one plugin — one Blueprint is one repository is one plugin, and the manifest lists exactly that; `homepage` and `repository` in the manifest, which the compiler cannot know; a plugin for Copilot, OpenCode or Pi, none of which has a documented marketplace format.
+
 ### Open questions
 
 1. ~~**The logo needs a mark-only export.**~~ Settled: rather than crop by CSS, the cut is a script. `pnpm --filter web logo` measures nothing at run time — the rectangles live in `e2e/logo-assets.spec.ts`, taken from the artwork's alpha channel — and writes the three assets the app imports. A redrawn logo needs that one command and a re-measurement, and no component changes.

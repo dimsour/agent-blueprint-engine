@@ -249,6 +249,35 @@ describe('CompatibilityView', () => {
     expect(within(notes).getAllByRole('listitem').length).toBeGreaterThan(0)
   })
 
+  /**
+   * A plugin is the same Blueprint installed from a marketplace (P9-27). The switch writes
+   * the target option the adapter reads, and reports what a plugin cannot carry.
+   */
+  it('packages a harness as a plugin, and says what that costs', async () => {
+    await load()
+    const user = userEvent.setup()
+    render(<CompatibilityView />)
+
+    const box = screen.getByRole('checkbox', { name: /Package for Claude Code as a plugin/ })
+    expect(box).not.toBeChecked()
+    await user.click(box)
+
+    const target = useWorkspace
+      .getState()
+      .blueprint?.targets.find((t) => t.harnessId === 'claude-code')
+    expect(target?.options).toEqual({ layout: 'plugin' })
+    const notes = screen.getByRole('list', { name: 'Compatibility notes' })
+    expect(within(notes).getByText(/accepts no permission lists/)).toBeInTheDocument()
+
+    // Off again removes the option rather than writing "project", so the manifest stays
+    // as it was before anyone touched the switch.
+    await user.click(screen.getByRole('checkbox', { name: /Package for Claude Code as a plugin/ }))
+    expect(
+      useWorkspace.getState().blueprint?.targets.find((t) => t.harnessId === 'claude-code')
+        ?.options,
+    ).toEqual({})
+  })
+
   it('turning every harness off leaves nothing to be compatible with', async () => {
     const blueprint = await load()
     useWorkspace.getState().load('test', { ...blueprint, targets: [] })

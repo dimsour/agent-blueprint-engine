@@ -525,6 +525,15 @@ export const DIAGNOSTIC_CODES: readonly DiagnosticCode[] = [
     source: 'validation',
   },
   {
+    code: 'BP-CLAUDE-002',
+    severity: 'error',
+    summary: 'In the plugin layout a path-scoped rule and a skill would share a directory.',
+    remedy:
+      'A plugin has no rules directory, so a rule with paths becomes the skill `rule-<id>`. A skill or workflow with that exact id would overwrite it; rename one of them.',
+    fields: ['id'],
+    source: 'validation',
+  },
+  {
     code: 'BP-CODEX-001',
     severity: 'error',
     summary: 'A workflow and a skill share an id and would overwrite each other.',

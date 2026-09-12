@@ -63,6 +63,37 @@ export function withOnlyTargets(
   return sortTargets(rows.filter(worthKeeping))
 }
 
+/** One harness's options, merged; an option set to `undefined` is removed. */
+export function withTargetOptions(
+  blueprint: Blueprint,
+  harnessId: HarnessId,
+  patch: Record<string, unknown>,
+): TargetConfig[] {
+  const listed = blueprint.targets.some((target) => target.harnessId === harnessId)
+  const rows = listed
+    ? blueprint.targets
+    : [...blueprint.targets, { harnessId, enabled: true, options: {} }]
+  return sortTargets(
+    rows
+      .map((target) => {
+        if (target.harnessId !== harnessId) return target
+        const options = Object.fromEntries(
+          Object.entries({ ...target.options, ...patch }).filter(
+            ([, value]) => value !== undefined,
+          ),
+        ) as TargetConfig['options']
+        return { ...target, options }
+      })
+      .filter(worthKeeping),
+  )
+}
+
+export function isPluginLayout(blueprint: Blueprint, harnessId: HarnessId): boolean {
+  return (
+    blueprint.targets.find((target) => target.harnessId === harnessId)?.options.layout === 'plugin'
+  )
+}
+
 /** The model's order, so the manifest reads the same however the buttons were clicked. */
 function sortTargets(targets: readonly TargetConfig[]): TargetConfig[] {
   return HARNESS_IDS.flatMap((id) => targets.filter((target) => target.harnessId === id))

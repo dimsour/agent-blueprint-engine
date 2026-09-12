@@ -61,7 +61,64 @@ const USAGE: Record<HarnessId, HarnessUsage> = {
   },
 }
 
+/** Targets compiled as installable plugins rather than project files (P9-27). */
+export function pluginTargets(blueprint: Blueprint, targets: readonly HarnessId[]): HarnessId[] {
+  return targets.filter(
+    (target) =>
+      blueprint.targets.find((config) => config.harnessId === target)?.options.layout === 'plugin',
+  )
+}
+
+/** How a plugin-layout target is installed, given where the repository lives. */
+export function installCommands(
+  blueprint: Blueprint,
+  target: HarnessId,
+  repository: string,
+): string[] {
+  switch (target) {
+    case 'claude-code':
+      return [
+        `/plugin marketplace add ${repository}`,
+        `/plugin install ${blueprint.id}@${blueprint.id}`,
+      ]
+    case 'codex':
+      return [`codex plugin marketplace add ${repository}`]
+    case 'copilot':
+    case 'opencode':
+    case 'pi':
+      return []
+  }
+}
+
+function usageOf(blueprint: Blueprint, target: HarnessId, plugin: boolean): HarnessUsage {
+  if (!plugin) return USAGE[target]
+  switch (target) {
+    case 'claude-code':
+      return {
+        entry: 'a plugin at `plugins/claude-code/`, listed in `.claude-plugin/marketplace.json`.',
+        workflow: (id) => `/${blueprint.id}:${id}`,
+        notes: [
+          'Hooks are in `plugins/claude-code/hooks/hooks.json`; review them before installing. The plugin carries no permissions: the project that installs it decides what is allowed.',
+        ],
+      }
+    case 'codex':
+      return {
+        entry: 'a plugin at `plugins/codex/`, listed in `.agents/plugins/marketplace.json`.',
+        workflow: (id) => `${blueprint.id}:${id}`,
+        notes: [
+          'Hooks are in `plugins/codex/hooks/hooks.json`; review them before installing. Subagents, permissions and memory are not part of a Codex plugin; the persona and Iron Laws are the `guide` skill.',
+        ],
+      }
+    case 'copilot':
+    case 'opencode':
+    case 'pi':
+      return USAGE[target]
+  }
+}
+
 export function emitReadme(blueprint: Blueprint, targets: readonly HarnessId[]): GeneratedFile {
+  const plugins = new Set(pluginTargets(blueprint, targets))
+  const usage = (target: HarnessId) => usageOf(blueprint, target, plugins.has(target))
   const md = new Markdown()
   md.heading(1, blueprint.name)
   md.paragraph(blueprint.description)
@@ -72,8 +129,19 @@ export function emitReadme(blueprint: Blueprint, targets: readonly HarnessId[]):
   md.heading(2, 'What is here')
   md.bullets([
     `${code('blueprint/')} — the source of truth. Every other file is generated from it.`,
-    ...targets.map((target) => `${HARNESS_LABELS[target]} — ${USAGE[target].entry}`),
+    ...targets.map((target) => `${HARNESS_LABELS[target]} — ${usage(target).entry}`),
   ])
+
+  if (plugins.size > 0) {
+    md.heading(2, 'Installing')
+    md.paragraph(
+      'Once this repository is on GitHub, the plugin installs from it; `<owner>/<repo>` is the repository path there.',
+    )
+    for (const target of plugins) {
+      md.paragraph(`**${HARNESS_LABELS[target]}:**`)
+      md.raw(['```', ...installCommands(blueprint, target, '<owner>/<repo>'), '```'].join('\n'))
+    }
+  }
 
   if (blueprint.workflows.length > 0) {
     md.heading(2, 'Workflows')
@@ -82,13 +150,13 @@ export function emitReadme(blueprint: Blueprint, targets: readonly HarnessId[]):
       blueprint.workflows.map((workflow) => [
         workflow.name,
         workflow.description ?? '',
-        ...targets.map((target) => code(USAGE[target].workflow(workflow.id))),
+        ...targets.map((target) => code(usage(target).workflow(workflow.id))),
       ]),
     )
   }
 
   const notes = targets.flatMap((target) =>
-    (USAGE[target].notes ?? []).map((note) => `**${HARNESS_LABELS[target]}:** ${note}`),
+    (usage(target).notes ?? []).map((note) => `**${HARNESS_LABELS[target]}:** ${note}`),
   )
   if (notes.length > 0) {
     md.heading(2, 'Before you trust it')

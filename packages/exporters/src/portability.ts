@@ -13,7 +13,13 @@ import { HARNESS_LABELS } from '@agent-blueprint/core'
 
 import { enabledTargets } from './pipeline'
 import { adapterFor } from './registry'
-import { type Concept, CONCEPT_LABELS, CONCEPTS, type SupportLevel } from './types'
+import {
+  type CapabilityMatrix,
+  type Concept,
+  CONCEPT_LABELS,
+  CONCEPTS,
+  type SupportLevel,
+} from './types'
 
 const SUPPORT_WEIGHT: Record<SupportLevel, number> = {
   native: 1,
@@ -58,6 +64,22 @@ export interface PortabilityResult {
   matrix: { concept: Concept; used: boolean; byTarget: Partial<Record<HarnessId, SupportLevel>> }[]
 }
 
+/**
+ * The support matrix a target has for this Blueprint's options — a plugin layout cannot
+ * carry what a project layout can. Invalid options fall back to the default matrix; the
+ * pipeline reports them as `BP-TARGET-003` on its own.
+ */
+export function capabilitiesOf(blueprint: Blueprint, target: HarnessId): CapabilityMatrix {
+  const adapter = adapterFor(target)
+  if (!adapter.capabilitiesFor) return adapter.capabilities
+  const raw = blueprint.targets.find((config) => config.harnessId === target)?.options ?? {}
+  try {
+    return adapter.capabilitiesFor(adapter.parseOptions(raw))
+  } catch {
+    return adapter.capabilities
+  }
+}
+
 export function portabilityOf(
   blueprint: Blueprint,
   options: { targets?: HarnessId[] } = {},
@@ -69,7 +91,7 @@ export function portabilityOf(
     concept,
     used: used.has(concept),
     byTarget: Object.fromEntries(
-      targets.map((target) => [target, adapterFor(target).capabilities[concept].support]),
+      targets.map((target) => [target, capabilitiesOf(blueprint, target)[concept].support]),
     ),
   }))
 
@@ -94,7 +116,7 @@ export function portabilityOf(
   for (const concept of CONCEPTS) {
     if (!used.has(concept)) continue
     for (const target of targets) {
-      const capability = adapterFor(target).capabilities[concept]
+      const capability = capabilitiesOf(blueprint, target)[concept]
       total += SUPPORT_WEIGHT[capability.support]
       count += 1
 

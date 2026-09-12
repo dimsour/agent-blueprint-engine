@@ -231,6 +231,46 @@ Failure wrapper (P9-25). Claude reads a hook's result from its exit code: 2 refu
 Decision → list: `allow` → `permissions.allow`, `ask` → `permissions.ask`, `deny` → `permissions.deny`.
 `patterns[]` lower to the same rule with the pattern substituted, e.g. `{ operation: shell.mutating, pattern: "dotnet test *", decision: allow }` → `Bash(dotnet test *)` in `allow`. Since deny > ask > allow, a broad deny on `shell.mutating` with an allow pattern would still deny; the adapter therefore emits `ask` (not `deny`) for the broad operation when any allow pattern exists, and reports a `CompatibilityIssue` explaining the widening.
 
+## Plugin layout (P9-27)
+
+Target option `layout: 'plugin'` compiles the same Blueprint as a plugin installed from a
+marketplace, rather than files picked up by opening the repository. Verified against the plugin
+reference and the marketplace reference (sources below).
+
+```
+.claude-plugin/marketplace.json          name = Blueprint id; lists ./plugins/claude-code
+plugins/claude-code/
+  .claude-plugin/plugin.json             name = Blueprint id, version = Blueprint version, description,
+                                         userConfig: one sensitive string per MCP env var
+  instructions.md                        the composed instructions (same composer as CLAUDE.md)
+  skills/<id>/SKILL.md                   skills and workflows, plus rule-<id> for each path-scoped rule
+  agents/<id>.md                         subagents, carrying every law that binds them
+  hooks/hooks.json                       the hooks, plus a SessionStart hook: cat "${CLAUDE_PLUGIN_ROOT}/instructions.md"
+  hooks/scripts/<id>.sh                  hook scripts, run as bash "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/<id>.sh"
+  references/<id>.md                     references attached only to agents
+  .mcp.json                              env values written as ${user_config.<VAR>}
+```
+
+Installing, once the repository is on GitHub: `/plugin marketplace add <owner>/<repo>`, then
+`/plugin install <id>@<id>` (the plugin and the marketplace share the Blueprint's id). Skills,
+workflows and agents are then namespaced: `/<id>:<workflow>`, `<id>:<agent>`; the instructions
+and the orchestration skills are written in that syntax.
+
+What a plugin has no place for, and what the adapter does instead — the compatibility view
+shows this matrix when the layout is on (`capabilitiesFor`):
+
+| Concept           | Project layout                      | Plugin layout                                                                                                                                        |
+| ----------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Instructions      | `CLAUDE.md`                         | `instructions.md`, printed into every session by a `SessionStart` hook (stdout on that event becomes context). Adapted.                              |
+| Path-scoped rules | `.claude/rules/<id>.md`             | The skill `rule-<id>` with the same `paths:` header and `user-invocable: false`, so it loads on the same files. Adapted. `BP-CLAUDE-002` on a clash. |
+| Subagent laws     | `CLAUDE.md` carries the global ones | Every law that binds the agent is in its file.                                                                                                       |
+| Permissions       | `settings.json`                     | None: a plugin's `settings.json` accepts only `agent` and `subagentStatusLine`. Described in `instructions.md`; reported as unsupported.             |
+| Auto-memory       | `autoMemoryEnabled`                 | Not settable. Seed in `instructions.md`; reported as limited.                                                                                        |
+| MCP secrets       | `env` names with empty values       | `userConfig` entries marked `sensitive: true`, asked for when the plugin is enabled and kept in Claude's secure storage; `.mcp.json` refers to them. |
+
+Everything else — skills, workflows, hooks, scripts, subagents, MCP servers — is the same
+mapping at a different root.
+
 ## Known limitations and open questions
 
 - Hook file-pattern conditions are native only on tool events, through `if`; a `Stop` or `Bash` hook with a pattern has to check the path itself.
@@ -248,3 +288,5 @@ Decision → list: `allow` → `permissions.allow`, `ask` → `permissions.ask`,
 - https://code.claude.com/docs/en/permissions
 - https://code.claude.com/docs/en/settings
 - https://agentskills.io/specification
+- https://code.claude.com/docs/en/plugins-reference
+- https://code.claude.com/docs/en/plugin-marketplaces

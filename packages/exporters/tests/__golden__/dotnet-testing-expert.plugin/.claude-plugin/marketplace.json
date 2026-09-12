@@ -1,0 +1,19 @@
+{
+  "name": "dotnet-testing-expert",
+  "owner": {
+    "name": ".NET Testing Expert"
+  },
+  "metadata": {
+    "description": "An expert .NET agent that writes and reviews high-quality xUnit unit tests.",
+    "version": "1.0.0",
+    "pluginRoot": "./plugins"
+  },
+  "plugins": [
+    {
+      "name": "dotnet-testing-expert",
+      "source": "./plugins/claude-code",
+      "description": "An expert .NET agent that writes and reviews high-quality xUnit unit tests.",
+      "version": "1.0.0"
+    }
+  ]
+}

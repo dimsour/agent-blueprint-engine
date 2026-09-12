@@ -101,7 +101,10 @@ export interface HarnessAdapter<Options = Record<string, unknown>> {
   /** Bumped whenever the output of `compile` changes. Recorded in build-manifest.json. */
   readonly version: string
   readonly docsUrl: string
+  /** Support per concept with the default options. */
   readonly capabilities: CapabilityMatrix
+  /** Support per concept under given options, when a layout changes what is possible (P9-27). */
+  capabilitiesFor?(options: Options): CapabilityMatrix
   /** Describes `TargetConfig.options` for this harness; the UI renders it as a form. */
   readonly optionsSchema: ZodType
   /** Parses raw target options. Throws a `ZodError` the pipeline turns into a diagnostic. */

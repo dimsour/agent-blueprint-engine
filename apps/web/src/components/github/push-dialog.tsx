@@ -44,6 +44,9 @@ import { readGitHubToken } from '@/lib/github/auth'
 import { GitHubError, viewer } from '@/lib/github/client'
 import { type FileChange, planPush, type PushPlan, writesFor } from '@/lib/github/plan'
 import { pushToGitHub } from '@/lib/github/push'
+import { HARNESS_LABELS, type HarnessId } from '@agent-blueprint/core'
+import { installCommands, pluginTargets } from '@agent-blueprint/exporters'
+import { enabledTargetIds } from '@/lib/targets'
 import {
   createRepository,
   getRepository,
@@ -112,7 +115,9 @@ function Push() {
   const [accepted, setAccepted] = useState<Set<string>>(new Set())
   const [busy, setBusy] = useState<'preview' | 'push' | 'create' | undefined>()
   const [error, setError] = useState<string | undefined>()
-  const [pushed, setPushed] = useState<{ url: string; count: number } | undefined>()
+  const [pushed, setPushed] = useState<
+    { url: string; count: number; install: { target: HarnessId; commands: string[] }[] } | undefined
+  >()
   /** GitHub had nothing at that name, so creating it is the next thing the user wants. */
   const [missing, setMissing] = useState(false)
   const [makePrivate, setMakePrivate] = useState(true)
@@ -243,7 +248,7 @@ function Push() {
   }
 
   const push = async () => {
-    if (!token || !chosen || !prepared) return
+    if (!token || !chosen || !prepared || !blueprint) return
     setBusy('push')
     setError(undefined)
     try {
@@ -260,7 +265,16 @@ function Push() {
         writes,
         deletes,
       })
-      setPushed({ url: result.url, count: result.written + result.deleted })
+      setPushed({
+        url: result.url,
+        count: result.written + result.deleted,
+        // What was pushed is now installable, and the exact commands need the repository's
+        // name, which only this dialog knows (P9-27).
+        install: pluginTargets(blueprint, enabledTargetIds(blueprint)).map((target) => ({
+          target,
+          commands: installCommands(blueprint, target, `${chosen.owner}/${chosen.name}`),
+        })),
+      })
       toast.success(`Pushed to ${chosen.owner}/${chosen.name}`)
     } catch (cause) {
       setError(cause instanceof GitHubError ? cause.message : String(cause))
@@ -296,7 +310,7 @@ function Push() {
       {!token ? (
         <MissingToken />
       ) : pushed ? (
-        <Pushed url={pushed.url} count={pushed.count} />
+        <Pushed url={pushed.url} count={pushed.count} install={pushed.install} />
       ) : (
         <div className="flex flex-col gap-4">
           <Field
@@ -443,13 +457,29 @@ function MissingToken() {
   )
 }
 
-function Pushed({ url, count }: { url: string; count: number }) {
+function Pushed({
+  url,
+  count,
+  install,
+}: {
+  url: string
+  count: number
+  install: { target: HarnessId; commands: string[] }[]
+}) {
   return (
     <div className="flex flex-col items-start gap-3">
       <p className="flex items-center gap-2 text-sm">
         <CheckIcon className="size-4 text-emerald-600" />
         {count} {count === 1 ? 'file' : 'files'} in one commit.
       </p>
+      {install.map(({ target, commands }) => (
+        <div key={target} className="flex flex-col gap-1">
+          <p className="text-sm">Install it in {HARNESS_LABELS[target]}:</p>
+          <pre className="bg-muted rounded-md px-3 py-2 font-mono text-xs">
+            {commands.join('\n')}
+          </pre>
+        </div>
+      ))}
       <Button asChild variant="outline">
         <a href={url} target="_blank" rel="noreferrer">
           <ExternalLinkIcon />

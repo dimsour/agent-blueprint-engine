@@ -482,6 +482,104 @@ describe('invocation', () => {
   })
 })
 
+/**
+ * The plugin layout (P9-27): the same Blueprint as something installed from a marketplace.
+ * The golden pins the fixture's bytes; these pin what the fixture does not exercise.
+ */
+describe('claude-code plugin layout', () => {
+  const asPlugin = async (
+    mutate?: (blueprint: Awaited<ReturnType<typeof loadFixture>>) => void,
+  ) => {
+    const blueprint = structuredClone(await loadFixture())
+    blueprint.targets = [{ harnessId: 'claude-code', enabled: true, options: { layout: 'plugin' } }]
+    mutate?.(blueprint)
+    return compileBlueprint(blueprint)
+  }
+
+  it('gives a subagent every law it is bound by, since there is no CLAUDE.md', async () => {
+    const { files } = await asPlugin((blueprint) => {
+      blueprint.agents.push({
+        ...structuredClone(blueprint.agents[0]!),
+        id: 'reviewer',
+        name: 'Reviewer',
+        role: 'reviewer',
+        toolIds: [],
+      })
+    })
+    const agent = textOf(files.find((f) => f.path === 'plugins/claude-code/agents/reviewer.md'))
+    // The fixture's laws all apply to every agent; in the project layout none of them would
+    // be in the agent file, because CLAUDE.md carries them.
+    expect(agent).toContain('## Iron Laws\n- **Never Fake Verification.**')
+    expect(files.some((f) => f.path === 'CLAUDE.md')).toBe(false)
+    expect(files.some((f) => f.path.startsWith('.claude/'))).toBe(false)
+  })
+
+  it('asks for MCP secrets at enable time instead of leaving empty env values', async () => {
+    const { files } = await asPlugin((blueprint) => {
+      blueprint.tools.push({
+        id: 'tracker',
+        name: 'Issue tracker',
+        kind: 'mcp',
+        operations: [],
+        tags: [],
+        metadata: {},
+        mcp: { transport: 'stdio', command: 'tracker-mcp', args: [], envVars: ['TRACKER_TOKEN'] },
+      })
+    })
+    const manifest = JSON.parse(
+      textOf(files.find((f) => f.path === 'plugins/claude-code/.claude-plugin/plugin.json')),
+    ) as { userConfig: Record<string, { sensitive: boolean; type: string }> }
+    expect(manifest.userConfig.TRACKER_TOKEN).toMatchObject({ type: 'string', sensitive: true })
+    const mcp = JSON.parse(
+      textOf(files.find((f) => f.path === 'plugins/claude-code/.mcp.json')),
+    ) as {
+      mcpServers: { tracker: { env: Record<string, string> } }
+    }
+    expect(mcp.mcpServers.tracker.env.TRACKER_TOKEN).toBe('${user_config.TRACKER_TOKEN}')
+  })
+
+  it('runs hook scripts from the plugin root', async () => {
+    const { files } = await asPlugin((blueprint) => {
+      blueprint.hooks[0]!.action = { type: 'command', script: 'exit 0', async: false }
+    })
+    expect(
+      files.some((f) => f.path === 'plugins/claude-code/hooks/scripts/run-tests-after-change.sh'),
+    ).toBe(true)
+    expect(textOf(files.find((f) => f.path === 'plugins/claude-code/hooks/hooks.json'))).toContain(
+      'bash \\"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/run-tests-after-change.sh\\"',
+    )
+  })
+
+  it('refuses a rule whose skill name a skill already has', async () => {
+    const blueprint = structuredClone(await loadFixture())
+    blueprint.skills[0]!.id = 'rule-prefer-existing-framework'
+    blueprint.agents[0]!.skillIds = blueprint.agents[0]!.skillIds.map((id) =>
+      id === 'xunit' ? 'rule-prefer-existing-framework' : id,
+    )
+    const diagnostics = adapterFor('claude-code').validate(blueprint, {
+      emitSettings: true,
+      layout: 'plugin',
+    })
+    expect(diagnostics.map((d) => d.code)).toContain('BP-CLAUDE-002')
+    // Only in the plugin layout: in a project the rule has its own directory.
+    expect(
+      adapterFor('claude-code')
+        .validate(blueprint, { emitSettings: true, layout: 'project' })
+        .map((d) => d.code),
+    ).not.toContain('BP-CLAUDE-002')
+  })
+
+  it('reports what a plugin cannot carry', async () => {
+    const { issues } = await asPlugin()
+    const concepts = issues
+      .filter((i) => i.harnessId === 'claude-code')
+      .map((i) => `${i.concept}:${i.support}`)
+    expect(concepts).toContain('permissions:unsupported')
+    expect(concepts).toContain('memory:limited')
+    expect(concepts).toContain('ironLaws:adapted')
+  })
+})
+
 describe('codex adapter', () => {
   it('emits the portable set plus Codex-specific files', async () => {
     const blueprint = await loadFixture()

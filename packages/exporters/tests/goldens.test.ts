@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url'
 import {
   decodeUtf8,
   type HarnessId,
+  type JsonValue,
   HARNESS_IDS,
   type ProjectFile,
   sameFile,
@@ -30,6 +31,8 @@ const UPDATE = process.env.UPDATE_GOLDENS === '1'
 interface GoldenCase {
   name: string
   targets?: HarnessId[]
+  /** Target options to set before compiling, for layouts the fixture does not ask for. */
+  options?: Partial<Record<HarnessId, Record<string, JsonValue>>>
 }
 
 const CASES: GoldenCase[] = [
@@ -40,6 +43,12 @@ const CASES: GoldenCase[] = [
   { name: 'dotnet-testing-expert.copilot', targets: ['copilot'] },
   { name: 'dotnet-testing-expert.opencode', targets: ['opencode'] },
   { name: 'dotnet-testing-expert.pi', targets: ['pi'] },
+  // The same Blueprint as an installable plugin (P9-27).
+  {
+    name: 'dotnet-testing-expert.plugin',
+    targets: ['claude-code'],
+    options: { 'claude-code': { layout: 'plugin' } },
+  },
 ]
 
 function readTree(root: string): Record<string, ProjectFile> {
@@ -77,7 +86,12 @@ function writeTree(root: string, files: Record<string, ProjectFile>): void {
 describe('golden files', () => {
   for (const testCase of CASES) {
     it(`compiles ${testCase.name} to the recorded output`, async () => {
-      const blueprint = await loadFixture()
+      const blueprint = structuredClone(await loadFixture())
+      for (const [harnessId, options] of Object.entries(testCase.options ?? {})) {
+        const target = blueprint.targets.find((config) => config.harnessId === harnessId)
+        if (target) target.options = { ...target.options, ...options }
+        else blueprint.targets.push({ harnessId: harnessId as HarnessId, enabled: true, options })
+      }
       const result = compileBlueprint(
         blueprint,
         testCase.targets ? { targets: testCase.targets } : {},
