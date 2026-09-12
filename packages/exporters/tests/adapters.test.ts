@@ -574,9 +574,79 @@ describe('claude-code plugin layout', () => {
     const concepts = issues
       .filter((i) => i.harnessId === 'claude-code')
       .map((i) => `${i.concept}:${i.support}`)
-    expect(concepts).toContain('permissions:unsupported')
+    expect(concepts).toContain('permissions:adapted')
+    expect(concepts).toContain('permissions:limited')
     expect(concepts).toContain('memory:limited')
     expect(concepts).toContain('ironLaws:adapted')
+  })
+
+  /**
+   * Permissions as PreToolUse hooks (P9-34): a deny rule denies, an ask rule asks, and an
+   * allow rule is left to the installing project rather than bypassing its deny list.
+   */
+  it('enforces deny and ask rules through PreToolUse hooks, and never allow', async () => {
+    const { files, issues } = await asPlugin()
+    const hooks = JSON.parse(
+      textOf(files.find((f) => f.path === 'plugins/claude-code/hooks/hooks.json')),
+    ) as {
+      hooks: { PreToolUse: { hooks: { if: string; command: string }[] }[] }
+    }
+    const handlers = hooks.hooks.PreToolUse.flatMap((entry) => entry.hooks)
+    const push = handlers.find((handler) => handler.if === 'Bash(git push *)')
+    expect(push?.command).toContain('"permissionDecision":"deny"')
+    expect(push?.command).toContain('Bash(git push *) is denied by the dotnet-testing-expert plugin.')
+    const commit = handlers.find((handler) => handler.if === 'Bash(git commit *)')
+    expect(commit?.command).toContain('"permissionDecision":"ask"')
+    // The fixture allows `dotnet test`; no handler grants it.
+    expect(handlers.some((handler) => handler.if === 'Bash(dotnet test *)')).toBe(false)
+    expect(handlers.some((handler) => handler.command.includes('"allow"'))).toBe(false)
+    const limited = issues.filter(
+      (i) => i.harnessId === 'claude-code' && i.concept === 'permissions' && i.support === 'limited',
+    )
+    expect(limited.some((i) => i.message.includes('allow rule(s)'))).toBe(true)
+  })
+
+  it('prints the decision a hook returns exactly as Claude reads it', async () => {
+    const { files } = await asPlugin()
+    const hooks = JSON.parse(
+      textOf(files.find((f) => f.path === 'plugins/claude-code/hooks/hooks.json')),
+    ) as { hooks: { PreToolUse: { hooks: { command: string }[] }[] } }
+    const command = hooks.hooks.PreToolUse[0]!.hooks[0]!.command
+    // printf '%s' '<json>': the JSON is the single-quoted argument, and parses back.
+    const quoted = /^printf '%s' '(.*)'$/.exec(command)
+    expect(quoted).not.toBeNull()
+    const parsed = JSON.parse(quoted![1]!.replace(/'\\''/g, "'")) as {
+      hookSpecificOutput: { hookEventName: string; permissionDecision: string }
+    }
+    expect(parsed.hookSpecificOutput).toMatchObject({
+      hookEventName: 'PreToolUse',
+      permissionDecision: 'deny',
+    })
+  })
+
+  it("drops permissionMode from a plugin's agents and says so when it mattered", async () => {
+    const { files, issues } = await asPlugin((blueprint) => {
+      blueprint.agents.push({
+        ...structuredClone(blueprint.agents[0]!),
+        id: 'reviewer',
+        name: 'Reviewer',
+        permissions: { operations: { 'fs.read': 'allow' }, patterns: [] },
+      })
+    })
+    const agent = textOf(files.find((f) => f.path === 'plugins/claude-code/agents/reviewer.md'))
+    expect(agent).not.toContain('permissionMode')
+    // Every operation allowed would have been `acceptEdits`, which the plugin cannot ask for.
+    const reported = issues.find(
+      (i) => i.harnessId === 'claude-code' && i.concept === 'agents' && i.ref?.id === 'reviewer',
+    )
+    expect(reported?.support).toBe('limited')
+    expect(reported?.message).toContain('acceptEdits')
+  })
+
+  it('tells the session where the plugin is, so references can be read', async () => {
+    const { files } = await asPlugin()
+    const hooks = textOf(files.find((f) => f.path === 'plugins/claude-code/hooks/hooks.json'))
+    expect(hooks).toContain('This plugin is installed at ${CLAUDE_PLUGIN_ROOT}.')
   })
 })
 

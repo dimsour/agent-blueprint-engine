@@ -107,15 +107,20 @@ const pluginCapabilities: CapabilityMatrix = {
     explanation:
       "Hooks compile to the plugin's `hooks/hooks.json`, with scripts beside it, and run in every project the plugin is enabled in.",
   },
-  permissions: {
-    support: 'unsupported',
+  agents: {
+    support: 'native',
     explanation:
-      "A plugin's settings file accepts no permission lists. The permissions are described in `instructions.md`; the project that installs the plugin decides what is allowed.",
+      "Every non-primary agent becomes a subagent in the plugin's `agents/`, carrying every law that binds it. Claude ignores `permissionMode` on a plugin's agents, so a mode other than the default is reported.",
+  },
+  permissions: {
+    support: 'adapted',
+    explanation:
+      "A plugin's settings file accepts no permission lists. Deny and ask rules become PreToolUse hooks with the rule as their `if`, which deny or ask on the same calls with the same precedence; allow rules are not emitted, since an allow from a hook would bypass the installing project's own deny list.",
   },
   memory: {
     support: 'limited',
     explanation:
-      'A plugin cannot turn auto-memory on. The memory seed is in `instructions.md`; the installing project decides whether Claude remembers.',
+      'A plugin cannot turn auto-memory on. The memory seed is in `instructions.md`; the installing project decides whether Claude remembers. A subagent with memory keeps its own: `memory` works on a plugin agent.',
   },
   pathScopedRules: {
     support: 'adapted',
@@ -130,12 +135,12 @@ const pluginCapabilities: CapabilityMatrix = {
   ironLaws: {
     support: 'adapted',
     explanation:
-      'A plugin has no instruction file. The persona and Iron Laws are `instructions.md`, printed into every session by a SessionStart hook; subagents carry their laws in their own files.',
+      'A plugin has no instruction file. The persona and Iron Laws are `instructions.md`, printed into every session by a SessionStart hook and again after compaction; subagents carry their laws in their own files.',
   },
   references: {
     support: 'adapted',
     explanation:
-      "References attached to a skill are copied beside it; the others live in the plugin's `references/` and are named from `instructions.md`, since a hook-injected text cannot import files.",
+      "References attached to a skill are copied beside it; the others live in the plugin's `references/` and are named from `instructions.md`, which cannot import files; the SessionStart hook says where the plugin is installed so they can be read from there.",
   },
 }
 

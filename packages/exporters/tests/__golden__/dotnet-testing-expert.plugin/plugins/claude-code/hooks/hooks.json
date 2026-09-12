@@ -14,12 +14,63 @@
         ]
       }
     ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Bash(git push *)",
+            "command": "printf '%s' '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Bash(git push *) is denied by the dotnet-testing-expert plugin.\"}}'"
+          },
+          {
+            "type": "command",
+            "if": "Bash(git push --force *)",
+            "command": "printf '%s' '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Bash(git push --force *) is denied by the dotnet-testing-expert plugin.\"}}'"
+          },
+          {
+            "type": "command",
+            "if": "Bash(git push -f *)",
+            "command": "printf '%s' '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Bash(git push -f *) is denied by the dotnet-testing-expert plugin.\"}}'"
+          },
+          {
+            "type": "command",
+            "if": "WebFetch",
+            "command": "printf '%s' '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"WebFetch is denied by the dotnet-testing-expert plugin.\"}}'"
+          },
+          {
+            "type": "command",
+            "if": "WebSearch",
+            "command": "printf '%s' '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"WebSearch is denied by the dotnet-testing-expert plugin.\"}}'"
+          },
+          {
+            "type": "command",
+            "if": "Bash(rm *)",
+            "command": "printf '%s' '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"ask\",\"permissionDecisionReason\":\"The dotnet-testing-expert plugin asks before Bash(rm *).\"}}'"
+          },
+          {
+            "type": "command",
+            "if": "Bash",
+            "command": "printf '%s' '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"ask\",\"permissionDecisionReason\":\"The dotnet-testing-expert plugin asks before Bash.\"}}'"
+          },
+          {
+            "type": "command",
+            "if": "Bash(git add *)",
+            "command": "printf '%s' '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"ask\",\"permissionDecisionReason\":\"The dotnet-testing-expert plugin asks before Bash(git add *).\"}}'"
+          },
+          {
+            "type": "command",
+            "if": "Bash(git commit *)",
+            "command": "printf '%s' '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"ask\",\"permissionDecisionReason\":\"The dotnet-testing-expert plugin asks before Bash(git commit *).\"}}'"
+          }
+        ]
+      }
+    ],
     "SessionStart": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "cat \"${CLAUDE_PLUGIN_ROOT}/instructions.md\"",
+            "command": "printf '%s\\n\\n' \"This plugin is installed at ${CLAUDE_PLUGIN_ROOT}.\"; cat \"${CLAUDE_PLUGIN_ROOT}/instructions.md\"",
             "statusMessage": "Loading the .NET Testing Expert instructions"
           }
         ]

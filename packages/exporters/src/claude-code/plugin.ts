@@ -15,7 +15,7 @@
  *   instructions.md                        the composed instructions, injected at SessionStart
  *   skills/<id>/SKILL.md                   skills, workflows, and one skill per path-scoped rule
  *   agents/<id>.md                         subagents, carrying every law that binds them
- *   hooks/hooks.json, hooks/scripts/<id>.sh
+ *   hooks/hooks.json, hooks/scripts/<id>.sh  the hooks, plus one PreToolUse handler per deny/ask rule
  *   references/<id>.md
  *   .mcp.json                              env values as `${user_config.<VAR>}`
  * ```
@@ -24,7 +24,7 @@ import type { Blueprint, Rule } from '@agent-blueprint/core'
 import { stableJson } from '@agent-blueprint/core'
 
 import { type Frontmatter, markdownWithFrontmatter } from '../shared/frontmatter'
-import { type ScriptLocation } from '../shared/hooks'
+import { type ScriptLocation, shellQuote } from '../shared/hooks'
 import { composeInstructions, lawsForAgent, primaryAgentOf } from '../shared/instructions'
 import { type Phrasing } from '../shared/phrasing'
 import { emitSkillDir, renderReference } from '../shared/skill-dir'
@@ -35,9 +35,15 @@ import {
   generatedFile,
   type GeneratedFile,
 } from '../types'
-import { agentFile, skillFrontmatter, toolNames } from './emit'
+import { agentFile, permissionModeFor, skillFrontmatter, toolNames } from './emit'
 import type { ClaudeCodeOptions } from './options'
-import { hookScriptFiles, lowerHooks } from './settings'
+import {
+  type ClaudeHookHandler,
+  type ClaudeSettings,
+  hookScriptFiles,
+  lowerHooks,
+  lowerPermissions,
+} from './settings'
 
 export const PLUGIN_ROOT = 'plugins/claude-code'
 export const MARKETPLACE_FILE = '.claude-plugin/marketplace.json'
@@ -85,6 +91,40 @@ function ruleSkill(rule: Rule): GeneratedFile {
     'claude-code',
     [{ kind: 'rule', id: rule.id }],
   )
+}
+
+/**
+ * Permissions as `PreToolUse` handlers (P9-34). A plugin's `settings.json` accepts no
+ * permission lists, but a handler's `if` takes the same rule syntax, fires on exactly the
+ * calls the rule would match, and its `permissionDecision` is combined the way the lists
+ * are: deny beats ask beats allow. So a `deny` rule becomes a handler that denies and an
+ * `ask` rule one that asks, each printing the decision Claude reads from stdout.
+ *
+ * `allow` rules are not emitted. An allow from a hook "bypasses the permission prompt and
+ * permission rules" — including the deny list of whichever project the plugin is enabled in,
+ * which the Blueprint cannot see. What it allowed is left to that project's own rules.
+ */
+export function permissionHandlers(
+  lists: NonNullable<ClaudeSettings['permissions']>,
+  pluginName: string,
+): ClaudeHookHandler[] {
+  const handler = (rule: string, decision: 'deny' | 'ask'): ClaudeHookHandler => {
+    const output = {
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: decision,
+        permissionDecisionReason:
+          decision === 'deny'
+            ? `${rule} is denied by the ${pluginName} plugin.`
+            : `The ${pluginName} plugin asks before ${rule}.`,
+      },
+    }
+    return { type: 'command', if: rule, command: `printf '%s' ${shellQuote(JSON.stringify(output))}` }
+  }
+  return [
+    ...(lists.deny ?? []).map((rule) => handler(rule, 'deny')),
+    ...(lists.ask ?? []).map((rule) => handler(rule, 'ask')),
+  ]
 }
 
 /**
@@ -208,8 +248,25 @@ export function compilePlugin(blueprint: Blueprint, options: ClaudeCodeOptions):
   for (const agent of subagents) {
     // No CLAUDE.md means no global laws unless the agent file carries them itself.
     files.push(
-      agentFile(agent, blueprint, options, { root: `${PLUGIN_ROOT}/agents`, allLaws: true }),
+      agentFile(agent, blueprint, options, {
+        root: `${PLUGIN_ROOT}/agents`,
+        allLaws: true,
+        permissionMode: false,
+      }),
     )
+    // Claude ignores `permissionMode` on a plugin's agents. `default` is what it would have
+    // used anyway; any other mode is a request the plugin cannot make.
+    const mode = permissionModeFor(agent, options)
+    if (mode && mode !== 'default') {
+      issues.push(
+        issue(
+          'agents',
+          'limited',
+          `"${agent.name}" would run in the ${mode} permission mode, which Claude ignores on a plugin's agents; it runs in the mode of the session that started it. Its tools and disallowed tools still apply.`,
+          { ref: { kind: 'agent', id: agent.id } },
+        ),
+      )
+    }
   }
 
   // --- Hooks -------------------------------------------------------------------------------
@@ -218,19 +275,51 @@ export function compilePlugin(blueprint: Blueprint, options: ClaudeCodeOptions):
   issues.push(...lowered.issues)
   const hooks = { ...(lowered.hooks ?? {}) }
   // The instructions reach the model through SessionStart: the harness adds a hook's stdout
-  // to the context on that event, which is the one door a plugin has into every session.
+  // to the context on that event, which is the one door a plugin has into every session,
+  // and injects it again after compaction. The first line says where the plugin is, so a
+  // reference the instructions name can be read from there.
   hooks.SessionStart = [
     ...(hooks.SessionStart ?? []),
     {
       hooks: [
         {
           type: 'command' as const,
-          command: 'cat "${CLAUDE_PLUGIN_ROOT}/instructions.md"',
+          command:
+            'printf \'%s\\n\\n\' "This plugin is installed at ${CLAUDE_PLUGIN_ROOT}."; cat "${CLAUDE_PLUGIN_ROOT}/instructions.md"',
           statusMessage: `Loading the ${blueprint.name} instructions`,
         },
       ],
     },
   ]
+  // The permissions, as far as a plugin can enforce them (P9-34).
+  const permissions = lowerPermissions(primary, blueprint)
+  issues.push(...permissions.issues)
+  const handlers = permissions.permissions
+    ? permissionHandlers(permissions.permissions, blueprint.id)
+    : []
+  if (handlers.length > 0) {
+    hooks.PreToolUse = [...(hooks.PreToolUse ?? []), { hooks: handlers }]
+  }
+  if (permissions.permissions && primary) {
+    issues.push(
+      issue(
+        'permissions',
+        'adapted',
+        `A plugin's settings file accepts no permission lists. The ${handlers.length} deny and ask rule(s) of "${primary.name}" are PreToolUse hooks with the rule as their \`if\`, which deny or ask on the same calls; the project that installs the plugin keeps its own rules on top.`,
+        { ref: { kind: 'agent', id: primary.id }, adaptation: `${PLUGIN_ROOT}/hooks/hooks.json` },
+      ),
+    )
+    if ((permissions.permissions.allow ?? []).length > 0) {
+      issues.push(
+        issue(
+          'permissions',
+          'limited',
+          `The ${permissions.permissions.allow?.length} allow rule(s) of "${primary.name}" are not in the plugin: an allow from a hook would bypass the deny list of every project the plugin is enabled in. Those calls follow the installing project's rules and prompts.`,
+          { ref: { kind: 'agent', id: primary.id } },
+        ),
+      )
+    }
+  }
   const events = Object.fromEntries(Object.entries(hooks).sort(([a], [b]) => (a < b ? -1 : 1)))
   files.push(
     generatedFile(
@@ -324,25 +413,12 @@ export function compilePlugin(blueprint: Blueprint, options: ClaudeCodeOptions):
   files.push(marketplaceFile(blueprint))
 
   // --- What a plugin cannot carry ----------------------------------------------------------
-  if (
-    primary &&
-    Object.keys(primary.permissions.operations).length + primary.permissions.patterns.length > 0
-  ) {
-    issues.push(
-      issue(
-        'permissions',
-        'unsupported',
-        `The permissions of "${primary.name}" are not in the plugin: a plugin's settings file accepts no permission lists. They are described in instructions.md; the project that installs the plugin decides what is allowed.`,
-        { ref: { kind: 'agent', id: primary.id } },
-      ),
-    )
-  }
   if (blueprint.memories.some((memory) => memory.scope !== 'stateless')) {
     issues.push(
       issue(
         'memory',
         'limited',
-        'A plugin cannot turn auto-memory on; the memory seed is in instructions.md and the project that installs the plugin decides whether Claude remembers.',
+        'A plugin cannot turn auto-memory on; the memory seed is in instructions.md and the project that installs the plugin decides whether Claude remembers. A subagent with memory keeps its own: the `memory` field works on a plugin agent.',
       ),
     )
   }

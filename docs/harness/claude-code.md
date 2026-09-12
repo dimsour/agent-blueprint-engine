@@ -245,7 +245,8 @@ plugins/claude-code/
   instructions.md                        the composed instructions (same composer as CLAUDE.md)
   skills/<id>/SKILL.md                   skills and workflows, plus rule-<id> for each path-scoped rule
   agents/<id>.md                         subagents, carrying every law that binds them
-  hooks/hooks.json                       the hooks, plus a SessionStart hook: cat "${CLAUDE_PLUGIN_ROOT}/instructions.md"
+  hooks/hooks.json                       the hooks; a SessionStart hook that prints where the plugin is and then
+                                         instructions.md; one PreToolUse handler per deny and ask rule (P9-34)
   hooks/scripts/<id>.sh                  hook scripts, run as bash "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/<id>.sh"
   references/<id>.md                     references attached only to agents
   .mcp.json                              env values written as ${user_config.<VAR>}
@@ -259,17 +260,41 @@ and the orchestration skills are written in that syntax.
 What a plugin has no place for, and what the adapter does instead — the compatibility view
 shows this matrix when the layout is on (`capabilitiesFor`):
 
-| Concept           | Project layout                      | Plugin layout                                                                                                                                        |
-| ----------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Instructions      | `CLAUDE.md`                         | `instructions.md`, printed into every session by a `SessionStart` hook (stdout on that event becomes context). Adapted.                              |
-| Path-scoped rules | `.claude/rules/<id>.md`             | The skill `rule-<id>` with the same `paths:` header and `user-invocable: false`, so it loads on the same files. Adapted. `BP-CLAUDE-002` on a clash. |
-| Subagent laws     | `CLAUDE.md` carries the global ones | Every law that binds the agent is in its file.                                                                                                       |
-| Permissions       | `settings.json`                     | None: a plugin's `settings.json` accepts only `agent` and `subagentStatusLine`. Described in `instructions.md`; reported as unsupported.             |
-| Auto-memory       | `autoMemoryEnabled`                 | Not settable. Seed in `instructions.md`; reported as limited.                                                                                        |
-| MCP secrets       | `env` names with empty values       | `userConfig` entries marked `sensitive: true`, asked for when the plugin is enabled and kept in Claude's secure storage; `.mcp.json` refers to them. |
+| Concept           | Project layout                      | Plugin layout                                                                                                                                                                                      |
+| ----------------- | ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Instructions      | `CLAUDE.md`                         | `instructions.md`, printed into every session by a `SessionStart` hook (stdout on that event becomes context). Adapted.                                                                            |
+| Path-scoped rules | `.claude/rules/<id>.md`             | The skill `rule-<id>` with the same `paths:` header and `user-invocable: false`, so it loads on the same files. Adapted. `BP-CLAUDE-002` on a clash.                                               |
+| Subagent laws     | `CLAUDE.md` carries the global ones | Every law that binds the agent is in its file.                                                                                                                                                     |
+| Permissions       | `settings.json`                     | A plugin's `settings.json` accepts only `agent` and `subagentStatusLine`. Deny and ask rules are `PreToolUse` handlers with the rule as `if` (P9-34, below); allow rules are not emitted. Adapted. |
+| Auto-memory       | `autoMemoryEnabled`                 | Not settable. Seed in `instructions.md`; reported as limited. A subagent's `memory` field works in a plugin.                                                                                       |
+| `permissionMode`  | on the subagent file                | Ignored on a plugin's agents ("for security reasons"), so not written; a mode other than `default` is reported as limited (P9-34).                                                                 |
+| MCP secrets       | `env` names with empty values       | `userConfig` entries marked `sensitive: true`, asked for when the plugin is enabled and kept in Claude's secure storage; `.mcp.json` refers to them.                                               |
 
 Everything else — skills, workflows, hooks, scripts, subagents, MCP servers — is the same
 mapping at a different root.
+
+### Permissions as hooks (P9-34)
+
+A `PreToolUse` handler's `if` takes permission-rule syntax and fires on the calls the rule
+would match; its stdout JSON carries a `permissionDecision`, and when several handlers answer
+"the most restrictive wins: deny beats ask, and ask beats allow" — the precedence the permission
+lists have. So the plugin carries the primary agent's `deny` and `ask` rules, lowered by the
+same table as `settings.json`, as one handler each:
+
+```json
+{
+  "type": "command",
+  "if": "Bash(git push *)",
+  "command": "printf '%s' '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Bash(git push *) is denied by the <id> plugin.\"}}'"
+}
+```
+
+`allow` rules are not emitted: a hook's allow "bypasses the permission prompt and permission
+rules", which would override the deny list of whichever project the plugin is enabled in. Those
+calls follow the installing project's rules and prompts, and the adapter reports them as
+limited. Two documented differences from a rule in `settings.json`: a Bash `if` cannot see
+through a `$VAR` expansion, so the handler "runs anyway" and a deny is stricter than the rule
+would have been; and a hook is one more thing the `disableAllHooks` setting turns off.
 
 ## Known limitations and open questions
 

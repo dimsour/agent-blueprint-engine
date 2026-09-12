@@ -133,7 +133,7 @@ export function hookScriptFile(
 }
 
 /** Single-quoted for the shell: nothing inside is interpreted. */
-function shellQuote(text: string): string {
+export function shellQuote(text: string): string {
   return `'${text.replace(/'/g, "'\\''")}'`
 }
 

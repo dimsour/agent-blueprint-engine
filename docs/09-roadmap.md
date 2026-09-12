@@ -1065,6 +1065,16 @@ something, it says what and where that thing still exists.
 - Built: `ReadmeOptions.repository` through `CompileOptions.repository` to `planPush`'s third argument. The plan test proves the second-push rewrite and the dialog test reads the README out of the tree the push sent.
 - Found on the way: nothing in the plan skips the README of a repository this app made — the file is the compiler's by the manifest and is rewritten whenever it changes. A README that was on the branch before the first push ever ran is the one case it stays: it is listed under the files the app does not own, and written only when accepted; the dialog already says so.
 
+### P9-34 What a Claude plugin can enforce after all (done)
+
+- Package: `packages/exporters` (`claude-code/plugin.ts`, `claude-code/emit.ts`)
+- Depends on: P9-27
+- Description: Reported from use: switching a target to the plugin layout turned permissions unsupported and memory limited, and the question was whether that was the format or the adapter. Read against the plugin reference, the hooks reference and the subagent reference: a plugin's `settings.json` really does accept no permission lists, but a `PreToolUse` handler's `if` takes permission-rule syntax, its stdout carries a `permissionDecision`, and several handlers combine with the lists' own precedence — so deny and ask can be enforced by the plugin, and allow deliberately cannot, since a hook's allow bypasses the installing project's own rules. The same reading found that Claude ignores `permissionMode` on a plugin's agents, that a subagent's `memory` works in a plugin, and that the SessionStart context is injected again after compaction.
+- Acceptance: in the plugin layout every deny and ask rule of the primary agent is a `PreToolUse` handler with the rule as `if` and the decision as its output; no handler grants; the allow rules are reported as limited; `permissionMode` is not written on a plugin's agents and a mode other than `default` is reported; the SessionStart hook prints the plugin's installation path before the instructions, so a reference named there can be read; the matrix says permissions are adapted, not unsupported.
+- Verify: `pnpm --filter @agent-blueprint/exporters test`
+- Built: `permissionHandlers` over the lists `lowerPermissions` already produced, `AgentFileOptions.permissionMode`, the reworded matrix, the golden.
+- Not built: enforcing allow — by design, above; `hooks` and `mcpServers` on a plugin's agents, which Claude also ignores and the adapter never wrote.
+
 ### Open questions
 
 1. ~~**The logo needs a mark-only export.**~~ Settled: rather than crop by CSS, the cut is a script. `pnpm --filter web logo` measures nothing at run time — the rectangles live in `e2e/logo-assets.spec.ts`, taken from the artwork's alpha channel — and writes the three assets the app imports. A redrawn logo needs that one command and a re-measurement, and no component changes.

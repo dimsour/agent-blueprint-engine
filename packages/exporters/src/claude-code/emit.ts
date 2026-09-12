@@ -168,9 +168,15 @@ export interface AgentFileOptions {
   root: string
   /** Carry the laws that apply to every agent too — for a layout with no root instruction file. */
   allLaws: boolean
+  /** Write `permissionMode`; Claude ignores it on a plugin's agents, so a plugin leaves it out. */
+  permissionMode: boolean
 }
 
-export const PROJECT_AGENT_FILES: AgentFileOptions = { root: AGENTS_DIR, allLaws: false }
+export const PROJECT_AGENT_FILES: AgentFileOptions = {
+  root: AGENTS_DIR,
+  allLaws: false,
+  permissionMode: true,
+}
 
 export function agentFile(
   agent: Agent,
@@ -224,7 +230,7 @@ export function agentFile(
     ...(agent.budget?.effort ? { effort: agent.budget.effort } : {}),
     ...(agent.budget?.maxTurns ? { maxTurns: agent.budget.maxTurns } : {}),
     ...(agent.skillIds.length > 0 ? { skills: [...agent.skillIds] } : {}),
-    ...(permissionModeFor(agent, options)
+    ...(where.permissionMode && permissionModeFor(agent, options)
       ? { permissionMode: permissionModeFor(agent, options) }
       : {}),
     ...(agent.memoryIds.length > 0 ? { memory: 'project' } : {}),
