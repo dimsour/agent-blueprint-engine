@@ -120,7 +120,8 @@ function matcherFor(kinds: readonly ToolKind[]): string | undefined {
   return [...aliases].sort().join('|')
 }
 
-function lowerTrigger(hook: Hook): { event: string; matcher?: string } {
+/** Copilot's events for each trigger; `undefined` where Copilot has none. */
+function lowerTrigger(hook: Hook): { event: string; matcher?: string } | undefined {
   switch (hook.trigger) {
     case 'session-start':
       return { event: 'sessionStart' }
@@ -140,6 +141,17 @@ function lowerTrigger(hook: Hook): { event: string; matcher?: string } {
       return { event: 'agentStop' }
     case 'subagent-stop':
       return { event: 'subagentStop' }
+    case 'after-tool-failure': {
+      const matcher = matcherFor(hook.conditions.toolKinds)
+      return { event: 'postToolUseFailure', ...(matcher ? { matcher } : {}) }
+    }
+    case 'subagent-start':
+      return { event: 'subagentStart' }
+    case 'before-compact':
+      return { event: 'preCompact' }
+    case 'after-compact':
+      // Copilot has no event after compaction.
+      return undefined
   }
 }
 
@@ -177,9 +189,31 @@ export function buildHooks(
   }
 
   for (const hook of blueprint.hooks) {
-    const { event, matcher } = lowerTrigger(hook)
+    const lowered = lowerTrigger(hook)
+    if (!lowered) {
+      issues.push(
+        issue(
+          'hooks',
+          'unsupported',
+          `Hook "${hook.name}" runs after compaction, an event Copilot hooks do not have; it was not emitted.`,
+          { ref: { kind: 'hook', id: hook.id } },
+        ),
+      )
+      continue
+    }
+    const { event, matcher } = lowered
     const command = isCommandAction(hook) ? hook.action.command : undefined
     if (isCommandAction(hook) && !command) continue
+    if (hook.action.async) {
+      issues.push(
+        issue(
+          'hooks',
+          'limited',
+          `Hook "${hook.name}" should run in the background, which Copilot hooks do not document; it runs in the foreground and the agent waits for it.`,
+          { ref: { kind: 'hook', id: hook.id } },
+        ),
+      )
+    }
 
     const blocks = hook.onFailure === 'block'
     const shell = command

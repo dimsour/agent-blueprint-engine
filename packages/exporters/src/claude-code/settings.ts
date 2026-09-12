@@ -35,6 +35,8 @@ export interface ClaudeHookHandler {
   statusMessage?: string
   /** Permission-rule filter on the tool call, one `Tool(pattern)` per tool and pattern. */
   if?: string
+  /** Runs in the background; the result is discarded and nothing waits. */
+  async?: boolean
 }
 
 export interface ClaudeHookMatcher {
@@ -231,8 +233,19 @@ export function lowerTrigger(hook: Hook): LoweredTrigger {
       return { event: 'Stop' }
     case 'subagent-stop':
       return { event: 'SubagentStop' }
+    case 'after-tool-failure':
+      return { event: 'PostToolUseFailure', ...matcherFor(hook) }
+    case 'subagent-start':
+      return { event: 'SubagentStart' }
+    case 'before-compact':
+      return { event: 'PreCompact' }
+    case 'after-compact':
+      return { event: 'PostCompact' }
   }
 }
+
+/** Events on which exit 2 refuses nothing, because what they report has already happened. */
+const CANNOT_REFUSE = new Set(['PostToolUseFailure', 'SubagentStart', 'PreCompact', 'PostCompact'])
 
 function matcherFor(hook: Hook): { matcher?: string } {
   const matchers = hook.conditions.toolKinds
@@ -277,6 +290,17 @@ export function lowerHooks(
     // a README (P9-25). Only tools that take a path can be filtered by one.
     const filter = pathFilter(event, matcher, hook)
     push(event, matcher, filter ? { ...handler, if: filter } : handler)
+
+    if (hook.onFailure === 'block' && CANNOT_REFUSE.has(event) && !hook.action.async) {
+      issues.push(
+        issue(
+          'hooks',
+          'limited',
+          `Hook "${hook.name}" should block on failure, but ${event} reports something that has already happened; its output reaches the agent and nothing is refused.`,
+          { ref: { kind: 'hook', id: hook.id } },
+        ),
+      )
+    }
 
     const note = filePatternNote(hook)
     if (note && !filter) {
@@ -362,9 +386,11 @@ function handlerFor(hook: Hook, laws: IronLaw[]): ClaudeHookHandler | undefined 
     if (!command) return undefined
     return {
       type: 'command',
-      command: failing(command, failureOutcomeOf(hook)),
+      // A background hook's result is discarded, so there is nothing to wrap its failure for.
+      command: hook.action.async ? command : failing(command, failureOutcomeOf(hook)),
       ...(hook.action.timeoutSec === undefined ? {} : { timeout: hook.action.timeoutSec }),
       statusMessage: hookStatusMessage(hook),
+      ...(hook.action.async ? { async: true } : {}),
     }
   }
   return {

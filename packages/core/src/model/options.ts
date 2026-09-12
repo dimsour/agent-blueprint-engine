@@ -301,6 +301,26 @@ export const HOOK_TRIGGER_INFO: InfoOf<typeof HOOK_TRIGGERS> = {
     label: 'Subagent stop',
     description: 'When a delegated agent finishes and returns.',
   },
+  'after-tool-failure': {
+    label: 'After a tool fails',
+    description:
+      'After a tool call errors out. For hints about what went wrong; nothing can be refused, the failure already happened.',
+  },
+  'subagent-start': {
+    label: 'Subagent start',
+    description:
+      'When a delegated agent is spawned, before it acts. For context the subagent must have — the Iron Laws, the conventions — since it does not see the conversation.',
+  },
+  'before-compact': {
+    label: 'Before compaction',
+    description:
+      'Before the conversation is summarised to make room. The last moment to save state the summary might lose.',
+  },
+  'after-compact': {
+    label: 'After compaction',
+    description:
+      'After the conversation was summarised. For restating what must survive a summary: the rules, the current task.',
+  },
 }
 
 export const HOOK_ACTION_TYPE_INFO: InfoOf<typeof HOOK_ACTION_TYPES> = {

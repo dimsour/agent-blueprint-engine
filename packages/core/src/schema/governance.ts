@@ -61,6 +61,10 @@ export const HOOK_TRIGGERS = [
   'after-file-change',
   'before-stop',
   'subagent-stop',
+  'after-tool-failure',
+  'subagent-start',
+  'before-compact',
+  'after-compact',
 ] as const
 
 export const HOOK_ACTION_TYPES = [
@@ -87,6 +91,11 @@ export const hookActionSchema = z.object({
   /** Natural-language check for `prompt-check` / `check-iron-laws`. */
   prompt: z.string().optional(),
   timeoutSec: z.number().int().min(1).max(3600).optional(),
+  /**
+   * Run in the background and never block: for logging, telemetry and slow checks whose
+   * result nobody waits for. A background hook's failure cannot refuse anything.
+   */
+  async: z.boolean().default(false),
 })
 
 export const hookSchema = entityBaseSchema.extend({

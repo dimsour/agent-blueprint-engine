@@ -714,3 +714,73 @@ export function TagsField({
     </Field>
   )
 }
+
+/** A yes/no field. The `text` is the sentence beside the box, in the words of the choice. */
+export function CheckboxField({
+  label,
+  help,
+  hints,
+  checked,
+  text,
+  onChange,
+}: {
+  label: string
+  help?: string
+  hints?: FieldHint[]
+  checked: boolean
+  text: string
+  onChange: (checked: boolean) => void
+}) {
+  return (
+    <Field label={label} {...(help ? { help } : {})} {...(hints ? { hints } : {})}>
+      <label className="flex items-center gap-2 text-sm">
+        <input
+          type="checkbox"
+          checked={checked}
+          onChange={(event) => onChange(event.target.checked)}
+        />
+        {text}
+      </label>
+    </Field>
+  )
+}
+
+/** A whole-number field; an empty box means "not set". */
+export function NumberField({
+  label,
+  help,
+  hints,
+  value,
+  min,
+  max,
+  onChange,
+}: {
+  label: string
+  help?: string
+  hints?: FieldHint[]
+  value: number | undefined
+  min?: number
+  max?: number
+  onChange: (value: number | undefined) => void
+}) {
+  const id = useId()
+  return (
+    <Field label={label} {...(help ? { help } : {})} {...(hints ? { hints } : {})} htmlFor={id}>
+      <Input
+        id={id}
+        type="number"
+        inputMode="numeric"
+        className="w-32"
+        value={value === undefined ? '' : String(value)}
+        {...(min === undefined ? {} : { min })}
+        {...(max === undefined ? {} : { max })}
+        onChange={(event) => {
+          const next = event.target.value.trim()
+          if (next === '') return onChange(undefined)
+          const parsed = Number.parseInt(next, 10)
+          if (!Number.isNaN(parsed)) onChange(parsed)
+        }}
+      />
+    </Field>
+  )
+}

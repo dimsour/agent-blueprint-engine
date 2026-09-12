@@ -25,6 +25,7 @@ export interface CodexHookHandler {
   command: string
   timeout?: number
   statusMessage?: string
+  async?: boolean
 }
 
 export interface CodexHookEntry {
@@ -39,7 +40,8 @@ const issue = (
   extra: Partial<CompatibilityIssue> = {},
 ): CompatibilityIssue => ({ harnessId: 'codex', concept, support, message, ...extra })
 
-export function lowerTrigger(hook: Hook): { event: string; matcher?: string } {
+/** Codex's events for each trigger; `undefined` where Codex has none. */
+export function lowerTrigger(hook: Hook): { event: string; matcher?: string } | undefined {
   switch (hook.trigger) {
     case 'session-start':
       return { event: 'SessionStart', matcher: 'startup' }
@@ -54,6 +56,15 @@ export function lowerTrigger(hook: Hook): { event: string; matcher?: string } {
       return { event: 'Stop' }
     case 'subagent-stop':
       return { event: 'SubagentStop' }
+    case 'subagent-start':
+      return { event: 'SubagentStart' }
+    case 'before-compact':
+      return { event: 'PreCompact' }
+    case 'after-compact':
+      return { event: 'PostCompact' }
+    case 'after-tool-failure':
+      // Codex has no event for a failed tool call.
+      return undefined
   }
 }
 
@@ -79,23 +90,38 @@ export function buildHooks(
   }
 
   for (const hook of blueprint.hooks) {
-    const { event, matcher } = lowerTrigger(hook)
+    const lowered = lowerTrigger(hook)
+    if (!lowered) {
+      issues.push(
+        issue(
+          'hooks',
+          'unsupported',
+          `Hook "${hook.name}" runs after a tool fails, an event Codex hooks do not have; it was not emitted.`,
+          { ref: { kind: 'hook', id: hook.id } },
+        ),
+      )
+      continue
+    }
+    const { event, matcher } = lowered
+    const background = hook.action.async ? { async: true } : {}
     if (isCommandAction(hook)) {
       const command = hook.action.command
       if (!command) continue
       push(event, matcher, {
         type: 'command',
         // Same exit-code convention as Claude Code, so the same wrapper makes a failure mean
-        // what the Blueprint says (P9-25).
-        command: failing(command, failureOutcomeOf(hook)),
+        // what the Blueprint says (P9-25). A background hook's result is discarded.
+        command: hook.action.async ? command : failing(command, failureOutcomeOf(hook)),
         ...(hook.action.timeoutSec === undefined ? {} : { timeout: hook.action.timeoutSec }),
         statusMessage: hookStatusMessage(hook),
+        ...background,
       })
     } else {
       push(event, matcher, {
         type: 'command',
         command: reminderCommand(hook.action.prompt ?? hook.description ?? hook.name),
         statusMessage: hookStatusMessage(hook),
+        ...background,
       })
       issues.push(
         issue(

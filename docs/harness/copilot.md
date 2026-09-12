@@ -121,19 +121,23 @@ names a model explicitly and has no fast/balanced/strong equivalent, so a prefer
 
 ### Hook trigger lowering
 
-| Blueprint trigger   | Copilot event                                                                 |
-| ------------------- | ----------------------------------------------------------------------------- |
-| `session-start`     | `sessionStart`                                                                |
-| `user-prompt`       | `userPromptSubmitted`                                                         |
-| `before-tool`       | `preToolUse` (matcher from `conditions.toolKinds`)                            |
-| `after-tool`        | `postToolUse` (matcher from `conditions.toolKinds`)                           |
-| `after-file-change` | `postToolUse` with matcher `edit\|write` (verify tool names against the docs) |
-| `before-stop`       | `agentStop`                                                                   |
-| `subagent-stop`     | `subagentStop`                                                                |
+| Blueprint trigger    | Copilot event                                                                 |
+| -------------------- | ----------------------------------------------------------------------------- |
+| `session-start`      | `sessionStart`                                                                |
+| `user-prompt`        | `userPromptSubmitted`                                                         |
+| `before-tool`        | `preToolUse` (matcher from `conditions.toolKinds`)                            |
+| `after-tool`         | `postToolUse` (matcher from `conditions.toolKinds`)                           |
+| `after-file-change`  | `postToolUse` with matcher `edit\|write` (verify tool names against the docs) |
+| `before-stop`        | `agentStop`                                                                   |
+| `subagent-stop`      | `subagentStop`                                                                |
+| `after-tool-failure` | `postToolUseFailure` (matcher from `conditions.toolKinds`)                    |
+| `subagent-start`     | `subagentStart`                                                               |
+| `before-compact`     | `preCompact`                                                                  |
+| `after-compact`      | none — not emitted, reported as unsupported (P9-29)                           |
 
 Actions lower to `{ "type": "command", "bash": …, "powershell": … }` (both variants generated
 from `action.command`, PowerShell using the same command text; `timeoutSec` copied). A
-`before-stop` hook with `onFailure: block` gets the same refusal wrapper a gate does.
+`before-stop` hook with `onFailure: block` gets the same refusal wrapper a gate does. Copilot does not document background hooks, so `action.async` runs in the foreground and is reported as limited.
 `prompt-check` / `check-iron-laws` print a reminder instead: Copilot documents a `prompt`
 handler type but not the field carrying the text, and a `preToolUse` handler fails closed on
 a shape it cannot parse, so the shape is not guessed. `conditions.filePatterns` has no

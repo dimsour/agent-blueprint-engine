@@ -156,7 +156,7 @@ describe('claude-code adapter', () => {
       name: 'Scan before stop',
       trigger: 'before-stop',
       onFailure: 'block',
-      action: { type: 'secret-scan', command: 'scan-secrets' },
+      action: { type: 'secret-scan', command: 'scan-secrets', async: false },
     })
     blueprint.hooks.push({
       ...structuredClone(hook),
@@ -165,7 +165,7 @@ describe('claude-code adapter', () => {
       trigger: 'before-tool',
       conditions: { toolKinds: ['shell'], filePatterns: ['**/*.cs'] },
       onFailure: 'block',
-      action: { type: 'command', command: 'guard' },
+      action: { type: 'command', command: 'guard', async: false },
     })
     blueprint.gates[0]!.onFail = 'allow'
     blueprint.gates.push({
@@ -258,6 +258,103 @@ describe('claude-code adapter', () => {
 
     const toml = textOf(files.find((file) => file.path === '.codex/agents/reviewer.toml'))
     expect(toml).toContain('sandbox_mode = "read-only"')
+  })
+})
+
+/**
+ * The four lifecycle triggers added in P9-29 and the background flag, across the three
+ * adapters with JSON hooks. Each harness has a different subset of the events, and the test
+ * pins what each one emits and what it reports instead.
+ */
+describe('lifecycle triggers and background hooks', () => {
+  const hooksOf = async () => {
+    const blueprint = structuredClone(await loadFixture())
+    const base = blueprint.hooks[0]!
+    const make = (id: string, trigger: typeof base.trigger, async = false) => ({
+      ...structuredClone(base),
+      id,
+      name: id,
+      trigger,
+      conditions: { toolKinds: [], filePatterns: [] },
+      onFailure: 'block' as const,
+      action: { type: 'command' as const, command: `run-${id}`, async },
+    })
+    blueprint.hooks = [
+      make('on-failure', 'after-tool-failure'),
+      make('on-subagent', 'subagent-start'),
+      make('before', 'before-compact'),
+      make('after', 'after-compact'),
+      make('log', 'after-tool', true),
+    ]
+    return compileBlueprint(blueprint, { targets: ['claude-code', 'codex', 'copilot'] })
+  }
+
+  it('lowers every one of them on Claude Code, and says which cannot refuse', async () => {
+    const { files, issues } = await hooksOf()
+    const settings = JSON.parse(textOf(files.find((f) => f.path === '.claude/settings.json'))) as {
+      hooks: Record<string, { hooks: { command: string; async?: boolean }[] }[]>
+    }
+    expect(Object.keys(settings.hooks).sort()).toEqual([
+      'PostCompact',
+      'PostToolUse',
+      'PostToolUseFailure',
+      'PreCompact',
+      'Stop',
+      'SubagentStart',
+    ])
+    // A background hook runs as written: its result is discarded, so there is nothing to
+    // wrap, and the flag is on the handler.
+    expect(settings.hooks.PostToolUse?.[0]?.hooks[0]).toMatchObject({
+      command: 'run-log',
+      async: true,
+    })
+    // A blocking hook on an event that reports the past is told it cannot refuse.
+    const claude = issues.filter(
+      (issue) => issue.harnessId === 'claude-code' && issue.concept === 'hooks',
+    )
+    expect(claude.map((issue) => issue.ref?.id).sort()).toEqual([
+      'after',
+      'before',
+      'on-failure',
+      'on-subagent',
+    ])
+    expect(claude.every((issue) => issue.support === 'limited')).toBe(true)
+  })
+
+  it('drops the one event Codex lacks and reports it', async () => {
+    const { files, issues } = await hooksOf()
+    const hooks = JSON.parse(textOf(files.find((f) => f.path === '.codex/hooks.json'))) as {
+      hooks: Record<string, { hooks: { command: string; async?: boolean }[] }[]>
+    }
+    expect(Object.keys(hooks.hooks).sort()).toEqual([
+      'PostCompact',
+      'PostToolUse',
+      'PreCompact',
+      'Stop',
+      'SubagentStart',
+    ])
+    expect(hooks.hooks.PostToolUse?.[0]?.hooks[0]?.async).toBe(true)
+    const dropped = issues.find(
+      (issue) => issue.harnessId === 'codex' && issue.ref?.id === 'on-failure',
+    )
+    expect(dropped?.support).toBe('unsupported')
+  })
+
+  it('drops the one event Copilot lacks and runs background hooks in the foreground', async () => {
+    const { files, issues } = await hooksOf()
+    const hooks = JSON.parse(
+      textOf(files.find((f) => f.path === '.github/hooks/blueprint.json')),
+    ) as { hooks: Record<string, unknown[]> }
+    expect(Object.keys(hooks.hooks).sort()).toEqual([
+      'agentStop',
+      'postToolUse',
+      'postToolUseFailure',
+      'preCompact',
+      'subagentStart',
+    ])
+    const copilot = issues.filter((issue) => issue.harnessId === 'copilot')
+    expect(copilot.find((issue) => issue.ref?.id === 'after')?.support).toBe('unsupported')
+    expect(copilot.find((issue) => issue.ref?.id === 'log')?.support).toBe('limited')
   })
 })
 

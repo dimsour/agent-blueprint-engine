@@ -189,19 +189,25 @@ Adapter `claude-code` . Source entities are defined in `packages/core/src/schema
 
 ### Hook trigger lowering
 
-| Blueprint trigger   | Claude event       | Matcher                                                                                                                                              |
-| ------------------- | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `session-start`     | `SessionStart`     | none                                                                                                                                                 |
-| `user-prompt`       | `UserPromptSubmit` | none                                                                                                                                                 |
-| `before-tool`       | `PreToolUse`       | from `conditions.toolKinds`: filesystem → `Edit\|Write\|Read`, shell → `Bash`, git → `Bash`, browser/search → `WebFetch\|WebSearch`, mcp → `mcp__.*` |
-| `after-tool`        | `PostToolUse`      | same mapping                                                                                                                                         |
-| `after-file-change` | `PostToolUse`      | `Edit\|Write`                                                                                                                                        |
-| `before-stop`       | `Stop`             | none                                                                                                                                                 |
-| `subagent-stop`     | `SubagentStop`     | none                                                                                                                                                 |
+| Blueprint trigger    | Claude event         | Matcher                                                                                                                                              |
+| -------------------- | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `session-start`      | `SessionStart`       | none                                                                                                                                                 |
+| `user-prompt`        | `UserPromptSubmit`   | none                                                                                                                                                 |
+| `before-tool`        | `PreToolUse`         | from `conditions.toolKinds`: filesystem → `Edit\|Write\|Read`, shell → `Bash`, git → `Bash`, browser/search → `WebFetch\|WebSearch`, mcp → `mcp__.*` |
+| `after-tool`         | `PostToolUse`        | same mapping                                                                                                                                         |
+| `after-file-change`  | `PostToolUse`        | `Edit\|Write`                                                                                                                                        |
+| `before-stop`        | `Stop`               | none                                                                                                                                                 |
+| `subagent-stop`      | `SubagentStop`       | none                                                                                                                                                 |
+| `after-tool-failure` | `PostToolUseFailure` | from `conditions.toolKinds`, as `before-tool`; cannot refuse (reported when `onFailure: block`)                                                      |
+| `subagent-start`     | `SubagentStart`      | none; cannot refuse                                                                                                                                  |
+| `before-compact`     | `PreCompact`         | none; cannot refuse                                                                                                                                  |
+| `after-compact`      | `PostCompact`        | none; cannot refuse                                                                                                                                  |
 
 Action lowering: `command` / `run-tests` / `format` / `lint` / `secret-scan` → `{ "type": "command", "command": <wrapped action.command>, "timeout": <timeoutSec> }`; `prompt-check` → `{ "type": "prompt", "prompt": <action.prompt> }`; `check-iron-laws` → `{ "type": "prompt", "prompt": <generated from the iron laws in scope> }`.
 
 Failure wrapper (P9-25). Claude reads a hook's result from its exit code: 2 refuses the action and hands stderr to the model; any other non-zero exit is a non-blocking error shown to the user. A test runner exits 1 and writes to stdout, so run as written it can neither block nor be seen by the agent. Every command is therefore emitted as `out=$(<command> 2>&1) || { printf '%s\n' "$out" >&2; exit <code>; }` — nothing on success, the output on stderr with the right code on failure. `onFailure: block` and `return-to-agent` → exit 2 (the same mechanism: on `PostToolUse` it feeds the output back, on `Stop` and `PreToolUse` it also refuses); `warn` → exit 1. The wrapper is POSIX shell; Claude Code runs hooks in `sh` and, on Windows, in the Git Bash it requires.
+
+`action.async: true` → the handler's `async: true`, and the command is emitted as written: a background hook's result is discarded, so there is nothing to wrap its failure for.
 
 `conditions.filePatterns` on `PreToolUse` / `PostToolUse` / `PostToolUseFailure` → the handler's `if` field, one `Tool(<glob>)` rule per path-taking tool the matcher names (`Edit`, `NotebookEdit`, `Read`, `Write`; all four when the matcher names none), joined with `|`. On other events, or when the matcher names only tools that take no path (`Bash`), the pattern stays a note in the compatibility view and the command has to check the path itself.
 

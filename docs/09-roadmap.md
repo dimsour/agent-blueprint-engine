@@ -994,6 +994,16 @@ something, it says what and where that thing still exists.
 - Built: `lowerSubagentDenials` applies the same rule Copilot's `toolAliases` does — a tool is off only when every operation behind it that the agent decides is denied — and returns what survived, so the agent file says those in words. Turned-off tools are also removed from `tools:`, so the two lists never disagree.
 - Not built: pattern-level denials on a subagent (`Bash(git push *)` in `disallowedTools`); whether a subagent's tool list accepts permission-rule syntax is not documented, so the denial is a sentence rather than a guess.
 
+### P9-29 Four more moments to hook, and hooks that do not wait (done)
+
+- Package: `packages/core` (schema, options), `packages/exporters`, `apps/web` (hook form)
+- Depends on: P9-25
+- Description: The seven triggers covered a session's main line and nothing at its edges. Three edges matter in practice. A delegated agent does not see the conversation, so the laws and conventions have to be handed to it when it starts, not hoped for. A summarised conversation forgets what the summary left out, so what must survive — the rules, the task — has to be said again after compaction. And a failed tool call is the moment a hint about _why_ is worth the most. Separately, a hook that only logs or measures should not make the agent wait for it.
+- Acceptance: `after-tool-failure`, `subagent-start`, `before-compact` and `after-compact` are triggers, each described in the form; `action.async` is a field with a checkbox; Claude Code emits all four events and `async`; Codex emits three and reports `after-tool-failure` as unsupported; Copilot emits three and reports `after-compact`, and reports `async` as foreground; a blocking hook on an event that cannot refuse is reported as limited; the hook form also edits the file patterns P9-25 made native.
+- Verify: `pnpm --filter @agent-blueprint/exporters test`, `pnpm --filter web test`
+- Built: the four cases in each `lowerTrigger`, which now return `undefined` for an event the harness lacks so the caller can say so; `async: true` on the handler for Claude and Codex, with the command emitted as written since a discarded result has nothing to wrap. Option descriptions for the four triggers; docs/02 and the three harness tables.
+- Not built: a matcher on `SessionStart` (`startup` / `resume` / `compact`) and on `SubagentStart` (the agent type); the model has no field for either and no request for one yet.
+
 ### Open questions
 
 1. ~~**The logo needs a mark-only export.**~~ Settled: rather than crop by CSS, the cut is a script. `pnpm --filter web logo` measures nothing at run time — the rectangles live in `e2e/logo-assets.spec.ts`, taken from the artwork's alpha channel — and writes the three assets the app imports. A redrawn logo needs that one command and a re-measurement, and no component changes.

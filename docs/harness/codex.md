@@ -111,17 +111,21 @@ Adapter `codex` .
 
 ### Hook trigger lowering
 
-| Blueprint trigger   | Codex event                                                                                                                   |
-| ------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `session-start`     | `SessionStart` (matcher `startup`)                                                                                            |
-| `user-prompt`       | `UserPromptSubmit`                                                                                                            |
-| `before-tool`       | `PreToolUse`                                                                                                                  |
-| `after-tool`        | `PostToolUse`                                                                                                                 |
-| `after-file-change` | `PostToolUse` with a generated guard that inspects the tool input for file paths (Codex has no matcher on tool names; verify) |
-| `before-stop`       | `Stop`                                                                                                                        |
-| `subagent-stop`     | `SubagentStop`                                                                                                                |
+| Blueprint trigger    | Codex event                                                                                                                   |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `session-start`      | `SessionStart` (matcher `startup`)                                                                                            |
+| `user-prompt`        | `UserPromptSubmit`                                                                                                            |
+| `before-tool`        | `PreToolUse`                                                                                                                  |
+| `after-tool`         | `PostToolUse`                                                                                                                 |
+| `after-file-change`  | `PostToolUse` with a generated guard that inspects the tool input for file paths (Codex has no matcher on tool names; verify) |
+| `before-stop`        | `Stop`                                                                                                                        |
+| `subagent-stop`      | `SubagentStop`                                                                                                                |
+| `after-tool-failure` | none — the hook is not emitted and reported as unsupported (P9-29)                                                            |
+| `subagent-start`     | `SubagentStart`                                                                                                               |
+| `before-compact`     | `PreCompact`                                                                                                                  |
+| `after-compact`      | `PostCompact`                                                                                                                 |
 
-Action lowering: `command` / `run-tests` / `format` / `lint` / `secret-scan` → `{ "type": "command", "command": …, "timeout": … }`; `prompt-check` and `check-iron-laws` have no `prompt` handler type in Codex, so they lower to a `command` that prints the check text to stdout as `additionalContext` (adapted; reported as a `CompatibilityIssue`). Failure semantics are the same exit-code convention as Claude Code, so the command goes through the same failure wrapper (`docs/harness/claude-code.md`, P9-25): `block` / `return-to-agent` exit 2 with the output on stderr, `warn` exits 1, a gate's `allow` ignores the result and `request-approval` asks for the user first.
+Action lowering: `command` / `run-tests` / `format` / `lint` / `secret-scan` → `{ "type": "command", "command": …, "timeout": … }`; `prompt-check` and `check-iron-laws` have no `prompt` handler type in Codex, so they lower to a `command` that prints the check text to stdout as `additionalContext` (adapted; reported as a `CompatibilityIssue`). Failure semantics are the same exit-code convention as Claude Code, so the command goes through the same failure wrapper; `action.async` → the handler's `async`, with the command as written (`docs/harness/claude-code.md`, P9-25): `block` / `return-to-agent` exit 2 with the output on stderr, `warn` exits 1, a gate's `allow` ignores the result and `request-approval` asks for the user first.
 
 ### Permission lowering
 

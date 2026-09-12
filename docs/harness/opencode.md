@@ -121,15 +121,16 @@ commands, because the default already runs the workflow in the session that invo
 
 ### Hook trigger lowering
 
-| Blueprint trigger   | OpenCode plugin hook                                  |
-| ------------------- | ----------------------------------------------------- |
-| `session-start`     | `event` where `event.type === 'session.created'`      |
-| `user-prompt`       | `chat.message`                                        |
-| `before-tool`       | `tool.execute.before` (filter on `input.tool`)        |
-| `after-tool`        | `tool.execute.after`                                  |
-| `after-file-change` | `event` where `event.type === 'file.edited'`          |
-| `before-stop`       | `event` where `event.type === 'session.idle'`         |
-| `subagent-stop`     | `event` on `session.idle` for child sessions (verify) |
+| Blueprint trigger                                                         | OpenCode plugin hook                                          |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| `session-start`                                                           | `event` where `event.type === 'session.created'`              |
+| `user-prompt`                                                             | `chat.message`                                                |
+| `before-tool`                                                             | `tool.execute.before` (filter on `input.tool`)                |
+| `after-tool`                                                              | `tool.execute.after`                                          |
+| `after-file-change`                                                       | `event` where `event.type === 'file.edited'`                  |
+| `before-stop`                                                             | `event` where `event.type === 'session.idle'`                 |
+| `subagent-stop`                                                           | `event` on `session.idle` for child sessions (verify)         |
+| `after-tool-failure`, `subagent-start`, `before-compact`, `after-compact` | no equivalent found in the plugin API; described only (P9-29) |
 
 Actions: `command`-like actions run through `$` (the plugin's shell); `onFailure: block` throws inside `tool.execute.before`, elsewhere it posts a message through `client`. `prompt-check` / `check-iron-laws` inject text via `chat.params` or a message (adapted).
 

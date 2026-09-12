@@ -53,6 +53,7 @@ import { toast } from 'sonner'
 
 import { exampleFor } from '@/components/editors/field-examples'
 import {
+  CheckboxField,
   Field,
   RefListField,
   SelectField,
@@ -610,9 +611,21 @@ function KindFields({ kind, entity, blueprint, update, hint }: KindFieldProps) {
             onChange={(command) =>
               update({ action: { ...(entity['action'] as object), command: command || undefined } })
             }
-            help="Run verbatim by every harness that supports command hooks."
+            help="Run by every harness that supports command hooks, wrapped so that a failure means what 'On failure' says."
             {...exampleFor(kind, 'command')}
             {...hint('action.command')}
+          />
+          <StringListField
+            label="Only for files matching"
+            values={
+              (entity['conditions'] as { filePatterns?: string[] } | undefined)?.filePatterns ?? []
+            }
+            onChange={(filePatterns) =>
+              update({ conditions: { ...(entity['conditions'] as object), filePatterns } })
+            }
+            placeholder="**/*.cs"
+            help="Globs. On a tool event, harnesses that can filter by path run the hook only for these; the rest are told and the command must check."
+            {...hint('conditions.filePatterns')}
           />
           <SelectField
             label="On failure"
@@ -620,6 +633,13 @@ function KindFields({ kind, entity, blueprint, update, hint }: KindFieldProps) {
             options={HOOK_FAILURE_BEHAVIORS}
             describe={HOOK_FAILURE_BEHAVIOR_INFO}
             onChange={(onFailure) => update({ onFailure })}
+          />
+          <CheckboxField
+            label="Run in background"
+            checked={(entity['action'] as { async?: boolean } | undefined)?.async ?? false}
+            text="Nothing waits for it, and its result is discarded"
+            help="For logging and slow checks nobody needs the answer to. A background hook cannot block, whatever 'On failure' says."
+            onChange={(async) => update({ action: { ...(entity['action'] as object), async } })}
           />
         </>
       )

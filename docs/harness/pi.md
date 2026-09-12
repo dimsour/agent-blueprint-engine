@@ -105,15 +105,16 @@ Adapter `pi`. **Built (P8-03):**
 
 ### Hook trigger lowering
 
-| Blueprint trigger   | Pi extension event                               |
-| ------------------- | ------------------------------------------------ |
-| `session-start`     | `session_start`                                  |
-| `user-prompt`       | `input`                                          |
-| `before-tool`       | `tool_call` (return `{ block, reason }`)         |
-| `after-tool`        | `tool_result`                                    |
-| `after-file-change` | `tool_result` filtered to `edit` / `write` tools |
-| `before-stop`       | `agent_end`                                      |
-| `subagent-stop`     | unsupported                                      |
+| Blueprint trigger                                                         | Pi extension event                               |
+| ------------------------------------------------------------------------- | ------------------------------------------------ |
+| `session-start`                                                           | `session_start`                                  |
+| `user-prompt`                                                             | `input`                                          |
+| `before-tool`                                                             | `tool_call` (return `{ block, reason }`)         |
+| `after-tool`                                                              | `tool_result`                                    |
+| `after-file-change`                                                       | `tool_result` filtered to `edit` / `write` tools |
+| `before-stop`                                                             | `agent_end`                                      |
+| `subagent-stop`                                                           | unsupported                                      |
+| `after-tool-failure`, `subagent-start`, `before-compact`, `after-compact` | unsupported (P9-29)                              |
 
 Actions run via `pi.exec`; `onFailure: block` returns `{ block: true, reason }` for `tool_call`, or `sendUserMessage` with the output for other events. `prompt-check` / `check-iron-laws` inject text through `before_agent_start` `{ systemPrompt }` (adapted).
 
