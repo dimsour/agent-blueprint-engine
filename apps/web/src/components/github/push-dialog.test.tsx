@@ -293,3 +293,41 @@ describe('pushing to GitHub', () => {
     expect(document.body.textContent).not.toContain('sk-abcdefghijklmnopqrstuvwxyz01')
   })
 })
+
+/**
+ * A new repository, as an option rather than a consolation (P9-22).
+ *
+ * Reported from use: "is it possible to add an option to create a new repo?" It was — after a
+ * preview had failed with a 404, which is not where anyone looks for an option.
+ */
+describe('creating the repository', () => {
+  it('offers to create a name the token cannot see, before any preview', async () => {
+    sessionStorage.setItem('ab:credentials:github', 'ghp_token')
+    await load()
+    const { requests } = await github({ missingUntilCreated: true })
+    const user = await openDialog()
+
+    // Typed, not previewed: the offer is there as soon as the name is.
+    await user.type(screen.getByLabelText('Repository'), 'octocat/blueprints')
+    const create = await screen.findByRole('button', { name: /Create octocat\/blueprints/ })
+    expect(create).toBeVisible()
+    // And Preview stays beside it, because the list is what the token can see, not everything.
+    expect(screen.getByRole('button', { name: 'Preview the changes' })).toBeEnabled()
+
+    await user.click(create)
+    await screen.findByRole('list', { name: 'Changes' })
+    expect(
+      requests.some((request) => request.url.endsWith('/user/repos') && request.method === 'POST'),
+    ).toBe(true)
+  })
+
+  it('names a new repository for the Blueprint under the token’s own login, in one click', async () => {
+    sessionStorage.setItem('ab:credentials:github', 'ghp_token')
+    const blueprint = await load()
+    await github({ missingUntilCreated: true })
+    const user = await openDialog()
+
+    await user.click(await screen.findByRole('button', { name: /New repository: octocat\// }))
+    expect(screen.getByLabelText('Repository')).toHaveValue(`octocat/${blueprint.id}`)
+  })
+})

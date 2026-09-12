@@ -944,6 +944,16 @@ something, it says what and where that thing still exists.
 - Built, the findings: nine more codes gained `fields` (`BP-ID-*` and the five id-collision codes → `id`; `BP-LAW-010` → `rule`, `scope`; `BP-REQ-004` → `checks`), and reader findings now show the file they are about. A test holds that every code either names fields or is on the explicit list of codes about the whole Blueprint, and that every field named exists on some schema — because a field no schema has is a pointer to nothing, and nothing would notice.
 - Honest about the remainder: the twenty-one whole-Blueprint codes (no export target, no Iron Laws at all, a concept adapted on a harness) have no artifact to land on. They point at the view that does the job, in their remedy.
 
+### P9-22 A new repository, as an option (done)
+
+- Package: `apps/web/src/components/github/push-dialog.tsx`
+- Depends on: nothing
+- Description: Reported from use: _"Push to GitHub — is it possible to add an option to create a new repo?"_ It was, since P7 — but only after a preview had failed with a 404, at which point the dialog offered to create the name. That is a consolation, not an option, and nobody looks for an option in an error.
+- Acceptance: a name the token cannot list is offered for creation as soon as it is typed; with nothing typed, one button proposes a repository named for the Blueprint under the token's own login; Preview stays available throughout.
+- Verify: `pnpm --filter web test`
+- Built: the offer moved from after the failure to as soon as the name is known — the list of repositories the token can push to is already fetched, so "not in it" is known the moment the field is. Preview stays beside it on purpose: the list is what a fine-grained token can _see_, not everything that exists, and GitHub refuses a taken name with a message that says so. The 404 path is kept for exactly that case.
+- Built: **New repository: `<login>/<blueprint-id>`**, shown while the field is empty. One click fills the name in; the creation offer appears under it; the next click makes it.
+
 ### Open questions
 
 1. ~~**The logo needs a mark-only export.**~~ Settled: rather than crop by CSS, the cut is a script. `pnpm --filter web logo` measures nothing at run time — the rectangles live in `e2e/logo-assets.spec.ts`, taken from the artwork's alpha channel — and writes the three assets the app imports. A redrawn logo needs that one command and a re-measurement, and no component changes.

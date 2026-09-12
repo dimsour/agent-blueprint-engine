@@ -116,15 +116,28 @@ function Push() {
   /** GitHub had nothing at that name, so creating it is the next thing the user wants. */
   const [missing, setMissing] = useState(false)
   const [makePrivate, setMakePrivate] = useState(true)
+  /** Whose token this is, so a new repository can be offered under their login (P9-22). */
+  const [login, setLogin] = useState<string | undefined>()
+  const [reposLoaded, setReposLoaded] = useState(false)
 
   // Suggesting the repositories this token can push to costs one request and saves the user
-  // remembering how a repository is spelled.
+  // remembering how a repository is spelled. The login costs a second and is what a new
+  // repository is named under.
   useEffect(() => {
     if (!token) return
     let cancelled = false
     listRepositories(token)
       .then((found) => {
-        if (!cancelled) setRepos(found.filter((repo) => repo.canPush))
+        if (cancelled) return
+        setRepos(found.filter((repo) => repo.canPush))
+        setReposLoaded(true)
+      })
+      .catch(() => {
+        if (!cancelled) setReposLoaded(true)
+      })
+    viewer(token)
+      .then((me) => {
+        if (!cancelled) setLogin(me.login)
       })
       .catch(() => undefined)
     return () => {
@@ -133,6 +146,23 @@ function Push() {
   }, [token])
 
   const chosen = parseRepoRef(repoInput)
+
+  /**
+   * Whether the name typed is one this token is known to push to.
+   *
+   * Reported from use: "is it possible to add an option to create a new repo?" — it was, but
+   * only after a preview had failed with a 404, which is not where anyone looks for an option.
+   * A name the list does not know is offered for creation as soon as it is typed; Preview stays
+   * available beside it, because the list is what a fine-grained token can see, not everything
+   * that exists, and GitHub refuses a taken name with a message that says so.
+   */
+  const unlisted =
+    chosen !== undefined &&
+    reposLoaded &&
+    !repos.some(
+      (repo) => repo.fullName.toLowerCase() === `${chosen.owner}/${chosen.name}`.toLowerCase(),
+    )
+  const offerCreate = chosen !== undefined && (missing || unlisted) && !prepared
 
   // Offering the branches of the repository being typed is worth one request; it is also how
   // the user finds out the repository is reachable before building a plan against it.
@@ -283,6 +313,7 @@ function Push() {
               onChange={(event) => {
                 setRepoInput(event.target.value)
                 setPrepared(undefined)
+                setMissing(false)
               }}
             />
             <datalist id={`${repoId}-list`}>
@@ -290,6 +321,19 @@ function Push() {
                 <option key={repo.fullName} value={repo.fullName} />
               ))}
             </datalist>
+            {/* The option that was asked for: a new repository, named for the Blueprint under
+                the token's own account, one click and no typing. */}
+            {!repoInput && login && blueprint ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="self-start"
+                onClick={() => setRepoInput(`${login}/${blueprint.id}`)}
+              >
+                <PlusIcon />
+                New repository: {login}/{blueprint.id}
+              </Button>
+            ) : null}
           </Field>
 
           <Field
@@ -338,11 +382,12 @@ function Push() {
             </p>
           ) : null}
 
-          {missing && chosen ? (
+          {offerCreate && chosen ? (
             <div className="flex flex-col items-start gap-2 border-l-2 pl-3">
               <p className="text-muted-foreground text-xs">
-                Nothing answers to that name. It can be made here, empty, so this Blueprint is its
-                first commit.
+                {missing
+                  ? 'Nothing answers to that name. It can be made here, empty, so this Blueprint is its first commit.'
+                  : `This token has no repository called ${chosen.owner}/${chosen.name}. It can be made here, empty, so this Blueprint is its first commit — or preview, if it exists and the token simply cannot list it.`}
               </p>
               <label className="flex items-center gap-2 text-sm">
                 <input
