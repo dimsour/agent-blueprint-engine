@@ -12,15 +12,20 @@
  * a sequential edge, and a keyboard user has no drag at all.
  */
 import {
-  type Blueprint,
   getCollection,
   MERGE_STRATEGIES,
+  MERGE_STRATEGY_INFO,
+  NODE_FAILURE_BEHAVIOR_INFO,
   NODE_FAILURE_BEHAVIORS,
-  VERIFICATION_METHODS,
+  type Blueprint,
   type Workflow,
   type WorkflowEdge,
   type WorkflowNode,
+  VERIFICATION_METHOD_INFO,
+  VERIFICATION_METHODS,
+  WORKFLOW_EDGE_KIND_INFO,
   WORKFLOW_EDGE_KINDS,
+  WORKFLOW_NODE_TYPE_INFO,
   WORKFLOW_NODE_TYPES,
 } from '@agent-blueprint/core'
 import { ArrowRightIcon, FlagIcon, Trash2Icon } from 'lucide-react'
@@ -36,7 +41,7 @@ import {
 } from '@/components/editors/fields'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/primitives'
-import { EDGE_KIND_INFO, type EdgeKind, type NodeType, NODE_TYPE_INFO } from '@/lib/graph/steps'
+import { type EdgeKind, edgeHint, nodeHint, type NodeType, NODE_TYPE_INFO } from '@/lib/graph/steps'
 import {
   connect,
   removeEdge,
@@ -123,8 +128,9 @@ function Connections({
         label="Kind of the next connection"
         value={kind}
         options={WORKFLOW_EDGE_KINDS}
+        describe={WORKFLOW_EDGE_KIND_INFO}
         onChange={setKind}
-        help={EDGE_KIND_INFO[kind].hint}
+        help={edgeHint(kind)}
       />
 
       <RefListField
@@ -174,8 +180,9 @@ export function NodePanel({
         label="Step type"
         value={node.type}
         options={WORKFLOW_NODE_TYPES}
+        describe={WORKFLOW_NODE_TYPE_INFO}
         onChange={(type) => onChange(updateNode(workflow, node.id, { type: type as NodeType }))}
-        help={info.hint}
+        help={nodeHint(node.type)}
       />
 
       {info.refField === 'agentId' ? (
@@ -226,6 +233,7 @@ export function NodePanel({
             label="How it is verified"
             value={verificationMethod(config)}
             options={VERIFICATION_METHODS}
+            describe={VERIFICATION_METHOD_INFO}
             onChange={(method) =>
               setConfig({
                 verification: {
@@ -257,6 +265,7 @@ export function NodePanel({
           label="Merge strategy"
           value={(config['mergeStrategy'] ?? 'all') as (typeof MERGE_STRATEGIES)[number]}
           options={MERGE_STRATEGIES}
+          describe={MERGE_STRATEGY_INFO}
           onChange={(mergeStrategy) => setConfig({ mergeStrategy })}
         />
       ) : null}
@@ -301,6 +310,7 @@ export function NodePanel({
         label="On failure"
         value={(config['onFailure'] ?? 'stop') as (typeof NODE_FAILURE_BEHAVIORS)[number]}
         options={NODE_FAILURE_BEHAVIORS}
+        describe={NODE_FAILURE_BEHAVIOR_INFO}
         onChange={(onFailure) => setConfig({ onFailure })}
       />
 
@@ -354,8 +364,9 @@ export function EdgePanel({
         label="Connection"
         value={edge.kind}
         options={WORKFLOW_EDGE_KINDS}
+        describe={WORKFLOW_EDGE_KIND_INFO}
         onChange={(kind) => onChange(updateEdge(workflow, edge.id, { kind }))}
-        help={EDGE_KIND_INFO[edge.kind].hint}
+        help={edgeHint(edge.kind)}
       />
 
       {edge.kind === 'conditional' ? (

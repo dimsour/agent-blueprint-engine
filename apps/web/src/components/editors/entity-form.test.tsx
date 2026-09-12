@@ -1,3 +1,4 @@
+import { AGENT_ROLE_INFO } from '@agent-blueprint/core'
 import { readStarterFiles } from '@agent-blueprint/templates'
 import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -405,5 +406,29 @@ describe('findings on the form', () => {
     await load()
     render(<EntityForm selection={{ kind: 'skill', id: 'react-testing' }} />)
     expect(screen.queryByRole('list', { name: 'Findings about this field' })).toBeNull()
+  })
+})
+
+/**
+ * Every option explains itself (P9-21).
+ *
+ * Reported from use: the Role select offers seven words and no help. The sentence beside the
+ * chosen value is the same one docs/02 lists, from the same table in core.
+ */
+describe('option descriptions', () => {
+  it('shows what the chosen role means, under the select', async () => {
+    await load()
+    render(<EntityForm selection={{ kind: 'agent', id: 'react-expert' }} />)
+
+    const explained = screen.getAllByTestId('option-description').map((node) => node.textContent)
+    // The role's sentence, verbatim from the core table.
+    expect(explained.some((text) => text?.includes(AGENT_ROLE_INFO.worker.description))).toBe(true)
+  })
+
+  it('shows one under every select that has a table, and none under a select that has not', async () => {
+    await load()
+    render(<EntityForm selection={{ kind: 'skill', id: 'react-testing' }} />)
+    // A skill's form has no enum selects, so nothing to explain.
+    expect(screen.queryAllByTestId('option-description')).toHaveLength(0)
   })
 })

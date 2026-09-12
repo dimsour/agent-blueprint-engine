@@ -16,7 +16,8 @@
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest",
-    "fixtures:canonicalize": "tsx scripts/canonicalize-fixtures.ts"
+    "fixtures:canonicalize": "tsx scripts/canonicalize-fixtures.ts",
+    "options:doc": "tsx scripts/options-doc.ts"
   },
   "dependencies": {
     "yaml": "2.9.0",

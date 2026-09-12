@@ -7,9 +7,11 @@
  * than hiding behind a silent fallback.
  */
 import {
-  type Agent,
+  PERMISSION_DECISION_INFO,
   PERMISSION_DECISIONS,
+  PERMISSION_OPERATION_INFO,
   PERMISSION_OPERATIONS,
+  type Agent,
   type PermissionSet,
 } from '@agent-blueprint/core'
 import { PlusIcon, XIcon } from 'lucide-react'
@@ -24,20 +26,11 @@ import { cn } from '@/lib/utils'
 type Operation = (typeof PERMISSION_OPERATIONS)[number]
 type Decision = (typeof PERMISSION_DECISIONS)[number]
 
-const OPERATION_LABELS: Record<Operation, string> = {
-  'fs.read': 'Read files',
-  'fs.write': 'Create and edit files',
-  'fs.delete': 'Delete files',
-  'shell.readonly': 'Run read-only commands',
-  'shell.mutating': 'Run commands that change state',
-  'git.read': 'Read git history',
-  'git.commit': 'Stage and commit',
-  'git.push': 'Push',
-  'git.force-push': 'Force-push',
-  'net.docs': 'Fetch documentation',
-  'net.any': 'Make any network request',
-  mcp: 'Use MCP servers',
-}
+// The labels used to live here as a second copy. They are the core option table now, which
+// is also what the docs list and what the AI is told (P9-21).
+const OPERATION_LABELS: Record<Operation, string> = Object.fromEntries(
+  PERMISSION_OPERATIONS.map((operation) => [operation, PERMISSION_OPERATION_INFO[operation].label]),
+) as Record<Operation, string>
 
 /** The severity colours the whole product uses, named for what a decision means here. */
 const DECISION_VARIANT: Record<Decision, Severity> = {
@@ -77,7 +70,11 @@ export function PermissionsGrid({
             <tr className="text-muted-foreground text-xs">
               <th className="py-1 text-left font-medium">Operation</th>
               {PERMISSION_DECISIONS.map((decision) => (
-                <th key={decision} className="w-16 py-1 font-medium capitalize">
+                <th
+                  key={decision}
+                  className="w-16 py-1 font-medium capitalize"
+                  title={PERMISSION_DECISION_INFO[decision].description}
+                >
                   {decision}
                 </th>
               ))}
@@ -91,6 +88,9 @@ export function PermissionsGrid({
                   <td className="py-1 pr-2">
                     <span className="block">{OPERATION_LABELS[operation]}</span>
                     <span className="text-muted-foreground font-mono text-[11px]">{operation}</span>
+                    <span className="text-muted-foreground block max-w-md text-[11px] leading-snug">
+                      {PERMISSION_OPERATION_INFO[operation].description}
+                    </span>
                   </td>
                   {PERMISSION_DECISIONS.map((decision) => (
                     <td key={decision} className="py-1 text-center">

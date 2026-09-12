@@ -5,7 +5,12 @@
  * panel wants only these names: importing them should not pull a megabyte of layout code in
  * behind them.
  */
-import type { WORKFLOW_EDGE_KINDS, WORKFLOW_NODE_TYPES } from '@agent-blueprint/core'
+import {
+  WORKFLOW_EDGE_KIND_INFO,
+  type WORKFLOW_EDGE_KINDS,
+  WORKFLOW_NODE_TYPE_INFO,
+  type WORKFLOW_NODE_TYPES,
+} from '@agent-blueprint/core'
 
 import { hueColor, KIND_HUE } from '@/lib/graph/overview'
 
@@ -14,8 +19,6 @@ export type EdgeKind = (typeof WORKFLOW_EDGE_KINDS)[number]
 
 export interface NodeTypeInfo {
   label: string
-  /** What the step does, shown in the palette. */
-  hint: string
   hue: number
   /** Which artifact, if any, this type of step points at. */
   refField?: 'agentId' | 'skillId' | 'toolId' | 'gateId'
@@ -28,54 +31,63 @@ export interface NodeTypeInfo {
  * the overview graph and in this palette.
  */
 export const NODE_TYPE_INFO: Record<NodeType, NodeTypeInfo> = {
-  start: { label: 'Start', hint: 'Where the workflow begins', hue: 250 },
-  end: { label: 'End', hint: 'Where it finishes', hue: 250 },
+  start: { label: 'Start', hue: 250 },
+  end: { label: 'End', hue: 250 },
   agent: {
     label: 'Agent',
-    hint: 'An agent does the work',
     hue: KIND_HUE.agent,
     refField: 'agentId',
   },
-  skill: { label: 'Skill', hint: 'Apply a skill', hue: KIND_HUE.skill, refField: 'skillId' },
-  tool: { label: 'Tool', hint: 'Use a tool', hue: KIND_HUE.tool, refField: 'toolId' },
-  condition: { label: 'Condition', hint: 'Branch on a question', hue: 60 },
-  verification: { label: 'Verification', hint: 'Prove it worked', hue: 150 },
-  review: { label: 'Review', hint: 'Another pass over the work', hue: 170 },
+  skill: { label: 'Skill', hue: KIND_HUE.skill, refField: 'skillId' },
+  tool: { label: 'Tool', hue: KIND_HUE.tool, refField: 'toolId' },
+  condition: { label: 'Condition', hue: 60 },
+  verification: { label: 'Verification', hue: 150 },
+  review: { label: 'Review', hue: 170 },
   gate: {
     label: 'Gate',
-    hint: 'A checkpoint that can stop it',
     hue: KIND_HUE.gate,
     refField: 'gateId',
   },
-  'human-approval': { label: 'Human approval', hint: 'Ask a person', hue: 320 },
-  output: { label: 'Output', hint: 'Produce the result', hue: 230 },
-  parallel: { label: 'Parallel', hint: 'Split into branches', hue: 45 },
-  merge: { label: 'Merge', hint: 'Bring the branches back', hue: 45 },
-  retry: { label: 'Retry', hint: 'Try again, up to a limit', hue: 30 },
+  'human-approval': { label: 'Human approval', hue: 320 },
+  output: { label: 'Output', hue: 230 },
+  parallel: { label: 'Parallel', hue: 45 },
+  merge: { label: 'Merge', hue: 45 },
+  retry: { label: 'Retry', hue: 30 },
   delegate: {
     label: 'Delegate',
-    hint: 'Hand off to another agent',
     hue: KIND_HUE.memory,
     refField: 'agentId',
   },
-  synthesis: { label: 'Synthesis', hint: 'Combine what came back', hue: 210 },
+  synthesis: { label: 'Synthesis', hue: 210 },
 }
 
 export interface EdgeKindInfo {
   label: string
-  hint: string
   dashed: boolean
 }
 
 export const EDGE_KIND_INFO: Record<EdgeKind, EdgeKindInfo> = {
-  sequential: { label: 'Then', hint: 'The ordinary next step', dashed: false },
-  parallel: { label: 'In parallel', hint: 'Runs alongside its siblings', dashed: false },
-  conditional: { label: 'If', hint: 'Taken when the condition holds', dashed: true },
-  fallback: { label: 'Otherwise', hint: 'Taken when the others do not', dashed: true },
-  retry: { label: 'Retry', hint: 'Goes back to try again', dashed: true },
-  delegation: { label: 'Delegates to', hint: 'Hands the work over', dashed: false },
-  review: { label: 'For review', hint: 'Sends the work to be checked', dashed: false },
-  aggregation: { label: 'Collects into', hint: 'Feeds a merge or synthesis', dashed: false },
+  sequential: { label: 'Then', dashed: false },
+  parallel: { label: 'In parallel', dashed: false },
+  conditional: { label: 'If', dashed: true },
+  fallback: { label: 'Otherwise', dashed: true },
+  retry: { label: 'Retry', dashed: true },
+  delegation: { label: 'Delegates to', dashed: false },
+  review: { label: 'For review', dashed: false },
+  aggregation: { label: 'Collects into', dashed: false },
+}
+
+/**
+ * What a step does, for the palette's tooltip. From the core option table, which is also what
+ * the form's step-type select shows and what docs/02 lists (P9-21); the graph keeps its own
+ * short labels because "Then" and "If" read better on a canvas than "Sequential".
+ */
+export function nodeHint(type: NodeType): string {
+  return WORKFLOW_NODE_TYPE_INFO[type].description
+}
+
+export function edgeHint(kind: EdgeKind): string {
+  return WORKFLOW_EDGE_KIND_INFO[kind].description
 }
 
 export function nodeColor(type: NodeType): string {

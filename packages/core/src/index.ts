@@ -8,6 +8,8 @@
 export * from './model/ids'
 export * from './model/json'
 export * from './model/kinds'
+export * from './model/options'
+export * from './model/options-doc'
 export * from './model/refs'
 export * from './model/types'
 

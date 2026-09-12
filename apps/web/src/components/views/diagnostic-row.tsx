@@ -192,7 +192,15 @@ export function DiagnosticRow({
           AI
         </Badge>
       ) : null}
-      <span className="min-w-0 flex-1 text-left text-xs">{diagnostic.message}</span>
+      <span className="min-w-0 flex-1 text-left text-xs">
+        {diagnostic.message}
+        {/* A reader finding is about a file, and the file is the pointer (P9-21). */}
+        {diagnostic.path ? (
+          <span className="text-muted-foreground ml-1 font-mono text-[11px]">
+            {diagnostic.path}
+          </span>
+        ) : null}
+      </span>
     </>
   )
 

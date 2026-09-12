@@ -11,27 +11,42 @@
  * changing it goes through `renameEntity`, which rewrites every reference to it.
  */
 import {
+  AGENT_ROLE_INFO,
   AGENT_ROLES,
-  type AnyEntity,
-  type Blueprint,
   ENTITY_KIND_INFO,
-  type EntityKind,
-  type EntityRef,
+  GATE_CRITERION_KIND_INFO,
   GATE_CRITERION_KINDS,
+  GATE_FAILURE_BEHAVIOR_INFO,
   GATE_FAILURE_BEHAVIORS,
   getCollection,
   GOVERNANCE_CATEGORIES,
+  GOVERNANCE_CATEGORY_INFO,
+  HOOK_ACTION_TYPE_INFO,
   HOOK_ACTION_TYPES,
+  HOOK_FAILURE_BEHAVIOR_INFO,
   HOOK_FAILURE_BEHAVIORS,
+  HOOK_TRIGGER_INFO,
   HOOK_TRIGGERS,
   IRON_LAW_SEVERITIES,
+  IRON_LAW_SEVERITY_INFO,
+  MEMORY_SCOPE_INFO,
   MEMORY_SCOPES,
+  MODEL_PREFERENCE_INFO,
   MODEL_PREFERENCES,
+  REFERENCE_KIND_INFO,
   REFERENCE_KINDS,
+  REQUIREMENT_LEVEL_INFO,
   REQUIREMENT_LEVELS,
   RULE_PRIORITIES,
+  RULE_PRIORITY_INFO,
+  SCENARIO_MODE_INFO,
   SCENARIO_MODES,
+  TOOL_KIND_INFO,
   TOOL_KINDS,
+  type AnyEntity,
+  type Blueprint,
+  type EntityKind,
+  type EntityRef,
 } from '@agent-blueprint/core'
 import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
@@ -284,6 +299,7 @@ function KindFields({ kind, entity, blueprint, update, hint }: KindFieldProps) {
             label="Role"
             value={string('role') as (typeof AGENT_ROLES)[number]}
             options={AGENT_ROLES}
+            describe={AGENT_ROLE_INFO}
             onChange={(role) => update({ role })}
             help="What this agent is for. Compiled into the subagent description."
           />
@@ -373,6 +389,7 @@ function KindFields({ kind, entity, blueprint, update, hint }: KindFieldProps) {
                 'balanced') as (typeof MODEL_PREFERENCES)[number]
             }
             options={MODEL_PREFERENCES}
+            describe={MODEL_PREFERENCE_INFO}
             onChange={(preference) =>
               // Spread the existing model so a hint written in the project file survives.
               update({
@@ -498,12 +515,14 @@ function KindFields({ kind, entity, blueprint, update, hint }: KindFieldProps) {
             label="Severity"
             value={string('severity') as (typeof IRON_LAW_SEVERITIES)[number]}
             options={IRON_LAW_SEVERITIES}
+            describe={IRON_LAW_SEVERITY_INFO}
             onChange={(severity) => update({ severity })}
           />
           <SelectField
             label="Category"
             value={string('category') as (typeof GOVERNANCE_CATEGORIES)[number]}
             options={GOVERNANCE_CATEGORIES}
+            describe={GOVERNANCE_CATEGORY_INFO}
             onChange={(category) => update({ category })}
           />
           <StringListField
@@ -538,12 +557,14 @@ function KindFields({ kind, entity, blueprint, update, hint }: KindFieldProps) {
             label="Priority"
             value={string('priority') as (typeof RULE_PRIORITIES)[number]}
             options={RULE_PRIORITIES}
+            describe={RULE_PRIORITY_INFO}
             onChange={(priority) => update({ priority })}
           />
           <SelectField
             label="Category"
             value={string('category') as (typeof GOVERNANCE_CATEGORIES)[number]}
             options={GOVERNANCE_CATEGORIES}
+            describe={GOVERNANCE_CATEGORY_INFO}
             onChange={(category) => update({ category })}
           />
           <StringListField
@@ -566,6 +587,7 @@ function KindFields({ kind, entity, blueprint, update, hint }: KindFieldProps) {
             label="Trigger"
             value={string('trigger') as (typeof HOOK_TRIGGERS)[number]}
             options={HOOK_TRIGGERS}
+            describe={HOOK_TRIGGER_INFO}
             onChange={(trigger) => update({ trigger })}
             help="The lifecycle event that fires it."
             {...hint('trigger')}
@@ -577,6 +599,7 @@ function KindFields({ kind, entity, blueprint, update, hint }: KindFieldProps) {
                 'command') as (typeof HOOK_ACTION_TYPES)[number]
             }
             options={HOOK_ACTION_TYPES}
+            describe={HOOK_ACTION_TYPE_INFO}
             onChange={(type) => update({ action: { ...(entity['action'] as object), type } })}
             {...hint('action.type')}
           />
@@ -595,6 +618,7 @@ function KindFields({ kind, entity, blueprint, update, hint }: KindFieldProps) {
             label="On failure"
             value={string('onFailure') as (typeof HOOK_FAILURE_BEHAVIORS)[number]}
             options={HOOK_FAILURE_BEHAVIORS}
+            describe={HOOK_FAILURE_BEHAVIOR_INFO}
             onChange={(onFailure) => update({ onFailure })}
           />
         </>
@@ -607,6 +631,7 @@ function KindFields({ kind, entity, blueprint, update, hint }: KindFieldProps) {
             label="If it fails"
             value={string('onFail') as (typeof GATE_FAILURE_BEHAVIORS)[number]}
             options={GATE_FAILURE_BEHAVIORS}
+            describe={GATE_FAILURE_BEHAVIOR_INFO}
             onChange={(onFail) => update({ onFail })}
           />
           <CriteriaFields entity={entity} update={update} hint={hint} />
@@ -620,6 +645,7 @@ function KindFields({ kind, entity, blueprint, update, hint }: KindFieldProps) {
             label="Kind"
             value={string('kind') as (typeof TOOL_KINDS)[number]}
             options={TOOL_KINDS}
+            describe={TOOL_KIND_INFO}
             onChange={(value) => update({ kind: value })}
           />
           <StringListField
@@ -639,6 +665,7 @@ function KindFields({ kind, entity, blueprint, update, hint }: KindFieldProps) {
             label="Kind"
             value={string('kind') as (typeof REFERENCE_KINDS)[number]}
             options={REFERENCE_KINDS}
+            describe={REFERENCE_KIND_INFO}
             onChange={(value) => update({ kind: value })}
           />
           <TextField
@@ -659,6 +686,7 @@ function KindFields({ kind, entity, blueprint, update, hint }: KindFieldProps) {
             label="Scope"
             value={string('scope') as (typeof MEMORY_SCOPES)[number]}
             options={MEMORY_SCOPES}
+            describe={MEMORY_SCOPE_INFO}
             onChange={(scope) => update({ scope })}
             help="How long it survives. Harnesses without memory get this as instructions."
           />
@@ -689,6 +717,7 @@ function KindFields({ kind, entity, blueprint, update, hint }: KindFieldProps) {
             label="Level"
             value={string('level') as (typeof REQUIREMENT_LEVELS)[number]}
             options={REQUIREMENT_LEVELS}
+            describe={REQUIREMENT_LEVEL_INFO}
             onChange={(level) => update({ level })}
             help="An unmet `must` is an error; an unmet `should` is a warning."
           />
@@ -720,6 +749,7 @@ function KindFields({ kind, entity, blueprint, update, hint }: KindFieldProps) {
             label="Mode"
             value={string('mode') as (typeof SCENARIO_MODES)[number]}
             options={SCENARIO_MODES}
+            describe={SCENARIO_MODE_INFO}
             onChange={(mode) => update({ mode })}
           />
           <StringListField
@@ -850,6 +880,7 @@ function CriteriaFields({
               label={`Criterion ${index + 1} kind`}
               value={criterion.kind as (typeof GATE_CRITERION_KINDS)[number]}
               options={GATE_CRITERION_KINDS}
+              describe={GATE_CRITERION_KIND_INFO}
               onChange={(kind) => setCriterion(index, { kind })}
             />
             <TextField

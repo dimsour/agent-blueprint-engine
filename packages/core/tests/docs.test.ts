@@ -11,6 +11,8 @@ import { describe, expect, it } from 'vitest'
 import {
   ALL_RULES,
   DIAGNOSTIC_CODES,
+  ENTITY_KINDS,
+  entitySchemaFor,
   isKnownDiagnosticCode,
   ORPHAN_CODES,
   validateBlueprint,
@@ -144,5 +146,63 @@ describe('phase claims', () => {
       })
     }
     expect(stale).toEqual([])
+  })
+})
+
+/**
+ * Every finding points at something (P9-21).
+ *
+ * A code names the fields it is about so the form can mark them and the fix can change them.
+ * A field that no schema has is a pointer to nothing — the hint never appears and the fix is
+ * allowed to change nothing — and nothing would notice. The codes about the Blueprint as a
+ * whole are the ones that legitimately name no field, and they are listed so a new code cannot
+ * join them by omission.
+ */
+describe('where a finding points', () => {
+  const WHOLE_BLUEPRINT = new Set([
+    'BP-PROJECT-002',
+    'BP-PROJECT-003',
+    'BP-PROJECT-004',
+    'BP-PROJECT-005',
+    'BP-PROJECT-006',
+    'BP-AGENT-002',
+    'BP-AGENT-010',
+    'BP-TARGET-001',
+    'BP-TARGET-002',
+    'BP-TARGET-003',
+    'BP-CONTRA-001',
+    'BP-COMPILE-001',
+    'BP-PORT-001',
+    'BP-PORT-002',
+    'BP-EVAL-LAW-003',
+    'BP-EVAL-PORT-001',
+    'BP-EVAL-VERIFY-001',
+    'BP-EVAL-VERIFY-002',
+    'BP-EVAL-VERIFY-003',
+    'BP-SAFETY-003',
+    'BP-SAFETY-004',
+  ])
+
+  it('names the fields it is about, or is about the whole Blueprint', () => {
+    const silent = DIAGNOSTIC_CODES.filter(
+      (entry) => !entry.fields?.length && !WHOLE_BLUEPRINT.has(entry.code),
+    )
+    expect(silent.map((entry) => entry.code)).toEqual([])
+  })
+
+  it('names fields that exist on some artifact', () => {
+    const known = new Set<string>()
+    for (const kind of ENTITY_KINDS) {
+      const shape = (entitySchemaFor(kind) as unknown as { shape: Record<string, unknown> }).shape
+      for (const key of Object.keys(shape)) known.add(key)
+    }
+    const unknown: string[] = []
+    for (const entry of DIAGNOSTIC_CODES) {
+      for (const field of entry.fields ?? []) {
+        const head = field.split('.')[0]!
+        if (!known.has(head)) unknown.push(`${entry.code}.${field}`)
+      }
+    }
+    expect(unknown).toEqual([])
   })
 })

@@ -22,6 +22,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/overlays'
+import { describeOption, type OptionInfo } from '@agent-blueprint/core'
+
 import { Badge, Input, Label, Textarea } from '@/components/ui/primitives'
 import type { FieldHint } from '@/lib/field-findings'
 import { useWorkspace } from '@/lib/state/workspace-store'
@@ -425,12 +427,23 @@ export function TextAreaField({
   )
 }
 
+/**
+ * A select whose options explain themselves (P9-21).
+ *
+ * Reported from use: the Role select offers seven words and no help. A word in a dropdown is
+ * a decision the user is being asked to make, and the meaning belongs beside the word. With a
+ * `describe` table from core, every item in the list shows its sentence under its label, and
+ * the chosen one's sentence sits under the control, so what is picked is always explained
+ * without opening the list. The value stays the value — the raw enum word in `font-mono` — so
+ * what the form shows is what the file will say.
+ */
 export function SelectField<T extends string>({
   label,
   help,
   hints,
   value,
   options,
+  describe,
   onChange,
 }: {
   label: string
@@ -438,9 +451,12 @@ export function SelectField<T extends string>({
   hints?: FieldHint[]
   value: T
   options: readonly T[]
+  /** What each option means, from `packages/core`'s option tables. */
+  describe?: Readonly<Record<string, OptionInfo>>
   onChange: (value: T) => void
 }) {
   const id = useId()
+  const chosen = describe ? describeOption(describe, value) : undefined
   return (
     // The label points at the trigger, so the visible text and the accessible name are the
     // same thing rather than two names that happen to agree.
@@ -450,13 +466,25 @@ export function SelectField<T extends string>({
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          {options.map((option) => (
-            <SelectItem key={option} value={option}>
-              {option}
-            </SelectItem>
-          ))}
+          {options.map((option) => {
+            const info = describe ? describeOption(describe, option) : undefined
+            return (
+              <SelectItem
+                key={option}
+                value={option}
+                {...(info ? { description: `${info.label}. ${info.description}` } : {})}
+              >
+                {option}
+              </SelectItem>
+            )
+          })}
         </SelectContent>
       </Select>
+      {chosen ? (
+        <p className="text-muted-foreground text-xs" data-testid="option-description">
+          <span className="text-foreground/80">{chosen.label}.</span> {chosen.description}
+        </p>
+      ) : null}
     </Field>
   )
 }

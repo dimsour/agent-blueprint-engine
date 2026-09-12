@@ -90,6 +90,7 @@ export const DIAGNOSTIC_CODES: readonly DiagnosticCode[] = [
     summary: 'Two entities of the same kind share an id.',
     remedy:
       'Rename one of them with Rename in the inspector, which updates every reference at the same time. Changing the id by hand leaves the references pointing at the old one.',
+    fields: ['id'],
     source: 'validation',
   },
   {
@@ -98,6 +99,7 @@ export const DIAGNOSTIC_CODES: readonly DiagnosticCode[] = [
     summary: 'An entity id is not a valid slug.',
     remedy:
       'Rename it to lower-case words joined by single hyphens, at most 64 characters — `react-testing`, not `React Testing`. The limit is the Agent Skills spec’s, and the id is also the filename.',
+    fields: ['id'],
     source: 'validation',
   },
   {
@@ -329,6 +331,7 @@ export const DIAGNOSTIC_CODES: readonly DiagnosticCode[] = [
     summary: 'Two Iron Laws oblige opposite things about the same subject.',
     remedy:
       'Whichever the agent reads last will win, which is not a decision anyone made. Reword one of them, narrow their scopes so they never both apply, or delete the one you no longer mean.',
+    fields: ['rule', 'scope'],
     source: 'validation',
   },
   {
@@ -457,6 +460,7 @@ export const DIAGNOSTIC_CODES: readonly DiagnosticCode[] = [
     summary: 'A requirement can only be judged by a model, and no AI is configured.',
     remedy:
       'Set up an endpoint in Settings, then press “Run AI analysis” in the evaluation view. Until then the check is skipped rather than failed, so the score does not hold it against you.',
+    fields: ['checks'],
     source: 'validation',
   },
   {
@@ -508,6 +512,7 @@ export const DIAGNOSTIC_CODES: readonly DiagnosticCode[] = [
     summary: 'A workflow and a skill share an id and would overwrite each other.',
     remedy:
       'Both compile to a skill directory of the same name, so one would overwrite the other. Rename either of them from the inspector.',
+    fields: ['id'],
     source: 'validation',
   },
   {
@@ -516,6 +521,7 @@ export const DIAGNOSTIC_CODES: readonly DiagnosticCode[] = [
     summary: 'A workflow and a skill share an id and would overwrite each other.',
     remedy:
       'Both compile to a skill directory of the same name, so one would overwrite the other. Rename either of them from the inspector.',
+    fields: ['id'],
     source: 'validation',
   },
   {
@@ -533,6 +539,7 @@ export const DIAGNOSTIC_CODES: readonly DiagnosticCode[] = [
     summary: 'A workflow and a skill share an id and would overwrite each other.',
     remedy:
       'Both compile to a skill directory of the same name, so one would overwrite the other. Rename either of them from the inspector.',
+    fields: ['id'],
     source: 'validation',
   },
   {
@@ -541,6 +548,7 @@ export const DIAGNOSTIC_CODES: readonly DiagnosticCode[] = [
     summary: 'A workflow and a skill share an id and would overwrite each other.',
     remedy:
       'Both compile to a skill directory of the same name, so one would overwrite the other. Rename either of them from the inspector.',
+    fields: ['id'],
     source: 'validation',
   },
   {
@@ -549,6 +557,7 @@ export const DIAGNOSTIC_CODES: readonly DiagnosticCode[] = [
     summary: 'A workflow and a skill share an id and would overwrite each other.',
     remedy:
       'Both compile to a skill directory of the same name, so one would overwrite the other. Rename either of them from the inspector.',
+    fields: ['id'],
     source: 'validation',
   },
 

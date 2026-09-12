@@ -310,17 +310,30 @@ export function SelectContent({
 export function SelectItem({
   className,
   children,
+  description,
   ...props
-}: ComponentProps<typeof SelectPrimitive.Item>) {
+}: ComponentProps<typeof SelectPrimitive.Item> & {
+  /**
+   * Shown under the item in the list and nowhere else. It sits outside `ItemText` on
+   * purpose: `ItemText` is what the closed control mirrors, and a trigger that read the
+   * whole sentence would be a paragraph where a word belongs (P9-21).
+   */
+  description?: string
+}) {
   return (
     <SelectPrimitive.Item
       className={cn(
-        'focus:bg-muted relative flex w-full cursor-default items-center gap-2 rounded py-1.5 pr-8 pl-2 text-sm outline-none select-none data-[disabled]:opacity-50',
+        'focus:bg-muted relative flex w-full cursor-default flex-col items-start gap-0.5 rounded py-1.5 pr-8 pl-2 text-sm outline-none select-none data-[disabled]:opacity-50',
         className,
       )}
       {...props}
     >
       <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
+      {description ? (
+        <span className="text-muted-foreground max-w-md text-xs leading-snug whitespace-normal">
+          {description}
+        </span>
+      ) : null}
       <span className="absolute right-2 flex size-3.5 items-center justify-center">
         <SelectPrimitive.ItemIndicator>
           <CheckIcon className="size-4" />

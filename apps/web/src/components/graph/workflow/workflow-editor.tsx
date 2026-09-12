@@ -51,6 +51,7 @@ import { Badge } from '@/components/ui/primitives'
 import {
   EDGE_KIND_INFO,
   nodeColor,
+  nodeHint,
   type NodeType,
   NODE_TYPE_INFO,
   WORKFLOW_NODE_SIZE,
@@ -340,7 +341,7 @@ export function WorkflowEditor({ workflowId }: { workflowId: string }) {
               onChange(next)
               setSelected({ kind: 'node', id: nodeId })
             }}
-            title={NODE_TYPE_INFO[type].hint}
+            title={nodeHint(type)}
             className="hover:bg-muted flex items-center gap-1.5 rounded px-1.5 py-1 text-left text-xs"
           >
             <span

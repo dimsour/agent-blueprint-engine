@@ -7,7 +7,7 @@
  * part of it. They already round-trip through the project format; this is where they can be
  * written without opening the file by hand.
  */
-import { SKILL_RESOURCE_KINDS } from '@agent-blueprint/core'
+import { SKILL_RESOURCE_KIND_INFO, SKILL_RESOURCE_KINDS } from '@agent-blueprint/core'
 import { PlusIcon } from 'lucide-react'
 
 import { Field, SelectField, TextAreaField, TextField } from '@/components/editors/fields'
@@ -52,6 +52,7 @@ export function ResourcesField({
               label={`Resource ${index + 1} kind`}
               value={resource.kind}
               options={SKILL_RESOURCE_KINDS}
+              describe={SKILL_RESOURCE_KIND_INFO}
               onChange={(kind) => set(index, { kind })}
             />
             <TextAreaField

@@ -9,15 +9,20 @@
  * longer apply rather than carrying them along as dead weight.
  */
 import {
-  type Blueprint,
   ENTITY_KIND_INFO,
   ENTITY_KINDS,
-  type EntityKind,
+  GATE_CRITERION_KIND_INFO,
   GATE_CRITERION_KINDS,
   getCollection,
+  HOOK_ACTION_TYPE_INFO,
   HOOK_ACTION_TYPES,
+  HOOK_TRIGGER_INFO,
   HOOK_TRIGGERS,
+  REQUIREMENT_CHECK_TYPE_INFO,
   REQUIREMENT_CHECK_TYPES,
+  type Blueprint,
+  type EntityKind,
+  WORKFLOW_NODE_TYPE_INFO,
   WORKFLOW_NODE_TYPES,
 } from '@agent-blueprint/core'
 import { PlusIcon } from 'lucide-react'
@@ -84,6 +89,7 @@ function CheckFields({
             label={label('node type')}
             value={(check['nodeType'] ?? 'verification') as (typeof WORKFLOW_NODE_TYPES)[number]}
             options={WORKFLOW_NODE_TYPES}
+            describe={WORKFLOW_NODE_TYPE_INFO}
             onChange={(nodeType) => set({ nodeType })}
           />
           <RefListField
@@ -116,6 +122,7 @@ function CheckFields({
             help="The hook has to run on this trigger. Any: on whichever trigger it runs."
             value={(check['trigger'] as string | undefined) ?? ANY}
             options={[ANY, ...HOOK_TRIGGERS]}
+            describe={HOOK_TRIGGER_INFO}
             onChange={(trigger) => set({ trigger: trigger === ANY ? undefined : trigger })}
           />
           <SelectField
@@ -123,6 +130,7 @@ function CheckFields({
             help="The hook's action type has to be exactly this — a command hook that scans for secrets is not a secret-scan hook. Any: whatever it does."
             value={(check['actionType'] as string | undefined) ?? ANY}
             options={[ANY, ...HOOK_ACTION_TYPES]}
+            describe={HOOK_ACTION_TYPE_INFO}
             onChange={(actionType) =>
               set({ actionType: actionType === ANY ? undefined : actionType })
             }
@@ -136,6 +144,7 @@ function CheckFields({
           help="A gate has to carry a criterion of this kind. Any: any gate at all."
           value={(check['criterionKind'] as string | undefined) ?? ANY}
           options={[ANY, ...GATE_CRITERION_KINDS]}
+          describe={GATE_CRITERION_KIND_INFO}
           onChange={(criterionKind) =>
             set({ criterionKind: criterionKind === ANY ? undefined : criterionKind })
           }
@@ -228,6 +237,7 @@ export function ChecksField({
               label={`Check ${index + 1} type`}
               value={check['type'] as CheckType}
               options={REQUIREMENT_CHECK_TYPES}
+              describe={REQUIREMENT_CHECK_TYPE_INFO}
               // The old type's fields do not apply to the new one, so they go.
               onChange={(type) =>
                 update({
