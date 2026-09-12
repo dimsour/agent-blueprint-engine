@@ -48,6 +48,57 @@ export function ironLawCheckPrompt(laws: readonly IronLaw[]): string {
   ].join('\n\n')
 }
 
+/**
+ * What a failed command should do, in the terms the exit-code convention offers.
+ *
+ * `block`: exit 2, output on stderr — the harness refuses the action and hands the output
+ * to the agent. `report`: exit 1, output on stderr — nothing is refused and the user sees
+ * it. `ignore`: the command's result does not matter.
+ */
+export type FailureOutcome = 'block' | 'report' | 'ignore'
+
+export function failureOutcomeOf(hook: Hook): FailureOutcome {
+  // "Return to agent" and "block" are the same mechanism: exit 2 is how a hook's output
+  // reaches the model, and on the events that can refuse, it also refuses.
+  return hook.onFailure === 'warn' ? 'report' : 'block'
+}
+
+export function gateFailureOutcomeOf(gate: Gate): FailureOutcome {
+  switch (gate.onFail) {
+    case 'allow':
+      return 'ignore'
+    case 'warn':
+      return 'report'
+    case 'block':
+    case 'request-approval':
+      return 'block'
+  }
+}
+
+/**
+ * A command whose failure means what the Blueprint says (P9-25).
+ *
+ * Run as written, a test runner fails with exit 1 and prints to stdout, which under the
+ * convention Claude Code and Codex share is "a non-blocking error the user is shown": the
+ * hook never refuses anything and the agent never sees why. The wrapper captures the output
+ * and, on failure, writes it to stderr and exits with the code the outcome needs. On success
+ * it prints nothing, which keeps a passing test run out of the session.
+ *
+ * The syntax is POSIX shell. Claude Code runs hooks in `sh` and, on Windows, in Git Bash,
+ * which it requires; Codex runs `command` through the same shell.
+ */
+export function failing(command: string, outcome: FailureOutcome, note?: string): string {
+  if (outcome === 'ignore') return `${command} || true`
+  const code = outcome === 'block' ? 2 : 1
+  const prefix = note ? `printf '%s\\n' ${shellQuote(note)} >&2; ` : ''
+  return `out=$(${command} 2>&1) || { ${prefix}printf '%s\\n' "$out" >&2; exit ${code}; }`
+}
+
+/** Single-quoted for the shell: nothing inside is interpreted. */
+function shellQuote(text: string): string {
+  return `'${text.replace(/'/g, "'\\''")}'`
+}
+
 /** Gate criteria that can actually run, in a stable order. */
 export function executableCriteria(gate: Gate): { command: string; description: string }[] {
   return gate.criteria

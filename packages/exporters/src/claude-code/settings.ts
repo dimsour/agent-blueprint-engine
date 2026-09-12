@@ -9,7 +9,10 @@ import type { Agent, Blueprint, Gate, Hook, IronLaw, Tool } from '@agent-bluepri
 
 import {
   executableCriteria,
+  failing,
+  failureOutcomeOf,
   filePatternNote,
+  gateFailureOutcomeOf,
   hookEnforcedLaws,
   hookPrompt,
   hookStatusMessage,
@@ -30,6 +33,8 @@ export interface ClaudeHookHandler {
   prompt?: string
   timeout?: number
   statusMessage?: string
+  /** Permission-rule filter on the tool call, one `Tool(pattern)` per tool and pattern. */
+  if?: string
 }
 
 export interface ClaudeHookMatcher {
@@ -267,15 +272,19 @@ export function lowerHooks(
       )
       continue
     }
-    push(event, matcher, handler)
+    // A file-pattern condition is native on tool events: `if` filters the call by the path
+    // the tool was given, so a test hook meant for `**/*.cs` no longer runs on every edit of
+    // a README (P9-25). Only tools that take a path can be filtered by one.
+    const filter = pathFilter(event, matcher, hook)
+    push(event, matcher, filter ? { ...handler, if: filter } : handler)
 
     const note = filePatternNote(hook)
-    if (note) {
+    if (note && !filter) {
       issues.push(
         issue(
           'hooks',
           'adapted',
-          `Hook "${hook.name}" is limited to ${hook.conditions.filePatterns.join(', ')}, which Claude hooks cannot express; the command runs for every matching tool call and must filter the paths itself.`,
+          `Hook "${hook.name}" is limited to ${hook.conditions.filePatterns.join(', ')}, but on this event Claude hooks cannot filter by path; the command runs every time and must check the paths itself.`,
           { ref: { kind: 'hook', id: hook.id }, adaptation: note },
         ),
       )
@@ -287,7 +296,13 @@ export function lowerHooks(
     for (const criterion of executableCriteria(gate)) {
       push('Stop', undefined, {
         type: 'command',
-        command: criterion.command,
+        command: failing(
+          criterion.command,
+          gateFailureOutcomeOf(gate),
+          gate.onFail === 'request-approval'
+            ? `${gate.name} failed. Ask the user before continuing.`
+            : undefined,
+        ),
         timeout: 600,
         statusMessage: `${gate.name}: ${criterion.description}`,
       })
@@ -317,13 +332,37 @@ export function lowerHooks(
   return { hooks: Object.keys(hooks).length > 0 ? hooks : undefined, issues }
 }
 
+/** Claude tools that take a file path, and so can be filtered by one. */
+const PATH_TOOLS = ['Edit', 'NotebookEdit', 'Read', 'Write']
+const TOOL_EVENTS = new Set(['PreToolUse', 'PostToolUse', 'PostToolUseFailure'])
+
+/**
+ * The `if` filter for a hook with file patterns: one `Tool(pattern)` rule per path-taking
+ * tool the matcher names, or per every path-taking tool when the matcher names none.
+ * Undefined when the event is not a tool event or none of the matched tools takes a path —
+ * a Bash hook cannot be filtered by the file it happens to touch.
+ */
+function pathFilter(event: string, matcher: string | undefined, hook: Hook): string | undefined {
+  const patterns = hook.conditions.filePatterns
+  if (patterns.length === 0 || !TOOL_EVENTS.has(event)) return undefined
+  const tools =
+    matcher === undefined
+      ? PATH_TOOLS
+      : matcher.split('|').filter((tool) => PATH_TOOLS.includes(tool))
+  if (tools.length === 0) return undefined
+  return [...tools]
+    .sort()
+    .flatMap((tool) => patterns.map((pattern) => `${tool}(${pattern})`))
+    .join('|')
+}
+
 function handlerFor(hook: Hook, laws: IronLaw[]): ClaudeHookHandler | undefined {
   if (isCommandAction(hook)) {
     const command = hook.action.command
     if (!command) return undefined
     return {
       type: 'command',
-      command,
+      command: failing(command, failureOutcomeOf(hook)),
       ...(hook.action.timeoutSec === undefined ? {} : { timeout: hook.action.timeoutSec }),
       statusMessage: hookStatusMessage(hook),
     }

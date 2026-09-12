@@ -109,7 +109,10 @@ describe('claude-code adapter', () => {
     const settingsFile = files.find((file) => file.path === '.claude/settings.json')!
     const settings = JSON.parse(textOf(settingsFile)) as {
       permissions: { allow: string[]; ask: string[]; deny: string[] }
-      hooks: Record<string, { matcher?: string; hooks: { type: string; command?: string }[] }[]>
+      hooks: Record<
+        string,
+        { matcher?: string; hooks: { type: string; command?: string; if?: string }[] }[]
+      >
       autoMemoryEnabled: boolean
     }
 
@@ -122,12 +125,84 @@ describe('claude-code adapter', () => {
     expect(settings.permissions.deny).toContain('WebFetch')
 
     expect(settings.hooks.PostToolUse?.[0]?.matcher).toBe('Edit|Write')
-    expect(settings.hooks.PostToolUse?.[0]?.hooks[0]?.command).toBe('dotnet test --no-restore')
+    // `return-to-agent`: the output reaches the model only through exit 2 and stderr, so the
+    // command is wrapped to do exactly that when it fails, and to say nothing when it passes.
+    expect(settings.hooks.PostToolUse?.[0]?.hooks[0]?.command).toBe(
+      `out=$(dotnet test --no-restore 2>&1) || { printf '%s\\n' "$out" >&2; exit 2; }`,
+    )
+    // The hook is for C# files, and Claude can filter the tool call by path itself.
+    expect(settings.hooks.PostToolUse?.[0]?.hooks[0]?.if).toBe('Edit(**/*.cs)|Write(**/*.cs)')
     // The gate command and the Iron Law check both run when the session stops.
     const stop = settings.hooks.Stop ?? []
     expect(stop[0]?.hooks.map((handler) => handler.type)).toEqual(['command', 'prompt'])
-    expect(stop[0]?.hooks[0]?.command).toBe('dotnet test')
+    expect(stop[0]?.hooks[0]?.command).toBe(
+      `out=$(dotnet test 2>&1) || { printf '%s\\n' "$out" >&2; exit 2; }`,
+    )
     expect(settings.autoMemoryEnabled).toBe(true)
+  })
+
+  /**
+   * A hook that only warns must not refuse anything: exit 1 reports and continues. A gate
+   * that allows failure must not even report. And a file pattern on an event that is not
+   * about a tool has nothing to filter, so it stays a note (P9-25).
+   */
+  it('makes a failure mean what the Blueprint says, and filters only what it can', async () => {
+    const blueprint = structuredClone(await loadFixture())
+    const hook = blueprint.hooks[0]!
+    hook.onFailure = 'warn'
+    blueprint.hooks.push({
+      ...structuredClone(hook),
+      id: 'scan-before-stop',
+      name: 'Scan before stop',
+      trigger: 'before-stop',
+      onFailure: 'block',
+      action: { type: 'secret-scan', command: 'scan-secrets' },
+    })
+    blueprint.hooks.push({
+      ...structuredClone(hook),
+      id: 'shell-guard',
+      name: 'Shell guard',
+      trigger: 'before-tool',
+      conditions: { toolKinds: ['shell'], filePatterns: ['**/*.cs'] },
+      onFailure: 'block',
+      action: { type: 'command', command: 'guard' },
+    })
+    blueprint.gates[0]!.onFail = 'allow'
+    blueprint.gates.push({
+      ...structuredClone(blueprint.gates[0]!),
+      id: 'approval',
+      name: 'Approval',
+      onFail: 'request-approval',
+      criteria: [{ kind: 'command', command: 'check', description: 'Check.' }],
+    })
+
+    const { files, issues } = compileBlueprint(blueprint, { targets: ['claude-code'] })
+    const settings = JSON.parse(textOf(files.find((f) => f.path === '.claude/settings.json'))) as {
+      hooks: Record<
+        string,
+        { matcher?: string; hooks: { command?: string; if?: string; type: string }[] }[]
+      >
+    }
+
+    expect(settings.hooks.PostToolUse?.[0]?.hooks[0]?.command).toBe(
+      `out=$(dotnet test --no-restore 2>&1) || { printf '%s\\n' "$out" >&2; exit 1; }`,
+    )
+    const stopCommands = (settings.hooks.Stop ?? []).flatMap((entry) =>
+      entry.hooks.map((handler) => handler.command),
+    )
+    expect(stopCommands).toContain(
+      `out=$(scan-secrets 2>&1) || { printf '%s\\n' "$out" >&2; exit 2; }`,
+    )
+    expect(stopCommands).toContain('dotnet test || true')
+    expect(stopCommands).toContain(
+      `out=$(check 2>&1) || { printf '%s\\n' 'Approval failed. Ask the user before continuing.' >&2; printf '%s\\n' "$out" >&2; exit 2; }`,
+    )
+    // A Bash hook has no path to filter by: the pattern stays a note, and an issue says so.
+    const guard = settings.hooks.PreToolUse?.find((entry) => entry.matcher === 'Bash')?.hooks[0]
+    expect(guard?.if).toBeUndefined()
+    expect(issues.some((i) => i.ref?.id === 'shell-guard' && i.concept === 'hooks')).toBe(true)
+    // The C# hook is filtered natively, so it is not reported as a limitation any more.
+    expect(issues.some((i) => i.ref?.id === hook.id && i.concept === 'hooks')).toBe(false)
   })
 
   it('reports an error when a workflow and a skill share an id', async () => {

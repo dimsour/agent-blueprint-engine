@@ -121,7 +121,7 @@ Adapter `codex` .
 | `before-stop`       | `Stop`                                                                                                                        |
 | `subagent-stop`     | `SubagentStop`                                                                                                                |
 
-Action lowering: `command` / `run-tests` / `format` / `lint` / `secret-scan` → `{ "type": "command", "command": …, "timeout": … }`; `prompt-check` and `check-iron-laws` have no `prompt` handler type in Codex, so they lower to a `command` that prints the check text to stdout as `additionalContext` (adapted; reported as a `CompatibilityIssue`). Failure semantics are the same exit-code convention as Claude Code.
+Action lowering: `command` / `run-tests` / `format` / `lint` / `secret-scan` → `{ "type": "command", "command": …, "timeout": … }`; `prompt-check` and `check-iron-laws` have no `prompt` handler type in Codex, so they lower to a `command` that prints the check text to stdout as `additionalContext` (adapted; reported as a `CompatibilityIssue`). Failure semantics are the same exit-code convention as Claude Code, so the command goes through the same failure wrapper (`docs/harness/claude-code.md`, P9-25): `block` / `return-to-agent` exit 2 with the output on stderr, `warn` exits 1, a gate's `allow` ignores the result and `request-approval` asks for the user first.
 
 ### Permission lowering
 

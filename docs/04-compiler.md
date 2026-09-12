@@ -472,6 +472,16 @@ is expected to change the output. The determinism tests therefore compile the sa
 twice, compile a deep clone, and reverse the node and edge arrays inside each workflow, which
 normalization does sort.
 
+### A failure means what the Blueprint says (P9-25)
+
+Claude Code and Codex read a hook's verdict from its exit code, and only exit 2 refuses or
+reaches the model. A command written for people — `dotnet test`, `npm run lint` — exits 1
+and prints to stdout, so passed through verbatim it could never block and its failure could
+never be seen. `failing()` in `shared/hooks.ts` wraps every command in both adapters:
+silent on success, the output on stderr with the code the outcome needs on failure. The
+wrapper is the one place that knows the convention; the adapters pass the Blueprint's
+`onFailure` or a gate's `onFail` and nothing else.
+
 ### Codex hooks file shape
 
 `docs/harness/codex.md` documents the events and handler fields but not the wrapper object.

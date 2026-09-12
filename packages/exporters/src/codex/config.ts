@@ -10,6 +10,9 @@ import type { Agent, Blueprint, Hook, IronLaw } from '@agent-blueprint/core'
 
 import {
   executableCriteria,
+  failing,
+  failureOutcomeOf,
+  gateFailureOutcomeOf,
   hookEnforcedLaws,
   hookStatusMessage,
   isCommandAction,
@@ -82,7 +85,9 @@ export function buildHooks(
       if (!command) continue
       push(event, matcher, {
         type: 'command',
-        command,
+        // Same exit-code convention as Claude Code, so the same wrapper makes a failure mean
+        // what the Blueprint says (P9-25).
+        command: failing(command, failureOutcomeOf(hook)),
         ...(hook.action.timeoutSec === undefined ? {} : { timeout: hook.action.timeoutSec }),
         statusMessage: hookStatusMessage(hook),
       })
@@ -119,7 +124,13 @@ export function buildHooks(
     for (const criterion of criteria) {
       push('Stop', undefined, {
         type: 'command',
-        command: criterion.command,
+        command: failing(
+          criterion.command,
+          gateFailureOutcomeOf(gate),
+          gate.onFail === 'request-approval'
+            ? `${gate.name} failed. Ask the user before continuing.`
+            : undefined,
+        ),
         timeout: 600,
         statusMessage: `${gate.name}: ${criterion.description}`,
       })

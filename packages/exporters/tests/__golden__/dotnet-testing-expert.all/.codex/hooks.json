@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "dotnet test --no-restore",
+            "command": "out=$(dotnet test --no-restore 2>&1) || { printf '%s\\n' \"$out\" >&2; exit 2; }",
             "timeout": 600,
             "statusMessage": "Run tests after change (returns failures to the agent)"
           }
@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "dotnet test",
+            "command": "out=$(dotnet test 2>&1) || { printf '%s\\n' \"$out\" >&2; exit 2; }",
             "timeout": 600,
             "statusMessage": "Tests must pass: All tests in the affected projects pass."
           },
