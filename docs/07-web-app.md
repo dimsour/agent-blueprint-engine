@@ -352,6 +352,8 @@ The token then lives exactly where the AI key does: `ab:credentials:github`, `se
 
 The push itself is one tree, one commit and one move of the branch, without `force`: a branch that moved while the preview was open is a conversation, not a race to win. A second push of an unchanged project reports that there is nothing to do, and costs one request to find out.
 
+One exception, and it is GitHub's (P9-24): the Git Data API refuses to create a tree, a commit or a ref in a repository with no commits, so the first commit cannot be made the way every later one is. When the tree is refused with `409 Git Repository is empty.` and the push has no parent, one file — the first write, by path — goes in through the Contents API (`PUT /contents/{path}`, message _Initialise the repository_), which makes the first commit and the branch as a side effect. The tree is then built as before, the commit is made as a root commit with no parent, and the branch is moved onto it with `force` — the only forced move the app makes, over a commit it made itself a second earlier that nobody can have seen. The history afterwards holds exactly the one commit the preview promised. A repository that has commits never takes this path.
+
 `lib/github/client.ts` is `fetch` rather than Octokit (ADR-23). It maps GitHub's statuses to codes the UI can act on — in particular telling an exhausted token (403 with `x-ratelimit-remaining: 0`) apart from an unauthorised one — and constructs every error by hand so that no request header can reach a message, a stack or a log.
 
 ## Design language

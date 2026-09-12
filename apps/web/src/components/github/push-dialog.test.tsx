@@ -24,7 +24,12 @@ const realFetch = globalThis.fetch
 
 /** What GitHub answers. Repository and branches exist; the tree is empty unless one is given. */
 async function github(
-  options: { tree?: { path: string; content: ProjectFile }[]; missingUntilCreated?: boolean } = {},
+  options: {
+    tree?: { path: string; content: ProjectFile }[]
+    missingUntilCreated?: boolean
+    /** No commits at all, on any branch — what a repository created a moment ago is. */
+    empty?: boolean
+  } = {},
 ): Promise<{
   requests: { method: string; url: string; body: Record<string, unknown> }[]
 }> {
@@ -33,6 +38,8 @@ async function github(
   const shas = new Map<string, string>()
   for (const file of files) shas.set(file.path, await gitBlobSha(file.content))
   let exists = !options.missingUntilCreated
+  /** Whether the repository has any commit. GitHub's git-data endpoints refuse until it does. */
+  let hasCommits = !(options.empty ?? options.missingUntilCreated ?? false)
 
   globalThis.fetch = vi.fn((url: URL, init: RequestInit = {}) => {
     const path = String(url)
@@ -79,13 +86,25 @@ async function github(
     }
     if (path.includes('/branches'))
       return Promise.resolve(Response.json([{ name: 'main', commit: { sha: 'head' } }]))
-    if (path.includes('/git/ref/heads/')) {
+    const empty = () =>
+      Promise.resolve(Response.json({ message: 'Git Repository is empty.' }, { status: 409 }))
+    if (path.includes('/git/ref/heads/') && method === 'GET') {
       // What GitHub actually says for a repository with no commits: 409, not 404. The
       // dialog used to fail the preview with this sentence on a repository it had itself
-      // just created (P9-23).
+      // just created (P9-23). A repository with commits but not this branch says 404.
+      if (!hasCommits) return empty()
       return files.length === 0
-        ? Promise.resolve(Response.json({ message: 'Git Repository is empty.' }, { status: 409 }))
+        ? Promise.resolve(Response.json({ message: 'Not Found' }, { status: 404 }))
         : Promise.resolve(Response.json({ object: { sha: 'head' } }))
+    }
+    // The Contents API is the one way to make the first commit (P9-24).
+    if (path.includes('/contents/') && method === 'PUT') {
+      hasCommits = true
+      return Promise.resolve(Response.json({ commit: { sha: 'seed' } }))
+    }
+    // And every git-data write refuses until then, which is the bug this reproduces.
+    if (!hasCommits && method === 'POST' && /\/git\/(trees|commits|refs)$/.test(path)) {
+      return empty()
     }
     if (path.includes('/git/trees/')) {
       return Promise.resolve(
@@ -360,13 +379,30 @@ describe('pushing to an empty repository', () => {
     await user.click(screen.getByRole('button', { name: 'Push' }))
     await screen.findByRole('link', { name: /See it on GitHub/ })
 
-    // A commit with no parent, and a ref created rather than moved.
+    // GitHub refused the first tree, so one file went in through the Contents API to make the
+    // repository non-empty; then the whole tree, as a root commit; then the branch moved onto
+    // it with force, leaving one commit in the history rather than two.
+    const methods = requests
+      .filter(
+        (request) =>
+          request.method !== 'GET' &&
+          (request.url.includes('/git/') || request.url.includes('/contents/')),
+      )
+      .map((request) => `${request.method} ${request.url.split('/repos/octocat/blueprints')[1]}`)
+    expect(methods[0]).toBe('POST /git/trees') // refused: the repository was empty
+    expect(methods[1]?.startsWith('PUT /contents/')).toBe(true) // the seed
+    expect(methods.slice(2)).toEqual([
+      'POST /git/trees',
+      'POST /git/commits',
+      'PATCH /git/refs/heads/main',
+    ])
     const commit = requests.find(
       (request) => request.url.endsWith('/git/commits') && request.method === 'POST',
     )
     expect(commit?.body).toMatchObject({ parents: [] })
-    expect(
-      requests.some((request) => request.url.endsWith('/git/refs') && request.method === 'POST'),
-    ).toBe(true)
+    const moved = requests.find(
+      (request) => request.url.endsWith('/git/refs/heads/main') && request.method === 'PATCH',
+    )
+    expect(moved?.body).toMatchObject({ sha: 'new-commit', force: true })
   })
 })

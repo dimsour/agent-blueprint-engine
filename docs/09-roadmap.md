@@ -964,6 +964,16 @@ something, it says what and where that thing still exists.
 - Built: `allowMissing` now also accepts a 409 whose message says the repository is empty, and only that 409 — a real reference conflict still throws. The initial-commit path in `pushToGitHub` already existed (no `base_tree`, no `parents`, `POST /git/refs`); it had never been reached, because the preview before it failed.
 - Found in the tests: `repos.test.ts` had a case named _"because an empty repository has none"_ that stubbed a 404. It was asserting the wrong answer and passing. The push dialog's fake GitHub had the same 404; both now answer the way GitHub does.
 
+### P9-24 The first commit, the way GitHub allows one (done)
+
+- Package: `apps/web/src/lib/github/push.ts`
+- Depends on: P9-23
+- Description: Reported from use, after P9-23: the preview said _"Creates the branch, with 171 files in one commit"_ and the push still failed with _"Git Repository is empty."_ P9-23 fixed the read; the write has the same refusal. The Git Data API will not create a tree, a commit or a ref in a repository that has no commits — every one of those calls answers 409 with that sentence — so the "initial commit" path P9-23 uncovered could never have worked. The only way to make a first commit through the API is the Contents API, which writes one file and makes the commit as a side effect.
+- Acceptance: a push to a repository with no commits succeeds; the history afterwards holds exactly one commit, carrying every file the preview listed; a push to a repository that has commits is unchanged, and still never forced.
+- Verify: `pnpm --filter web test`
+- Built: when `POST /git/trees` is refused with the empty-repository 409 and the push had no parent, one file — the first write, by path — is written through `PUT /contents/{path}` with the message _Initialise the repository_, which makes the first commit and the branch. The tree is then created again, the real commit is made as a root commit (`parents: []`), and the branch is moved onto it with `force: true`. That is the one forced move this module makes: the seed commit is the app's own, a second old, and nobody else can have built on it. History holds one commit, not two, which is what the preview promised. A repository with commits never reaches this path — the 409 is only caught when there is no parent — so the no-force rule stands where it matters.
+- Not built: seeding with a file that the real tree does not contain, and then removing it. One extra unreachable commit versus a forced move over one's own commit; the forced move leaves the cleaner history, and the exception is documented where the rule is.
+
 ### Open questions
 
 1. ~~**The logo needs a mark-only export.**~~ Settled: rather than crop by CSS, the cut is a script. `pnpm --filter web logo` measures nothing at run time — the rectangles live in `e2e/logo-assets.spec.ts`, taken from the artwork's alpha channel — and writes the three assets the app imports. A redrawn logo needs that one command and a re-measurement, and no component changes.
