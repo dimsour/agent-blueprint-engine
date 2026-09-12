@@ -148,66 +148,14 @@ function idOf(artifact: unknown): string | undefined {
   return typeof id === 'string' ? id : undefined
 }
 /**
- * Which fields of an artifact a code is actually about (P9-13).
+ * Which fields of an artifact a code is about, from the catalogue.
  *
- * The remedy says it in prose — "Write one sentence in the Description field" — and prose is
- * what a model paraphrases. Naming the fields is what turns "improve this skill" into "change
- * description and return the rest untouched", which is the difference between a diff the user
- * reads in a second and one they have to audit.
- *
- * Absent means the code is not about particular fields: a contradiction is about what two
- * artifacts say, and a Blueprint with no Iron Laws is about none of them.
+ * It lived here as a table from P9-13 to P9-20, when the editor needed the same answer to mark
+ * the fields on the form. One list, in core, read by both: the finding is shown beside the
+ * control that fixes it, and the fix may change that control and no other.
  */
-const FIELDS_BY_CODE: Record<string, readonly string[]> = {
-  'BP-DESC-001': ['description'],
-  'BP-AGENT-001': ['responsibilities'],
-  'BP-AGENT-011': ['skillIds'],
-  'BP-AGENT-012': ['permissions'],
-  'BP-SKILL-001': ['description', 'body'],
-  'BP-SKILL-010': ['activation'],
-  'BP-SKILL-011': ['body'],
-  'BP-WF-001': ['entryNodeId', 'nodes'],
-  'BP-WF-002': ['nodes', 'edges'],
-  'BP-WF-003': ['edges'],
-  'BP-WF-004': ['nodes'],
-  'BP-WF-005': ['nodes'],
-  'BP-WF-010': ['edges'],
-  'BP-WF-011': ['nodes', 'edges'],
-  'BP-WF-012': ['edges'],
-  'BP-WF-013': ['nodes', 'edges'],
-  'BP-WF-014': ['nodes', 'edges'],
-  'BP-LAW-001': ['scope'],
-  'BP-LAW-011': ['criteria'],
-  'BP-GATE-010': ['criteria'],
-  // The command inside the action, not the action: the remedy is "fill in the command", and a
-  // model allowed the whole object changed the type instead — clearing this finding and failing
-  // a requirement that asked for a secret-scan hook by name (P9-19).
-  'BP-HOOK-010': ['action.command'],
-  'BP-REF-001': ['skillIds', 'workflowIds', 'ironLawIds', 'ruleIds', 'toolIds', 'referenceIds'],
-  'BP-REQ-001': ['checks'],
-  'BP-REQ-002': ['checks'],
-  'BP-REQ-003': ['checks'],
-  'BP-REQ-005': ['checks'],
-  'BP-CODEX-002': ['body'],
-  'BP-EVAL-SKILL-001': ['body'],
-  'BP-EVAL-SKILL-002': ['body'],
-  'BP-EVAL-AGENT-001': ['outputRequirements'],
-  'BP-EVAL-WF-001': ['triggers'],
-  'BP-EVAL-LAW-001': ['rationale'],
-  'BP-EVAL-LAW-002': ['examples', 'counterexamples'],
-  'BP-EVAL-COMPLEX-001': ['nodes', 'edges'],
-  'BP-EVAL-COMPLEX-002': ['description', 'whenToUse'],
-  'BP-EVAL-COMPLEX-003': ['skillIds'],
-  'BP-SAFETY-001': ['permissions'],
-  'BP-SAFETY-002': ['permissions'],
-  'BP-ORPHAN-001': ['activation', 'skillIds'],
-  'BP-ORPHAN-002': ['workflowIds', 'triggers'],
-  'BP-ORPHAN-003': ['scope', 'ironLawIds'],
-  'BP-ORPHAN-004': ['scope', 'paths', 'ruleIds'],
-  'BP-ORPHAN-005': ['nodes'],
-  'BP-ORPHAN-006': ['toolIds'],
-  'BP-ORPHAN-007': ['referenceIds'],
-  'BP-ORPHAN-008': ['memoryIds'],
+function fieldsFor(code: string): readonly string[] | undefined {
+  return diagnosticCode(code)?.fields
 }
 
 /**
@@ -343,7 +291,7 @@ function briefOf(diagnostic: Diagnostic): FindingBrief {
     ...(diagnostic.ref ? { ref: diagnostic.ref } : {}),
     ...(diagnostic.related ? { related: diagnostic.related } : {}),
     ...(diagnostic.data ? { evidence: diagnostic.data } : {}),
-    ...(FIELDS_BY_CODE[diagnostic.code] ? { fields: FIELDS_BY_CODE[diagnostic.code] } : {}),
+    ...(fieldsFor(diagnostic.code) ? { fields: fieldsFor(diagnostic.code) } : {}),
   }
 }
 
@@ -668,7 +616,7 @@ function onlyWhatWasAsked(
   )
   if (about.length === 0) return proposed
 
-  const lists = about.map((diagnostic) => FIELDS_BY_CODE[diagnostic.code])
+  const lists = about.map((diagnostic) => fieldsFor(diagnostic.code))
   const allowed = lists.every((list) => list !== undefined)
     ? new Set(lists.flatMap((list) => list ?? []))
     : undefined

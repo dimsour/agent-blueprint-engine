@@ -250,6 +250,8 @@ describe('near misses', () => {
       {
         ref: { kind: 'hook', id: 'secret-scan-before-stop' },
         because: 'its action is command, not secret-scan',
+        // And the field, so the editor can put the hint beside the control that fixes it.
+        field: 'action.type',
       },
     ])
   })
@@ -266,6 +268,7 @@ describe('near misses', () => {
     expect(result.nearMisses?.[0]).toEqual({
       ref: { kind: 'hook', id: 'run-tests-after-change' },
       because: 'it runs on after-file-change, not before-stop',
+      field: 'trigger',
     })
   })
 

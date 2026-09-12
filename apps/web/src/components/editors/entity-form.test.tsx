@@ -341,3 +341,69 @@ describe('EntityForm', () => {
     }
   })
 })
+
+/**
+ * The finding beside the field that fixes it (P9-20).
+ *
+ * Reported from use, after the pointer went on the finding: "is it possible to also add
+ * indications and hints near the actual fields that need fixing?" The case that prompted it
+ * is replayed here — a requirement failing because of a hook's action type — and the hint is
+ * expected on the hook's form, beside the action select, saying where it came from.
+ */
+describe('findings on the form', () => {
+  it('marks the field a finding on this artifact is about', async () => {
+    await load()
+    useWorkspace.getState().upsert('skill', {
+      ...useWorkspace.getState().blueprint!.skills.find((s) => s.id === 'react-testing')!,
+      description: '',
+    })
+    await useWorkspace.getState().flushPending()
+    render(<EntityForm selection={{ kind: 'skill', id: 'react-testing' }} />)
+
+    // Under the Description control, and nowhere else on the form.
+    const hints = screen.getAllByRole('list', { name: 'Findings about this field' })
+    expect(hints).toHaveLength(1)
+    expect(hints[0]).toHaveTextContent('BP-DESC-001')
+    expect(hints[0]).toHaveTextContent('has no description')
+  })
+
+  it('marks the field another artifact’s check points at, and links back', async () => {
+    await load()
+    const user = userEvent.setup()
+    useWorkspace.getState().upsert('hook', {
+      id: 'secret-scan-before-stop',
+      name: 'Secret scan before stop',
+      description: 'Scans for secrets before the agent stops.',
+      trigger: 'before-stop',
+      action: { type: 'command', command: 'dotnet tool run dotnet-secretscan --scan .' },
+      severity: 'critical',
+    })
+    useWorkspace.getState().upsert('requirement', {
+      id: 'security-enforcement',
+      name: 'Security enforcement',
+      statement: 'Secret scanning is enforced before the agent stops.',
+      level: 'must',
+      checks: [{ type: 'hook-exists', trigger: 'before-stop', actionType: 'secret-scan' }],
+    })
+    await useWorkspace.getState().flushPending()
+
+    render(<EntityForm selection={{ kind: 'hook', id: 'secret-scan-before-stop' }} />)
+
+    const hint = screen.getByRole('list', { name: 'Findings about this field' })
+    expect(hint).toHaveTextContent('BP-REQ-001')
+    expect(hint).toHaveTextContent('its action is command, not secret-scan')
+
+    // From the requirement, and one click takes you back to it.
+    await user.click(screen.getByRole('button', { name: /from requirement: security-enforcement/ }))
+    expect(useWorkspace.getState().selection).toEqual({
+      kind: 'requirement',
+      id: 'security-enforcement',
+    })
+  })
+
+  it('shows nothing on a clean artifact', async () => {
+    await load()
+    render(<EntityForm selection={{ kind: 'skill', id: 'react-testing' }} />)
+    expect(screen.queryByRole('list', { name: 'Findings about this field' })).toBeNull()
+  })
+})

@@ -7,7 +7,7 @@
  * always the Blueprint the validator just ran on. Commits go straight through
  * `upsertEntity`, which is a schema parse of one entity and cheap enough per keystroke.
  */
-import { InfoIcon, PlusIcon, XIcon } from 'lucide-react'
+import { AlertTriangleIcon, CircleAlertIcon, InfoIcon, PlusIcon, XIcon } from 'lucide-react'
 import { useId, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from 'react'
 
 import { Button } from '@/components/ui/button'
@@ -23,6 +23,8 @@ import {
   TooltipTrigger,
 } from '@/components/ui/overlays'
 import { Badge, Input, Label, Textarea } from '@/components/ui/primitives'
+import type { FieldHint } from '@/lib/field-findings'
+import { useWorkspace } from '@/lib/state/workspace-store'
 import { cn } from '@/lib/utils'
 
 /**
@@ -190,6 +192,7 @@ export function Field({
   hasContent = false,
   onInsertExample,
   htmlFor,
+  hints,
   children,
   className,
 }: {
@@ -202,6 +205,8 @@ export function Field({
   /** Applies the example through the same path typing takes, or the example cannot be used. */
   onInsertExample?: (example: string) => void
   htmlFor?: string
+  /** The findings about this field, from `fieldFindingsFor` (P9-20). */
+  hints?: FieldHint[]
   children: ReactNode
   className?: string
 }) {
@@ -258,6 +263,7 @@ export function Field({
         />
       ) : null}
       {children}
+      {hints && hints.length > 0 ? <FieldHints hints={hints} /> : null}
       {/*
        * The sentence keeps its line until there is an example to take its place.
        *
@@ -272,9 +278,62 @@ export function Field({
   )
 }
 
+/**
+ * The findings about one field, under its control (P9-20).
+ *
+ * A finding lives in the health bar, the inspector and the evaluation view, and the person
+ * fixing it is in none of those — they are on the form, in the field. This puts the finding
+ * there: the code, the sentence, and when it comes from another artifact's check, the way
+ * back to that artifact. "Its action is command, not secret-scan" beside the action select is
+ * the fix; "from Requirement: security-enforcement" beside it is why.
+ *
+ * Not a live region: fields re-validate on every keystroke, and a screen reader announcing
+ * the same finding on each is worse than one it can tab to.
+ */
+function FieldHints({ hints }: { hints: readonly FieldHint[] }) {
+  const select = useWorkspace((state) => state.select)
+  return (
+    <ul aria-label="Findings about this field" className="flex flex-col gap-1">
+      {hints.map((hint, index) => (
+        <li
+          key={`${hint.code}-${index}`}
+          className={cn(
+            'flex flex-wrap items-baseline gap-x-1.5 text-xs',
+            hint.severity === 'error'
+              ? 'text-danger'
+              : hint.severity === 'warning'
+                ? 'text-warning'
+                : 'text-muted-foreground',
+          )}
+        >
+          {hint.severity === 'error' ? (
+            <CircleAlertIcon className="size-3 shrink-0 self-center" aria-hidden />
+          ) : hint.severity === 'warning' ? (
+            <AlertTriangleIcon className="size-3 shrink-0 self-center" aria-hidden />
+          ) : (
+            <InfoIcon className="size-3 shrink-0 self-center" aria-hidden />
+          )}
+          <span className="font-mono">{hint.code}</span>
+          <span className="text-foreground/80 min-w-0">{hint.text}</span>
+          {hint.from ? (
+            <button
+              type="button"
+              onClick={() => select(hint.from)}
+              className="hover:text-foreground text-muted-foreground underline underline-offset-2"
+            >
+              from {hint.from.kind}: {hint.from.id}
+            </button>
+          ) : null}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 export function TextField({
   label,
   help,
+  hints,
   example,
   value,
   onChange,
@@ -283,6 +342,7 @@ export function TextField({
 }: {
   label: string
   help?: string
+  hints?: FieldHint[]
   example?: string
   value: string
   onChange: (value: string) => void
@@ -299,6 +359,7 @@ export function TextField({
     <Field
       label={label}
       {...(help ? { help } : {})}
+      {...(hints ? { hints } : {})}
       {...(example ? { example } : {})}
       hasContent={draft.trim().length > 0}
       onInsertExample={commit}
@@ -318,6 +379,7 @@ export function TextField({
 export function TextAreaField({
   label,
   help,
+  hints,
   example,
   value,
   onChange,
@@ -327,6 +389,7 @@ export function TextAreaField({
 }: {
   label: string
   help?: string
+  hints?: FieldHint[]
   example?: string
   value: string
   onChange: (value: string) => void
@@ -344,6 +407,7 @@ export function TextAreaField({
     <Field
       label={label}
       {...(help ? { help } : {})}
+      {...(hints ? { hints } : {})}
       {...(example ? { example } : {})}
       hasContent={draft.trim().length > 0}
       onInsertExample={commit}
@@ -364,12 +428,14 @@ export function TextAreaField({
 export function SelectField<T extends string>({
   label,
   help,
+  hints,
   value,
   options,
   onChange,
 }: {
   label: string
   help?: string
+  hints?: FieldHint[]
   value: T
   options: readonly T[]
   onChange: (value: T) => void
@@ -378,7 +444,7 @@ export function SelectField<T extends string>({
   return (
     // The label points at the trigger, so the visible text and the accessible name are the
     // same thing rather than two names that happen to agree.
-    <Field label={label} htmlFor={id} {...(help ? { help } : {})}>
+    <Field label={label} htmlFor={id} {...(help ? { help } : {})} {...(hints ? { hints } : {})}>
       <Select value={value} onValueChange={(next) => onChange(next as T)}>
         <SelectTrigger id={id}>
           <SelectValue />
@@ -428,6 +494,7 @@ function ListItemInput({
 export function StringListField({
   label,
   help,
+  hints,
   example,
   values,
   onChange,
@@ -435,6 +502,7 @@ export function StringListField({
 }: {
   label: string
   help?: string
+  hints?: FieldHint[]
   example?: string
   values: readonly string[]
   onChange: (values: string[]) => void
@@ -453,6 +521,7 @@ export function StringListField({
     <Field
       label={label}
       {...(help ? { help } : {})}
+      {...(hints ? { hints } : {})}
       {...(example ? { example } : {})}
       // A list gains a row rather than losing one, so there is nothing to ask about: the
       // example is one more line beside what is already written, never instead of it.
@@ -508,6 +577,7 @@ export function StringListField({
 export function RefListField({
   label,
   help,
+  hints,
   selected,
   options,
   onChange,
@@ -516,6 +586,7 @@ export function RefListField({
 }: {
   label: string
   help?: string
+  hints?: FieldHint[]
   selected: readonly string[]
   options: readonly { id: string; name: string }[]
   onChange: (ids: string[]) => void
@@ -530,7 +601,7 @@ export function RefListField({
   }
 
   return (
-    <Field label={label} {...(help ? { help } : {})}>
+    <Field label={label} {...(help ? { help } : {})} {...(hints ? { hints } : {})}>
       {options.length === 0 && !onCreate ? (
         <p className="text-muted-foreground text-xs">
           None exist yet. Create one and it will appear here.
@@ -575,13 +646,15 @@ export function RefListField({
 export function TagsField({
   values,
   onChange,
+  hints,
 }: {
   values: readonly string[]
   onChange: (values: string[]) => void
+  hints?: FieldHint[]
 }) {
   const [draft, setDraft] = useState('')
   return (
-    <Field label="Tags">
+    <Field label="Tags" {...(hints ? { hints } : {})}>
       <div className="flex flex-wrap items-center gap-1">
         {values.map((tag) => (
           <Badge key={tag} variant="outline" className="gap-1">

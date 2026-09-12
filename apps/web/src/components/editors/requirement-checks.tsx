@@ -29,6 +29,7 @@ import {
   TextAreaField,
   TextField,
 } from '@/components/editors/fields'
+import type { FieldHint } from '@/lib/field-findings'
 import { Button } from '@/components/ui/button'
 
 type Check = Record<string, unknown>
@@ -196,10 +197,12 @@ export function ChecksField({
   entity,
   blueprint,
   update,
+  hints,
 }: {
   entity: Record<string, unknown>
   blueprint: Blueprint
   update: (patch: Record<string, unknown>) => void
+  hints?: FieldHint[]
 }) {
   const checks = (entity['checks'] ?? []) as Check[]
 
@@ -215,6 +218,7 @@ export function ChecksField({
     <Field
       label="Checks"
       help="What the validator looks for. Every check that holds moves the requirement towards satisfied."
+      {...(hints ? { hints } : {})}
     >
       <div className="flex flex-col gap-3">
         {checks.map((check, index) => (

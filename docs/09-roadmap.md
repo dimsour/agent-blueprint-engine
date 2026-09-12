@@ -919,6 +919,18 @@ something, it says what and where that thing still exists.
 - Found and fixed, ours: the check editor showed `before-stop` / `run-tests` in its selects when nothing was stored, so the screen said one thing and the check did another. `(any)` is a real option now, with help that says what "any" means — and that _"a command hook that scans for secrets is not a secret-scan hook"_, which is this bug in one sentence.
 - Found and fixed, ours: the AI fix for `BP-HOOK-010` was allowed to change the whole `action`, and had taken the route of changing its type — clearing that finding and failing this requirement. The remedy is "fill in the command", so the allow-list now says `action.command`, and the merge learned one level of path.
 
+### P9-20 The finding beside the field that fixes it (done)
+
+- Package: `packages/core/src/validation/codes.ts`, `apps/web/src/lib/field-findings.ts`, `apps/web/src/components/editors/`
+- Depends on: P9-19
+- Description: Reported from use, straight after the pointer landed on the finding: _"is it possible to also add indications and hints near the actual fields that need fixing?"_ A finding lives in the health bar, the inspector and the evaluation view, and the person fixing it is in none of those — they are on the form, in the field.
+- Acceptance: a finding about an artifact is shown under the control its code is about; a finding elsewhere that points at this artifact is shown under the field it points at, saying where it came from and linking back; a clean artifact shows nothing.
+- Verify: `pnpm --filter web test`
+- Built, in core: `DiagnosticCode.fields`. It existed already, as a table in `packages/ai` since P9-13, because the AI fix needed to know which fields a code is about. The editor needed the same answer, so the list moved to the catalogue and both read it — one definition, two readers: the form marks those controls, the fix may change those controls and no others. A dotted path (`action.command`) names a key inside an object. `NearMiss` gained `field` for the same reason: the hook's near miss says `action.type`, so the hint lands on the Action select rather than the artifact.
+- Built, in the web app: `fieldFindingsFor(diagnostics, ref)`, pure over the store's diagnostics, so nothing new is computed on edit. Every `Field` takes `hints`; the form spreads `hint('description')` beside `exampleFor(kind, 'description')`, the same shape the examples take. Under the hook's Action select: **`BP-REQ-001` its action is command, not secret-scan — from requirement: security-enforcement**, and the link goes there.
+- Deliberately not a live region. Fields re-validate on every keystroke, and a screen reader announcing the same finding on each is worse than one it can tab to.
+- Not covered, and said so: Iron Laws and rules have no scope editor on the form, so `BP-LAW-001` and the scope orphans have no control to land on. They still show in the findings list and the pointer row.
+
 ### Open questions
 
 1. ~~**The logo needs a mark-only export.**~~ Settled: rather than crop by CSS, the cut is a script. `pnpm --filter web logo` measures nothing at run time — the rectangles live in `e2e/logo-assets.spec.ts`, taken from the artwork's alpha channel — and writes the three assets the app imports. A redrawn logo needs that one command and a re-measurement, and no component changes.

@@ -27,6 +27,8 @@ export interface NearMiss {
   ref: EntityRef
   /** Why this one did not count, in a clause: "its action is command, not secret-scan". */
   because: string
+  /** The field on that artifact the clause is about, so the editor can mark it (P9-20). */
+  field?: string
 }
 
 export interface CheckResult {
@@ -111,6 +113,7 @@ export function evaluateCheck(blueprint: Blueprint, check: RequirementCheck): Ch
         workflows.map((workflow) => ({
           ref: { kind: 'workflow' as const, id: workflow.id },
           because: `its steps are ${listOf(workflow.nodes.map((node) => node.type))}; none is ${check.nodeType}`,
+          field: 'nodes',
         })),
       )
     }
@@ -146,6 +149,7 @@ export function evaluateCheck(blueprint: Blueprint, check: RequirementCheck): Ch
             because: onTrigger(hook)
               ? `its action is ${hook.action.type}, not ${check.actionType}`
               : `it runs on ${hook.trigger}, not ${check.trigger}`,
+            field: onTrigger(hook) ? 'action.type' : 'trigger',
           })),
       )
     }
@@ -167,6 +171,7 @@ export function evaluateCheck(blueprint: Blueprint, check: RequirementCheck): Ch
             gate.criteria.length === 0
               ? 'it has no criteria at all'
               : `its criteria are ${listOf(gate.criteria.map((criterion) => criterion.kind))}; none is ${check.criterionKind}`,
+          field: 'criteria',
         })),
       )
     }
@@ -199,12 +204,14 @@ export function evaluateCheck(blueprint: Blueprint, check: RequirementCheck): Ch
         .map((skill) => ({
           ref: { kind: 'skill' as const, id: skill.id },
           because: `it is tagged "${check.tag}" but ${holder ? `agent "${holder.id}" does` : 'no agent'} not hold it`,
+          field: 'tags',
         }))
       const untagged = agents
         .filter((agent) => agent.skillIds.length > 0)
         .map((agent) => ({
           ref: { kind: 'agent' as const, id: agent.id },
           because: `none of its skills (${listOf(agent.skillIds)}) is tagged "${check.tag}"`,
+          field: 'skillIds',
         }))
       return fail(undefined, [...unheld, ...untagged])
     }
@@ -362,8 +369,13 @@ function nearest(blueprint: Blueprint, pointers: readonly NearMiss[]): string {
 }
 
 /** A near miss as `data`, which is JSON: the ref flattened, the clause kept. */
-function asData(miss: NearMiss): { kind: string; id: string; because: string } {
-  return { kind: miss.ref.kind, id: miss.ref.id, because: miss.because }
+function asData(miss: NearMiss): { kind: string; id: string; because: string; field?: string } {
+  return {
+    kind: miss.ref.kind,
+    id: miss.ref.id,
+    because: miss.because,
+    ...(miss.field !== undefined ? { field: miss.field } : {}),
+  }
 }
 
 export const requirementRule: ValidationRule = {

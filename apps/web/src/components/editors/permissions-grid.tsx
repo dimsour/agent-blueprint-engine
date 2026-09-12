@@ -16,6 +16,7 @@ import { PlusIcon, XIcon } from 'lucide-react'
 import { useState } from 'react'
 
 import { Field } from '@/components/editors/fields'
+import type { FieldHint } from '@/lib/field-findings'
 import { Button } from '@/components/ui/button'
 import { Input, SEVERITY_CLASSES, type Severity } from '@/components/ui/primitives'
 import { cn } from '@/lib/utils'
@@ -48,9 +49,11 @@ const DECISION_VARIANT: Record<Decision, Severity> = {
 export function PermissionsGrid({
   permissions,
   onChange,
+  hints,
 }: {
   permissions: Agent['permissions']
   onChange: (permissions: PermissionSet) => void
+  hints?: FieldHint[]
 }) {
   const [pattern, setPattern] = useState('')
   const [patternOperation, setPatternOperation] = useState<Operation>('shell.mutating')
@@ -67,6 +70,7 @@ export function PermissionsGrid({
       <Field
         label="Permissions"
         help="What this agent may do. Unset means the harness decides, which is rarely what you want for anything destructive."
+        {...(hints ? { hints } : {})}
       >
         <table className="w-full text-sm">
           <thead>

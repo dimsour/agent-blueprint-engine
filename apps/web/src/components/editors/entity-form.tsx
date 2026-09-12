@@ -33,7 +33,7 @@ import {
   SCENARIO_MODES,
   TOOL_KINDS,
 } from '@agent-blueprint/core'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
 import { exampleFor } from '@/components/editors/field-examples'
@@ -51,6 +51,7 @@ import { ChecksField } from '@/components/editors/requirement-checks'
 import { ResourcesField } from '@/components/editors/skill-resources'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/primitives'
+import { fieldFindingsFor, hintsFor } from '@/lib/field-findings'
 import { useWorkspace } from '@/lib/state/workspace-store'
 
 /** Options for a reference picker: every artifact of a kind, by id and display name. */
@@ -89,6 +90,7 @@ function LinkField({
   selected,
   onChange,
   help,
+  hints,
 }: {
   label: string
   kind: EntityKind
@@ -96,12 +98,14 @@ function LinkField({
   selected: readonly string[]
   onChange: (ids: string[]) => void
   help?: string
+  hints?: ReturnType<typeof hintsFor>['hints']
 }) {
   const create = useInlineCreate(kind, selected, onChange)
   return (
     <RefListField
       label={label}
       {...(help ? { help } : {})}
+      {...(hints ? { hints } : {})}
       selected={selected}
       options={optionsFor(blueprint, kind)}
       onChange={onChange}
@@ -113,8 +117,13 @@ function LinkField({
 
 export function EntityForm({ selection }: { selection: EntityRef }) {
   const blueprint = useWorkspace((state) => state.blueprint)
+  const diagnostics = useWorkspace((state) => state.diagnostics)
   const upsert = useWorkspace((state) => state.upsert)
   const rename = useWorkspace((state) => state.rename)
+  // The findings about this artifact, by field, so each control can show its own (P9-20).
+  // Over the store's diagnostics, which are already recomputed on every edit.
+  const hints = useMemo(() => fieldFindingsFor(diagnostics, selection), [diagnostics, selection])
+  const hint = (field: string) => hintsFor(hints, field)
   const [rejected, setRejected] = useState<string | undefined>()
 
   const entity = blueprint
@@ -151,27 +160,38 @@ export function EntityForm({ selection }: { selection: EntityRef }) {
           Not saved yet: {rejected}
         </p>
       ) : null}
-      <IdentityFields entity={entity} kind={selection.kind} onRename={rename} update={update} />
+      <IdentityFields
+        entity={entity}
+        kind={selection.kind}
+        onRename={rename}
+        update={update}
+        hint={hint}
+      />
       <KindFields
         kind={selection.kind}
         entity={entity as unknown as Record<string, unknown>}
         blueprint={blueprint}
         update={update}
+        hint={hint}
       />
     </div>
   )
 }
+
+type Hint = (field: string) => ReturnType<typeof hintsFor>
 
 function IdentityFields({
   entity,
   kind,
   onRename,
   update,
+  hint,
 }: {
   entity: AnyEntity
   kind: EntityKind
   onRename: (kind: EntityKind, oldId: string, newId: string) => void
   update: (patch: Record<string, unknown>) => void
+  hint: Hint
 }) {
   const [draftId, setDraftId] = useState(entity.id)
   const idChanged = draftId !== entity.id
@@ -199,12 +219,14 @@ function IdentityFields({
         onChange={(name) => update({ name })}
         help={`Display name of this ${ENTITY_KIND_INFO[kind].label.toLowerCase()}.`}
         {...exampleFor(kind, 'name')}
+        {...hint('name')}
       />
 
       <Field
         label="Id"
         help="The file name and the key every reference uses. Renaming updates all of them."
         {...exampleFor(kind, 'id')}
+        {...hint('id')}
         // An id is never empty, so inserting one always asks. It fills the box the same way
         // typing does — the rename itself still waits for the button, as it always has.
         hasContent
@@ -233,10 +255,11 @@ function IdentityFields({
         onChange={(description) => update({ description: description || undefined })}
         help="One or two sentences. Harnesses use this to decide when to load the artifact."
         {...exampleFor(kind, 'description')}
+        {...hint('description')}
         rows={2}
       />
 
-      <TagsField values={entity.tags} onChange={(tags) => update({ tags })} />
+      <TagsField values={entity.tags} onChange={(tags) => update({ tags })} {...hint('tags')} />
     </div>
   )
 }
@@ -246,9 +269,10 @@ interface KindFieldProps {
   entity: Record<string, unknown>
   blueprint: Blueprint
   update: (patch: Record<string, unknown>) => void
+  hint: Hint
 }
 
-function KindFields({ kind, entity, blueprint, update }: KindFieldProps) {
+function KindFields({ kind, entity, blueprint, update, hint }: KindFieldProps) {
   const string = (key: string) => (entity[key] as string | undefined) ?? ''
   const list = (key: string) => (entity[key] as string[] | undefined) ?? []
 
@@ -269,12 +293,14 @@ function KindFields({ kind, entity, blueprint, update }: KindFieldProps) {
             onChange={(responsibilities) => update({ responsibilities })}
             help="What it owns. Each one should be covered by a skill."
             {...exampleFor(kind, 'responsibilities')}
+            {...hint('responsibilities')}
           />
           <StringListField
             label="Expertise"
             values={list('expertise')}
             onChange={(expertise) => update({ expertise })}
             {...exampleFor(kind, 'expertise')}
+            {...hint('expertise')}
           />
           <StringListField
             label="Output requirements"
@@ -282,6 +308,7 @@ function KindFields({ kind, entity, blueprint, update }: KindFieldProps) {
             onChange={(outputRequirements) => update({ outputRequirements })}
             help="What must be true before this agent reports work as done."
             {...exampleFor(kind, 'outputRequirements')}
+            {...hint('outputRequirements')}
           />
           <LinkField
             label="Skills"
@@ -289,6 +316,7 @@ function KindFields({ kind, entity, blueprint, update }: KindFieldProps) {
             blueprint={blueprint}
             selected={list('skillIds')}
             onChange={(skillIds) => update({ skillIds })}
+            {...hint('skillIds')}
           />
           <LinkField
             label="Workflows"
@@ -296,6 +324,7 @@ function KindFields({ kind, entity, blueprint, update }: KindFieldProps) {
             blueprint={blueprint}
             selected={list('workflowIds')}
             onChange={(workflowIds) => update({ workflowIds })}
+            {...hint('workflowIds')}
           />
           <LinkField
             label="Iron Laws"
@@ -303,6 +332,7 @@ function KindFields({ kind, entity, blueprint, update }: KindFieldProps) {
             blueprint={blueprint}
             selected={list('ironLawIds')}
             onChange={(ironLawIds) => update({ ironLawIds })}
+            {...hint('ironLawIds')}
           />
           <LinkField
             label="Rules"
@@ -310,6 +340,7 @@ function KindFields({ kind, entity, blueprint, update }: KindFieldProps) {
             blueprint={blueprint}
             selected={list('ruleIds')}
             onChange={(ruleIds) => update({ ruleIds })}
+            {...hint('ruleIds')}
           />
           <LinkField
             label="Tools"
@@ -317,6 +348,7 @@ function KindFields({ kind, entity, blueprint, update }: KindFieldProps) {
             blueprint={blueprint}
             selected={list('toolIds')}
             onChange={(toolIds) => update({ toolIds })}
+            {...hint('toolIds')}
           />
           <LinkField
             label="References"
@@ -324,6 +356,7 @@ function KindFields({ kind, entity, blueprint, update }: KindFieldProps) {
             blueprint={blueprint}
             selected={list('referenceIds')}
             onChange={(referenceIds) => update({ referenceIds })}
+            {...hint('referenceIds')}
           />
           <LinkField
             label="Memory"
@@ -331,6 +364,7 @@ function KindFields({ kind, entity, blueprint, update }: KindFieldProps) {
             blueprint={blueprint}
             selected={list('memoryIds')}
             onChange={(memoryIds) => update({ memoryIds })}
+            {...hint('memoryIds')}
           />
           <SelectField
             label="Model preference"
@@ -365,8 +399,9 @@ function KindFields({ kind, entity, blueprint, update }: KindFieldProps) {
           <PermissionsGrid
             permissions={entity['permissions'] as never}
             onChange={(permissions) => update({ permissions })}
+            {...hint('permissions')}
           />
-          <BodyField label="Persona" kind={kind} entity={entity} update={update} />
+          <BodyField label="Persona" kind={kind} entity={entity} update={update} hint={hint} />
         </>
       )
 
@@ -379,9 +414,10 @@ function KindFields({ kind, entity, blueprint, update }: KindFieldProps) {
             onChange={(whenToUse) => update({ whenToUse: whenToUse || undefined })}
             help="The sentence a harness reads to decide whether to load this skill."
             {...exampleFor(kind, 'whenToUse')}
+            {...hint('whenToUse')}
             rows={2}
           />
-          <ActivationFields entity={entity} update={update} />
+          <ActivationFields entity={entity} update={update} hint={hint} />
           <LinkField
             label="References"
             kind="reference"
@@ -398,7 +434,7 @@ function KindFields({ kind, entity, blueprint, update }: KindFieldProps) {
             onChange={(allowedToolIds) => update({ allowedToolIds })}
           />
           <ResourcesField entity={entity} update={update} />
-          <BodyField label="Instructions" kind={kind} entity={entity} update={update} />
+          <BodyField label="Instructions" kind={kind} entity={entity} update={update} hint={hint} />
         </>
       )
 
@@ -413,6 +449,7 @@ function KindFields({ kind, entity, blueprint, update }: KindFieldProps) {
             }
             help="Requests that should start this workflow."
             {...exampleFor(kind, 'intents')}
+            {...hint('triggers')}
           />
           <Field
             label="Steps"
@@ -423,7 +460,7 @@ function KindFields({ kind, entity, blueprint, update }: KindFieldProps) {
               {(entity['edges'] as unknown[] | undefined)?.length ?? 0} connections.
             </p>
           </Field>
-          <BodyField label="Notes" kind={kind} entity={entity} update={update} />
+          <BodyField label="Notes" kind={kind} entity={entity} update={update} hint={hint} />
         </>
       )
 
@@ -436,6 +473,7 @@ function KindFields({ kind, entity, blueprint, update }: KindFieldProps) {
             onChange={(rule) => update({ rule })}
             help="One or two imperative sentences. This is the law itself."
             {...exampleFor(kind, 'rule')}
+            {...hint('rule')}
           />
           <TextAreaField
             label="Rationale"
@@ -443,6 +481,7 @@ function KindFields({ kind, entity, blueprint, update }: KindFieldProps) {
             onChange={(rationale) => update({ rationale: rationale || undefined })}
             help="Why it exists. A law the agent understands is followed more reliably."
             {...exampleFor(kind, 'rationale')}
+            {...hint('rationale')}
           />
           <TextAreaField
             label="If it cannot be honoured"
@@ -452,6 +491,7 @@ function KindFields({ kind, entity, blueprint, update }: KindFieldProps) {
             }
             help="Without this, an agent that cannot comply will invent its own way out."
             {...exampleFor(kind, 'violationBehavior')}
+            {...hint('violationBehavior')}
             rows={2}
           />
           <SelectField
@@ -471,14 +511,16 @@ function KindFields({ kind, entity, blueprint, update }: KindFieldProps) {
             values={list('examples')}
             onChange={(examples) => update({ examples })}
             {...exampleFor(kind, 'examples')}
+            {...hint('examples')}
           />
           <StringListField
             label="Counterexamples"
             values={list('counterexamples')}
             onChange={(counterexamples) => update({ counterexamples })}
             {...exampleFor(kind, 'counterexamples')}
+            {...hint('counterexamples')}
           />
-          <BodyField label="Notes" kind={kind} entity={entity} update={update} />
+          <BodyField label="Notes" kind={kind} entity={entity} update={update} hint={hint} />
         </>
       )
 
@@ -490,6 +532,7 @@ function KindFields({ kind, entity, blueprint, update }: KindFieldProps) {
             value={string('guidance')}
             onChange={(guidance) => update({ guidance })}
             {...exampleFor(kind, 'guidance')}
+            {...hint('guidance')}
           />
           <SelectField
             label="Priority"
@@ -510,8 +553,9 @@ function KindFields({ kind, entity, blueprint, update }: KindFieldProps) {
             placeholder="**/*.ts"
             help="File globs. Harnesses that support path-scoped rules load it only for these."
             {...exampleFor(kind, 'paths')}
+            {...hint('paths')}
           />
-          <BodyField label="Notes" kind={kind} entity={entity} update={update} />
+          <BodyField label="Notes" kind={kind} entity={entity} update={update} hint={hint} />
         </>
       )
 
@@ -524,6 +568,7 @@ function KindFields({ kind, entity, blueprint, update }: KindFieldProps) {
             options={HOOK_TRIGGERS}
             onChange={(trigger) => update({ trigger })}
             help="The lifecycle event that fires it."
+            {...hint('trigger')}
           />
           <SelectField
             label="Action"
@@ -533,6 +578,7 @@ function KindFields({ kind, entity, blueprint, update }: KindFieldProps) {
             }
             options={HOOK_ACTION_TYPES}
             onChange={(type) => update({ action: { ...(entity['action'] as object), type } })}
+            {...hint('action.type')}
           />
           <TextField
             label="Command"
@@ -543,6 +589,7 @@ function KindFields({ kind, entity, blueprint, update }: KindFieldProps) {
             }
             help="Run verbatim by every harness that supports command hooks."
             {...exampleFor(kind, 'command')}
+            {...hint('action.command')}
           />
           <SelectField
             label="On failure"
@@ -562,7 +609,7 @@ function KindFields({ kind, entity, blueprint, update }: KindFieldProps) {
             options={GATE_FAILURE_BEHAVIORS}
             onChange={(onFail) => update({ onFail })}
           />
-          <CriteriaFields entity={entity} update={update} />
+          <CriteriaFields entity={entity} update={update} hint={hint} />
         </>
       )
 
@@ -580,6 +627,7 @@ function KindFields({ kind, entity, blueprint, update }: KindFieldProps) {
             values={list('operations')}
             onChange={(operations) => update({ operations })}
             {...exampleFor(kind, 'operations')}
+            {...hint('operations')}
           />
         </>
       )
@@ -598,8 +646,9 @@ function KindFields({ kind, entity, blueprint, update }: KindFieldProps) {
             value={string('url')}
             onChange={(url) => update({ url: url || undefined })}
             {...exampleFor(kind, 'url')}
+            {...hint('url')}
           />
-          <BodyField label="Content" kind={kind} entity={entity} update={update} />
+          <BodyField label="Content" kind={kind} entity={entity} update={update} hint={hint} />
         </>
       )
 
@@ -619,8 +668,9 @@ function KindFields({ kind, entity, blueprint, update }: KindFieldProps) {
             onChange={(categories) => update({ categories })}
             help="What is worth remembering."
             {...exampleFor(kind, 'categories')}
+            {...hint('categories')}
           />
-          <BodyField label="Seed" kind={kind} entity={entity} update={update} />
+          <BodyField label="Seed" kind={kind} entity={entity} update={update} hint={hint} />
         </>
       )
 
@@ -633,6 +683,7 @@ function KindFields({ kind, entity, blueprint, update }: KindFieldProps) {
             onChange={(statement) => update({ statement })}
             help="A claim that must hold about this Blueprint."
             {...exampleFor(kind, 'statement')}
+            {...hint('statement')}
           />
           <SelectField
             label="Level"
@@ -641,8 +692,8 @@ function KindFields({ kind, entity, blueprint, update }: KindFieldProps) {
             onChange={(level) => update({ level })}
             help="An unmet `must` is an error; an unmet `should` is a warning."
           />
-          <ChecksField entity={entity} blueprint={blueprint} update={update} />
-          <BodyField label="Notes" kind={kind} entity={entity} update={update} />
+          <ChecksField entity={entity} blueprint={blueprint} update={update} {...hint('checks')} />
+          <BodyField label="Notes" kind={kind} entity={entity} update={update} hint={hint} />
         </>
       )
 
@@ -663,6 +714,7 @@ function KindFields({ kind, entity, blueprint, update }: KindFieldProps) {
             onChange={(input) => update({ input })}
             help="The request the agent is given."
             {...exampleFor(kind, 'input')}
+            {...hint('input')}
           />
           <SelectField
             label="Mode"
@@ -679,6 +731,7 @@ function KindFields({ kind, entity, blueprint, update }: KindFieldProps) {
               update({ expectedBehaviors: descriptions.map((description) => ({ description })) })
             }
             {...exampleFor(kind, 'expectedBehaviors')}
+            {...hint('expectedBehaviors')}
           />
         </>
       )
@@ -694,11 +747,13 @@ function BodyField({
   kind,
   entity,
   update,
+  hint,
 }: {
   label: string
   kind: EntityKind
   entity: Record<string, unknown>
   update: (patch: Record<string, unknown>) => void
+  hint: Hint
 }) {
   return (
     <TextAreaField
@@ -709,6 +764,7 @@ function BodyField({
       onChange={(body) => update({ body })}
       help="Markdown. The Markdown tab above edits the same text as the file, with a preview."
       {...exampleFor(kind, 'body')}
+      {...hint('body')}
     />
   )
 }
@@ -716,9 +772,11 @@ function BodyField({
 function ActivationFields({
   entity,
   update,
+  hint,
 }: {
   entity: Record<string, unknown>
   update: (patch: Record<string, unknown>) => void
+  hint: Hint
 }) {
   const activation = (entity['activation'] ?? {}) as Record<string, string[]>
   const set = (key: string, values: string[]) =>
@@ -733,6 +791,7 @@ function ActivationFields({
         placeholder="**/*.test.ts"
         help="Claude Code and Copilot load the skill only when a matching file is read."
         {...exampleFor('skill', 'filePatterns')}
+        {...hint('activation')}
       />
       <StringListField
         label="Intents"
@@ -756,9 +815,11 @@ function ActivationFields({
 function CriteriaFields({
   entity,
   update,
+  hint,
 }: {
   entity: Record<string, unknown>
   update: (patch: Record<string, unknown>) => void
+  hint: Hint
 }) {
   const criteria = (entity['criteria'] ?? []) as {
     kind: string
@@ -775,7 +836,11 @@ function CriteriaFields({
   }
 
   return (
-    <Field label="Criteria" help="Every one must hold before the workflow may continue.">
+    <Field
+      label="Criteria"
+      help="Every one must hold before the workflow may continue."
+      {...hint('criteria')}
+    >
       <div className="flex flex-col gap-3">
         {criteria.map((criterion, index) => (
           // Keyed by position: criteria have no id, and the fields below are re-labelled
