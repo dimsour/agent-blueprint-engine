@@ -90,6 +90,12 @@ export const hookActionSchema = z.object({
   command: z.string().optional(),
   /** Natural-language check for `prompt-check` / `check-iron-laws`. */
   prompt: z.string().optional(),
+  /**
+   * A shell script shipped beside the compiled hooks and run in place of `command`, for a
+   * check too long for one line: a scan of what an edit introduced, a gate with several
+   * steps. POSIX shell; written as `<id>.sh` where each harness keeps hook scripts.
+   */
+  script: z.string().optional(),
   timeoutSec: z.number().int().min(1).max(3600).optional(),
   /**
    * Run in the background and never block: for logging, telemetry and slow checks whose

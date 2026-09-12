@@ -615,6 +615,17 @@ function KindFields({ kind, entity, blueprint, update, hint }: KindFieldProps) {
             {...exampleFor(kind, 'command')}
             {...hint('action.command')}
           />
+          <TextAreaField
+            label="Script"
+            mono
+            value={(entity['action'] as { script?: string } | undefined)?.script ?? ''}
+            onChange={(script) =>
+              update({ action: { ...(entity['action'] as object), script: script || undefined } })
+            }
+            help="A shell script for a check too long for one line. Shipped with the compiled hooks and run instead of the command."
+            {...hint('action.script')}
+            rows={6}
+          />
           <StringListField
             label="Only for files matching"
             values={

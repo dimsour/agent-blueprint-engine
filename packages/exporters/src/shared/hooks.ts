@@ -5,17 +5,15 @@
  * A Blueprint hook says *what* must happen and *when*, never in whose syntax; each adapter
  * maps `trigger` to its own event name and `action` to its own handler shape.
  */
-import type { Gate, Hook, IronLaw, ToolKind } from '@agent-blueprint/core'
+import type { Gate, HarnessId, Hook, IronLaw, ToolKind } from '@agent-blueprint/core'
+
+import { generatedFile, type GeneratedFile } from '../types'
 
 /** Actions that run a shell command; the rest are prompt checks. */
 const COMMAND_ACTIONS = new Set(['command', 'run-tests', 'format', 'lint', 'secret-scan'])
 
 export function isCommandAction(hook: Hook): boolean {
   return COMMAND_ACTIONS.has(hook.action.type)
-}
-
-export function hookCommand(hook: Hook): string | undefined {
-  return isCommandAction(hook) ? hook.action.command : undefined
 }
 
 /** What the hook is for, shown by harnesses that display a status line. */
@@ -82,7 +80,7 @@ export function gateFailureOutcomeOf(gate: Gate): FailureOutcome {
  * convention Claude Code and Codex share is "a non-blocking error the user is shown": the
  * hook never refuses anything and the agent never sees why. The wrapper captures the output
  * and, on failure, writes it to stderr and exits with the code the outcome needs. On success
- * it prints nothing, which keeps a passing test run out of the session.
+ * the output is printed as it was, so a hook that answers on stdout still answers.
  *
  * The syntax is POSIX shell. Claude Code runs hooks in `sh` and, on Windows, in Git Bash,
  * which it requires; Codex runs `command` through the same shell.
@@ -91,7 +89,47 @@ export function failing(command: string, outcome: FailureOutcome, note?: string)
   if (outcome === 'ignore') return `${command} || true`
   const code = outcome === 'block' ? 2 : 1
   const prefix = note ? `printf '%s\\n' ${shellQuote(note)} >&2; ` : ''
-  return `out=$(${command} 2>&1) || { ${prefix}printf '%s\\n' "$out" >&2; exit ${code}; }`
+  // On success the output goes where it went: a hook that answers on stdout — JSON with a
+  // decision or context to inject — must not have its answer swallowed by the wrapper.
+  return `out=$(${command} 2>&1) || { ${prefix}printf '%s\\n' "$out" >&2; exit ${code}; }; [ -z "$out" ] || printf '%s\\n' "$out"`
+}
+
+/** Where a harness keeps hook scripts and how it runs one. */
+export interface ScriptLocation {
+  /** Directory the script files go in, repository-relative. */
+  dir: string
+  /** The command that runs the script at `path` (repository-relative). */
+  invoke: (path: string) => string
+}
+
+export function hookScriptPath(hook: Hook, location: ScriptLocation): string {
+  return `${location.dir}/${hook.id}.sh`
+}
+
+/**
+ * The command a hook runs: its script, when it has one, else its command (P9-30). A script
+ * is a file the compiled output carries, so the command is the harness's way of running
+ * that file.
+ */
+export function effectiveCommand(hook: Hook, location: ScriptLocation): string | undefined {
+  if (!isCommandAction(hook)) return undefined
+  if (hook.action.script) return location.invoke(hookScriptPath(hook, location))
+  return hook.action.command
+}
+
+/** The script file itself, for a hook that has one. */
+export function hookScriptFile(
+  hook: Hook,
+  location: ScriptLocation,
+  owner: HarnessId,
+): GeneratedFile | undefined {
+  const script = hook.action.script
+  if (!script || !isCommandAction(hook)) return undefined
+  // A shebang the author left out is added; one they wrote is kept as the first line.
+  const body = script.startsWith('#!') ? script : `#!/usr/bin/env bash\n${script}`
+  return generatedFile(hookScriptPath(hook, location), `${body.trimEnd()}\n`, 'text', owner, [
+    { kind: 'hook', id: hook.id },
+  ])
 }
 
 /** Single-quoted for the shell: nothing inside is interpreted. */

@@ -31,7 +31,7 @@ import {
   type GeneratedFile,
   type HarnessAdapter,
 } from '../types'
-import { buildConfig, buildHooks, lowerPermissions } from './config'
+import { buildConfig, buildHooks, hookScriptFiles, lowerPermissions } from './config'
 
 const optionsSchema = z
   .object({
@@ -296,6 +296,7 @@ export const codexAdapter: HarnessAdapter<CodexOptions> = {
       files.push(
         generatedFile('.codex/hooks.json', stableJson({ hooks: hooks.hooks }), 'json', 'codex', []),
       )
+      files.push(...hookScriptFiles(blueprint))
     }
 
     if (options.emitConfig) {

@@ -24,7 +24,7 @@ import {
   type GeneratedFile,
   type HarnessAdapter,
 } from '../types'
-import { buildSettings } from './settings'
+import { buildSettings, hookScriptFiles } from './settings'
 
 const SKILLS_DIR = '.claude/skills'
 const AGENTS_DIR = '.claude/agents'
@@ -470,6 +470,7 @@ export const claudeCodeAdapter: HarnessAdapter<ClaudeCodeOptions> = {
           generatedFile('.claude/settings.json', stableJson(settings), 'json', 'claude-code', []),
         )
       }
+      files.push(...hookScriptFiles(blueprint))
     }
 
     const mcpTools = blueprint.tools.filter((tool) => tool.mcp)

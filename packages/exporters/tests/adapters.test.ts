@@ -84,6 +84,10 @@ describe('generated files', () => {
   })
 })
 
+/** The failure wrapper of P9-25 / P9-30 around a command, as the adapters emit it. */
+const wrapped = (command: string, code: 2 | 1, note?: string) =>
+  `out=$(${command} 2>&1) || { ${note ? `printf '%s\\n' '${note}' >&2; ` : ''}printf '%s\\n' "$out" >&2; exit ${code}; }; [ -z "$out" ] || printf '%s\\n' "$out"`
+
 describe('claude-code adapter', () => {
   it('emits the documented file set for the fixture', async () => {
     const blueprint = await loadFixture()
@@ -128,16 +132,14 @@ describe('claude-code adapter', () => {
     // `return-to-agent`: the output reaches the model only through exit 2 and stderr, so the
     // command is wrapped to do exactly that when it fails, and to say nothing when it passes.
     expect(settings.hooks.PostToolUse?.[0]?.hooks[0]?.command).toBe(
-      `out=$(dotnet test --no-restore 2>&1) || { printf '%s\\n' "$out" >&2; exit 2; }`,
+      wrapped('dotnet test --no-restore', 2),
     )
     // The hook is for C# files, and Claude can filter the tool call by path itself.
     expect(settings.hooks.PostToolUse?.[0]?.hooks[0]?.if).toBe('Edit(**/*.cs)|Write(**/*.cs)')
     // The gate command and the Iron Law check both run when the session stops.
     const stop = settings.hooks.Stop ?? []
     expect(stop[0]?.hooks.map((handler) => handler.type)).toEqual(['command', 'prompt'])
-    expect(stop[0]?.hooks[0]?.command).toBe(
-      `out=$(dotnet test 2>&1) || { printf '%s\\n' "$out" >&2; exit 2; }`,
-    )
+    expect(stop[0]?.hooks[0]?.command).toBe(wrapped('dotnet test', 2))
     expect(settings.autoMemoryEnabled).toBe(true)
   })
 
@@ -185,17 +187,15 @@ describe('claude-code adapter', () => {
     }
 
     expect(settings.hooks.PostToolUse?.[0]?.hooks[0]?.command).toBe(
-      `out=$(dotnet test --no-restore 2>&1) || { printf '%s\\n' "$out" >&2; exit 1; }`,
+      wrapped('dotnet test --no-restore', 1),
     )
     const stopCommands = (settings.hooks.Stop ?? []).flatMap((entry) =>
       entry.hooks.map((handler) => handler.command),
     )
-    expect(stopCommands).toContain(
-      `out=$(scan-secrets 2>&1) || { printf '%s\\n' "$out" >&2; exit 2; }`,
-    )
+    expect(stopCommands).toContain(wrapped('scan-secrets', 2))
     expect(stopCommands).toContain('dotnet test || true')
     expect(stopCommands).toContain(
-      `out=$(check 2>&1) || { printf '%s\\n' 'Approval failed. Ask the user before continuing.' >&2; printf '%s\\n' "$out" >&2; exit 2; }`,
+      wrapped('check', 2, 'Approval failed. Ask the user before continuing.'),
     )
     // A Bash hook has no path to filter by: the pattern stays a note, and an issue says so.
     const guard = settings.hooks.PreToolUse?.find((entry) => entry.matcher === 'Bash')?.hooks[0]
@@ -355,6 +355,74 @@ describe('lifecycle triggers and background hooks', () => {
     const copilot = issues.filter((issue) => issue.harnessId === 'copilot')
     expect(copilot.find((issue) => issue.ref?.id === 'after')?.support).toBe('unsupported')
     expect(copilot.find((issue) => issue.ref?.id === 'log')?.support).toBe('limited')
+  })
+})
+
+/**
+ * A hook with a script ships the script and runs it (P9-30). Each harness keeps scripts in
+ * its own place and runs them its own way; the script body is the same file everywhere.
+ */
+describe('hook scripts', () => {
+  const withScript = async () => {
+    const blueprint = structuredClone(await loadFixture())
+    const hook = blueprint.hooks[0]!
+    hook.action = {
+      type: 'command',
+      // The command is dead text once there is a script; the validator says so.
+      command: 'ignored',
+      script: 'set -e\ngrep -n "Thread.Sleep" "$1" && exit 2\nexit 0',
+      async: false,
+    }
+    return compileBlueprint(blueprint, { targets: ['claude-code', 'codex', 'copilot'] })
+  }
+
+  it('writes the script once per harness with a shebang, and runs it from the hook', async () => {
+    const { files } = await withScript()
+    const byPath = (path: string) => textOf(files.find((file) => file.path === path))
+
+    const script = '#!/usr/bin/env bash\nset -e\ngrep -n "Thread.Sleep" "$1" && exit 2\nexit 0\n'
+    expect(byPath('.claude/hooks/run-tests-after-change.sh')).toBe(script)
+    expect(byPath('.codex/hooks/run-tests-after-change.sh')).toBe(script)
+    expect(byPath('.github/hooks/scripts/run-tests-after-change.sh')).toBe(script)
+
+    const claude = JSON.parse(byPath('.claude/settings.json')) as {
+      hooks: { PostToolUse: { hooks: { command: string }[] }[] }
+    }
+    expect(claude.hooks.PostToolUse[0]?.hooks[0]?.command).toContain(
+      'bash "${CLAUDE_PROJECT_DIR}/.claude/hooks/run-tests-after-change.sh"',
+    )
+    expect(claude.hooks.PostToolUse[0]?.hooks[0]?.command).not.toContain('ignored')
+    const codex = JSON.parse(byPath('.codex/hooks.json')) as {
+      hooks: { PostToolUse: { hooks: { command: string }[] }[] }
+    }
+    expect(codex.hooks.PostToolUse[0]?.hooks[0]?.command).toContain(
+      'bash .codex/hooks/run-tests-after-change.sh',
+    )
+    expect(byPath('.github/hooks/blueprint.json')).toContain(
+      'bash .github/hooks/scripts/run-tests-after-change.sh',
+    )
+  })
+
+  it('keeps a shebang the author wrote', async () => {
+    const blueprint = structuredClone(await loadFixture())
+    blueprint.hooks[0]!.action = { type: 'command', script: '#!/bin/sh\nexit 0\n', async: false }
+    const { files } = compileBlueprint(blueprint, { targets: ['claude-code'] })
+    expect(textOf(files.find((f) => f.path === '.claude/hooks/run-tests-after-change.sh'))).toBe(
+      '#!/bin/sh\nexit 0\n',
+    )
+  })
+
+  it('lets a passing hook answer on stdout', async () => {
+    const blueprint = await loadFixture()
+    const { files } = compileBlueprint(blueprint, { targets: ['claude-code'] })
+    const settings = JSON.parse(textOf(files.find((f) => f.path === '.claude/settings.json'))) as {
+      hooks: { PostToolUse: { hooks: { command: string }[] }[] }
+    }
+    // The wrapper only rewrites the failure path; on success the output is printed as it
+    // was, so a script that prints a JSON decision or context is still heard.
+    expect(settings.hooks.PostToolUse[0]?.hooks[0]?.command).toMatch(
+      /; \[ -z "\$out" \] \|\| printf '%s\\n' "\$out"$/,
+    )
   })
 })
 

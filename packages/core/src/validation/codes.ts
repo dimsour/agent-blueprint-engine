@@ -310,10 +310,19 @@ export const DIAGNOSTIC_CODES: readonly DiagnosticCode[] = [
   {
     code: 'BP-HOOK-010',
     severity: 'info',
-    summary: 'A hook runs a command action but has no command.',
+    summary: 'A hook runs a command action but has neither a command nor a script.',
     remedy:
-      'Fill in the command the hook should run, or change its action to one that does not need a command. As it stands the hook compiles to nothing.',
-    fields: ['action.command'],
+      'Fill in the command the hook should run, or a script for a check too long for one line, or change its action to one that needs neither. As it stands the hook compiles to nothing.',
+    fields: ['action.command', 'action.script'],
+    source: 'validation',
+  },
+  {
+    code: 'BP-HOOK-011',
+    severity: 'info',
+    summary: 'A hook has both a command and a script.',
+    remedy:
+      'Keep one. The script is what runs, so the command is dead text; move it into the script if it still matters, or clear it.',
+    fields: ['action.command', 'action.script'],
     source: 'validation',
   },
   {

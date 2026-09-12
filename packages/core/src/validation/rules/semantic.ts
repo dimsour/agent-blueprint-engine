@@ -292,14 +292,33 @@ const COMMAND_ACTIONS = new Set(['command', 'run-tests', 'format', 'lint', 'secr
 
 export const hooksWithoutCommands: ValidationRule = {
   code: 'BP-HOOK-010',
-  description: 'A hook that runs something needs a command to run.',
+  description: 'A hook that runs something needs a command or a script to run.',
   check({ blueprint }) {
     return blueprint.hooks
-      .filter((hook) => COMMAND_ACTIONS.has(hook.action.type) && !hook.action.command)
+      .filter(
+        (hook) =>
+          COMMAND_ACTIONS.has(hook.action.type) && !hook.action.command && !hook.action.script,
+      )
       .map((hook) => ({
         code: 'BP-HOOK-010',
         severity: 'info' as const,
-        message: `Hook "${hook.name}" runs a ${hook.action.type} action but has no command, so nothing will be executed.`,
+        message: `Hook "${hook.name}" runs a ${hook.action.type} action but has neither a command nor a script, so nothing will be executed.`,
+        ref: { kind: 'hook' as const, id: hook.id },
+      }))
+  },
+}
+
+/** A script is run in place of the command; a hook with both has one that does nothing. */
+export const hooksWithCommandAndScript: ValidationRule = {
+  code: 'BP-HOOK-011',
+  description: 'A hook with a script does not run its command.',
+  check({ blueprint }) {
+    return blueprint.hooks
+      .filter((hook) => Boolean(hook.action.command) && Boolean(hook.action.script))
+      .map((hook) => ({
+        code: 'BP-HOOK-011',
+        severity: 'info' as const,
+        message: `Hook "${hook.name}" has both a command and a script. The script is what runs; the command is ignored.`,
         ref: { kind: 'hook' as const, id: hook.id },
       }))
   },
@@ -369,6 +388,7 @@ export const SEMANTIC_RULES: readonly ValidationRule[] = [
   neverActivatedSkills,
   skillsWithoutVerification,
   hooksWithoutCommands,
+  hooksWithCommandAndScript,
   emptyGates,
   unenforcedLaws,
 ]

@@ -9,8 +9,34 @@
  */
 import type { Agent, Blueprint, Hook, IronLaw, Tool, ToolKind } from '@agent-blueprint/core'
 
-import { executableCriteria, hookPrompt, hookStatusMessage, isCommandAction } from '../shared/hooks'
-import type { CompatibilityIssue } from '../types'
+import {
+  effectiveCommand,
+  executableCriteria,
+  hookPrompt,
+  hookScriptFile,
+  hookStatusMessage,
+  isCommandAction,
+  type ScriptLocation,
+} from '../shared/hooks'
+import type { CompatibilityIssue, GeneratedFile } from '../types'
+
+/**
+ * Where hook scripts live (P9-30). Copilot documents no project-root variable, so the path
+ * is relative to the repository, which is where a hook runs; the PowerShell variant runs the
+ * same script through bash, which Copilot on Windows needs on the PATH.
+ */
+export const COPILOT_SCRIPTS: ScriptLocation = {
+  dir: '.github/hooks/scripts',
+  invoke: (path) => `bash ${path}`,
+}
+
+/** The script files the hooks run, for the hooks that have one (P9-30). */
+export function hookScriptFiles(blueprint: Blueprint): GeneratedFile[] {
+  return blueprint.hooks.flatMap((hook) => {
+    const file = hookScriptFile(hook, COPILOT_SCRIPTS, 'copilot')
+    return file ? [file] : []
+  })
+}
 
 /** Copilot tool aliases (docs/harness/copilot.md). */
 type ToolAlias = 'read' | 'edit' | 'execute' | 'search' | 'web' | 'agent' | 'todo'
@@ -202,7 +228,7 @@ export function buildHooks(
       continue
     }
     const { event, matcher } = lowered
-    const command = isCommandAction(hook) ? hook.action.command : undefined
+    const command = effectiveCommand(hook, COPILOT_SCRIPTS)
     if (isCommandAction(hook) && !command) continue
     if (hook.action.async) {
       issues.push(

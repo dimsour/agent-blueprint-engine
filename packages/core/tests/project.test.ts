@@ -126,6 +126,26 @@ describe('writeProject', () => {
     expect(normalizeBlueprint(reread.blueprint)).toEqual(bp)
   })
 
+  it('carries a hook script through YAML and back, line for line', async () => {
+    const bp = structuredClone(await loadFixture())
+    const hook = bp.hooks[0]!
+    hook.action = {
+      ...hook.action,
+      script: [
+        '#!/usr/bin/env bash',
+        'set -e',
+        'grep -n "Thread.Sleep" "$1" && exit 2',
+        'exit 0',
+      ].join('\n'),
+    }
+    const files = renderProjectFiles(bp)
+    // A block scalar, so the file reads as the script it is.
+    expect(files['blueprint/hooks/run-tests-after-change.yaml']).toContain('script: |')
+    const reread = await readProject(new MemoryFs(files))
+    expect(reread.diagnostics).toEqual([])
+    expect(reread.blueprint.hooks[0]?.action.script).toBe(hook.action.script)
+  })
+
   it('ignores cosmetic differences in the source', async () => {
     const bp = await loadFixture()
     const shuffled = structuredClone(bp)

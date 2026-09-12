@@ -24,7 +24,7 @@ import {
   type GeneratedFile,
   type HarnessAdapter,
 } from '../types'
-import { buildHooks, mcpServers, toolAliases, unnamedMcpTools } from './settings'
+import { buildHooks, hookScriptFiles, mcpServers, toolAliases, unnamedMcpTools } from './settings'
 
 const SKILLS_DIR = '.github/skills'
 const AGENTS_DIR = '.github/agents'
@@ -324,6 +324,7 @@ export const copilotAdapter: HarnessAdapter<CopilotOptions> = {
       issues.push(...hooks.issues)
       if (hooks.file) {
         files.push(generatedFile(HOOKS_FILE, stableJson(hooks.file), 'json', 'copilot', []))
+        files.push(...hookScriptFiles(blueprint))
       }
     }
 

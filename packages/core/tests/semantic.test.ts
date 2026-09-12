@@ -203,6 +203,30 @@ describe('agent and skill semantic rules', () => {
     expect(codes).toContain('BP-GATE-010')
   })
 
+  it('accepts a script in place of a command, and notices when a hook has both', async () => {
+    let blueprint = structuredClone(await loadFixture())
+    blueprint = upsertEntity(blueprint, 'hook', {
+      id: 'scripted',
+      name: 'Scripted',
+      description: 'Runs a script',
+      trigger: 'before-stop',
+      action: { type: 'command', script: 'exit 0' },
+    })
+    expect(codesOf(blueprint)).not.toContain('BP-HOOK-010')
+    expect(codesOf(blueprint)).not.toContain('BP-HOOK-011')
+
+    blueprint = upsertEntity(blueprint, 'hook', {
+      id: 'both',
+      name: 'Both',
+      description: 'Has a command it will never run',
+      trigger: 'before-stop',
+      action: { type: 'command', command: 'echo never', script: 'exit 0' },
+    })
+    const found = validateBlueprint(blueprint).filter((d) => d.code === 'BP-HOOK-011')
+    expect(found).toHaveLength(1)
+    expect(found[0]?.ref).toEqual({ kind: 'hook', id: 'both' })
+  })
+
   it('reports a law that asks for gate enforcement with no matching gate', async () => {
     const blueprint = structuredClone(await loadFixture())
     blueprint.ironLaws[0]!.enforcement = ['instruction', 'gate']

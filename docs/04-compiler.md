@@ -492,6 +492,17 @@ whitelist, so an agent that delegates gets `Agent(<delegates>)` on it; without t
 list would take delegation away. Codex's agent file gets the one permission it can carry,
 `sandbox_mode = "read-only"`.
 
+### A hook can be a file (P9-30)
+
+A one-line command cannot scan what an edit introduced or run a check with several steps.
+`action.script` is that check as a shell script: the model carries it as text, the project
+file writes it as a block scalar, and `hookScriptFile` in `shared/hooks.ts` emits it once per
+harness — `.claude/hooks/`, `.codex/hooks/`, `.github/hooks/scripts/` — with a shebang added
+when the author left one out. `effectiveCommand` gives the hook the harness's way of running
+that file, and the failure wrapper goes around it as around any command. The wrapper also
+prints the command's output on success now: a script that answers on stdout, with a JSON
+decision or context to inject, must not have its answer swallowed.
+
 ### Codex hooks file shape
 
 `docs/harness/codex.md` documents the events and handler fields but not the wrapper object.

@@ -136,7 +136,9 @@ names a model explicitly and has no fast/balanced/strong equivalent, so a prefer
 | `after-compact`      | none — not emitted, reported as unsupported (P9-29)                           |
 
 Actions lower to `{ "type": "command", "bash": …, "powershell": … }` (both variants generated
-from `action.command`, PowerShell using the same command text; `timeoutSec` copied). A
+from `action.command`, PowerShell using the same command text; `timeoutSec` copied). A hook with
+`action.script` also writes `.github/hooks/scripts/<id>.sh` and both variants run it as
+`bash .github/hooks/scripts/<id>.sh` (P9-30), so bash has to be on the PATH on Windows. A
 `before-stop` hook with `onFailure: block` gets the same refusal wrapper a gate does. Copilot does not document background hooks, so `action.async` runs in the foreground and is reported as limited.
 `prompt-check` / `check-iron-laws` print a reminder instead: Copilot documents a `prompt`
 handler type but not the field carrying the text, and a `preToolUse` handler fails closed on

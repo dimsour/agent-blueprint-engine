@@ -8,6 +8,7 @@
 import type { Agent, Blueprint, Gate, Hook, IronLaw, Tool } from '@agent-blueprint/core'
 
 import {
+  effectiveCommand,
   executableCriteria,
   failing,
   failureOutcomeOf,
@@ -15,8 +16,10 @@ import {
   gateFailureOutcomeOf,
   hookEnforcedLaws,
   hookPrompt,
+  hookScriptFile,
   hookStatusMessage,
   isCommandAction,
+  type ScriptLocation,
 } from '../shared/hooks'
 import {
   effectiveBlanketDecision,
@@ -25,7 +28,7 @@ import {
   type PermissionOperation,
   READ_ONLY_SHELL_PREFIXES,
 } from '../shared/permissions'
-import type { CompatibilityIssue } from '../types'
+import type { CompatibilityIssue, GeneratedFile } from '../types'
 
 export interface ClaudeHookHandler {
   type: 'command' | 'prompt'
@@ -254,9 +257,19 @@ function matcherFor(hook: Hook): { matcher?: string } {
   return matchers.length === 0 ? {} : { matcher: [...new Set(matchers)].sort().join('|') }
 }
 
+/**
+ * Where hook scripts live in a project (P9-30). `CLAUDE_PROJECT_DIR` is the documented
+ * root, so the hook runs from any working directory.
+ */
+export const PROJECT_SCRIPTS: ScriptLocation = {
+  dir: '.claude/hooks',
+  invoke: (path) => `bash "\${CLAUDE_PROJECT_DIR}/${path}"`,
+}
+
 export function lowerHooks(
   blueprint: Blueprint,
   laws: IronLaw[],
+  scripts: ScriptLocation = PROJECT_SCRIPTS,
 ): { hooks: ClaudeSettings['hooks']; issues: CompatibilityIssue[] } {
   const issues: CompatibilityIssue[] = []
   const events = new Map<string, ClaudeHookMatcher[]>()
@@ -271,7 +284,7 @@ export function lowerHooks(
 
   for (const hook of blueprint.hooks) {
     const { event, matcher } = lowerTrigger(hook)
-    const handler = handlerFor(hook, laws)
+    const handler = handlerFor(hook, laws, scripts)
     if (!handler) {
       issues.push(
         issue(
@@ -380,9 +393,13 @@ function pathFilter(event: string, matcher: string | undefined, hook: Hook): str
     .join('|')
 }
 
-function handlerFor(hook: Hook, laws: IronLaw[]): ClaudeHookHandler | undefined {
+function handlerFor(
+  hook: Hook,
+  laws: IronLaw[],
+  scripts: ScriptLocation,
+): ClaudeHookHandler | undefined {
   if (isCommandAction(hook)) {
-    const command = hook.action.command
+    const command = effectiveCommand(hook, scripts)
     if (!command) return undefined
     return {
       type: 'command',
@@ -408,9 +425,10 @@ export function buildSettings(
   blueprint: Blueprint,
   primary: Agent | undefined,
   laws: IronLaw[],
+  scripts: ScriptLocation = PROJECT_SCRIPTS,
 ): { settings: ClaudeSettings; issues: CompatibilityIssue[] } {
   const permissions = lowerPermissions(primary, blueprint)
-  const hooks = lowerHooks(blueprint, laws)
+  const hooks = lowerHooks(blueprint, laws, scripts)
 
   const settings: ClaudeSettings = {
     ...(permissions.permissions ? { permissions: permissions.permissions } : {}),
@@ -421,6 +439,17 @@ export function buildSettings(
   }
 
   return { settings, issues: [...permissions.issues, ...hooks.issues] }
+}
+
+/** The script files the hooks run, for the hooks that have one (P9-30). */
+export function hookScriptFiles(
+  blueprint: Blueprint,
+  scripts: ScriptLocation = PROJECT_SCRIPTS,
+): GeneratedFile[] {
+  return blueprint.hooks.flatMap((hook) => {
+    const file = hookScriptFile(hook, scripts, 'claude-code')
+    return file ? [file] : []
+  })
 }
 
 /** Gates are also described in the workflow skills, so the two can never disagree. */

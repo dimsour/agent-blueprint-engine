@@ -1004,6 +1004,17 @@ something, it says what and where that thing still exists.
 - Built: the four cases in each `lowerTrigger`, which now return `undefined` for an event the harness lacks so the caller can say so; `async: true` on the handler for Claude and Codex, with the command emitted as written since a discarded result has nothing to wrap. Option descriptions for the four triggers; docs/02 and the three harness tables.
 - Not built: a matcher on `SessionStart` (`startup` / `resume` / `compact`) and on `SubagentStart` (the agent type); the model has no field for either and no request for one yet.
 
+### P9-30 A hook that is a file (done)
+
+- Package: `packages/core` (schema, `BP-HOOK-011`), `packages/exporters`, `apps/web` (hook form)
+- Depends on: P9-25, P9-29
+- Description: A hook could only be one line. That rules out the checks that make hooks worth having: read the edit the tool just made from stdin and scan only what it introduced; run a gate with three steps and a clear message; print a JSON decision. Skills already ship files beside `SKILL.md`; hooks had no way to ship anything.
+- Acceptance: `action.script` holds a POSIX shell script; the project file writes it as a block scalar and reads it back unchanged; each JSON-hook harness writes `<id>.sh` where it keeps hook scripts and the hook runs it (Claude through `${CLAUDE_PROJECT_DIR}`, Codex and Copilot relative to the root); a missing shebang is added and a written one kept; `BP-HOOK-010` accepts a script in place of a command and `BP-HOOK-011` notices a hook with both; the form has a Script field.
+- Verify: `pnpm --filter @agent-blueprint/core test`, `pnpm --filter @agent-blueprint/exporters test`
+- Built: `ScriptLocation` per harness, `effectiveCommand` and `hookScriptFile` in `shared/hooks.ts`; the adapters ask for the command through the former and emit the latter beside their hooks file.
+- Found on the way: the P9-25 wrapper discarded a command's stdout on success, which is where a hook that decides or injects context answers. The wrapper now prints the output as it was when the command passes, and rewrites only the failure path. Goldens updated.
+- Not built: scripts for OpenCode and Pi, whose hooks are code that does not exist yet (P8-10, P8-11); a PowerShell variant of a script.
+
 ### Open questions
 
 1. ~~**The logo needs a mark-only export.**~~ Settled: rather than crop by CSS, the cut is a script. `pnpm --filter web logo` measures nothing at run time — the rectangles live in `e2e/logo-assets.spec.ts`, taken from the artwork's alpha channel — and writes the three assets the app imports. A redrawn logo needs that one command and a re-measurement, and no component changes.

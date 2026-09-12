@@ -9,16 +9,19 @@
 import type { Agent, Blueprint, Hook, IronLaw } from '@agent-blueprint/core'
 
 import {
+  effectiveCommand,
   executableCriteria,
   failing,
   failureOutcomeOf,
   gateFailureOutcomeOf,
   hookEnforcedLaws,
+  hookScriptFile,
   hookStatusMessage,
   isCommandAction,
+  type ScriptLocation,
 } from '../shared/hooks'
 import type { TomlTable } from '../shared/toml'
-import type { CompatibilityIssue } from '../types'
+import type { CompatibilityIssue, GeneratedFile } from '../types'
 
 export interface CodexHookHandler {
   type: 'command'
@@ -74,9 +77,30 @@ function reminderCommand(text: string): string {
   return `echo "${singleLine}"`
 }
 
+/**
+ * Where hook scripts live (P9-30). Codex documents no variable for the project root, so the
+ * path is relative to it, which is where Codex runs a hook from.
+ */
+export const CODEX_SCRIPTS: ScriptLocation = {
+  dir: '.codex/hooks',
+  invoke: (path) => `bash ${path}`,
+}
+
+/** The script files the hooks run, for the hooks that have one (P9-30). */
+export function hookScriptFiles(
+  blueprint: Blueprint,
+  scripts: ScriptLocation = CODEX_SCRIPTS,
+): GeneratedFile[] {
+  return blueprint.hooks.flatMap((hook) => {
+    const file = hookScriptFile(hook, scripts, 'codex')
+    return file ? [file] : []
+  })
+}
+
 export function buildHooks(
   blueprint: Blueprint,
   laws: IronLaw[],
+  scripts: ScriptLocation = CODEX_SCRIPTS,
 ): { hooks: Record<string, CodexHookEntry[]> | undefined; issues: CompatibilityIssue[] } {
   const issues: CompatibilityIssue[] = []
   const events = new Map<string, CodexHookEntry[]>()
@@ -105,7 +129,7 @@ export function buildHooks(
     const { event, matcher } = lowered
     const background = hook.action.async ? { async: true } : {}
     if (isCommandAction(hook)) {
-      const command = hook.action.command
+      const command = effectiveCommand(hook, scripts)
       if (!command) continue
       push(event, matcher, {
         type: 'command',

@@ -276,6 +276,20 @@ action:
 onFailure: return-to-agent
 ```
 
+A hook whose check is too long for one line carries it as `action.script`, a block scalar the
+compiler writes out as a file beside the compiled hooks and runs from the hook (P9-30):
+
+```yaml
+action:
+  type: command
+  script: |
+    #!/usr/bin/env bash
+    # Scan only what this edit introduced, never the whole file.
+    new=$(jq -r '.tool_input.new_string // .tool_input.content // empty')
+    printf '%s' "$new" | grep -n 'Thread.Sleep' && exit 2
+    exit 0
+```
+
 `gates/tests-pass.yaml`:
 
 ```yaml
