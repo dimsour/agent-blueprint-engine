@@ -331,6 +331,9 @@ function skillFrontmatter(skill: Skill): Frontmatter {
   return {
     ...(whenToUse ? { when_to_use: whenToUse } : {}),
     ...(paths.length > 0 ? { paths } : {}),
+    // A knowledge skill the model applies on its own stays out of the slash-command menu.
+    ...(skill.invocation.userInvocable ? {} : { 'user-invocable': false }),
+    ...(skill.invocation.argumentHint ? { 'argument-hint': skill.invocation.argumentHint } : {}),
   }
 }
 
@@ -412,6 +415,7 @@ export const claudeCodeAdapter: HarnessAdapter<ClaudeCodeOptions> = {
         name: workflow.id,
         description: workflow.description ?? workflow.name,
         'user-invocable': true,
+        ...(workflow.argumentHint ? { 'argument-hint': workflow.argumentHint } : {}),
       }
       files.push(
         generatedFile(

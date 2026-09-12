@@ -163,6 +163,9 @@ export function activationBlock(skill: Skill): string {
     conditions.push(`the ${activation.workflowIds.map(code).join(', ')} workflow`)
   }
   if (conditions.length > 0) lines.push(`**Applies to:** ${joinList(conditions)}.`)
+  if (skill.invocation.argumentHint) {
+    lines.push(`**Argument:** ${code(skill.invocation.argumentHint)}`)
+  }
 
   return lines.join('\n')
 }

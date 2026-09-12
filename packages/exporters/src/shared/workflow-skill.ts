@@ -63,6 +63,15 @@ export function emitWorkflowSkill(
   const trigger = triggerSentence(workflow)
   if (trigger) md.paragraph(trigger)
 
+  // What a person types to start it. Without this the skill says what it does and never
+  // how it is called, and an argument the steps rely on is a guess.
+  if (workflow.argumentHint) {
+    md.heading(2, 'Usage')
+    md.paragraph(
+      `Invoke: ${phrasing.workflowInvocation(workflow.id)}, with ${code(workflow.argumentHint)} as the argument. The steps below refer to whatever was given there as the argument.`,
+    )
+  }
+
   md.heading(2, 'Steps')
   const steps = walk.items.map((item) => renderItem(item, ctx))
   if (steps.length === 0) md.paragraph('This workflow has no steps yet.')

@@ -104,6 +104,8 @@ export const workflowSchema = entityBaseSchema.extend({
   nodes: z.array(workflowNodeSchema).default([]),
   edges: z.array(workflowEdgeSchema).default([]),
   triggers: workflowTriggersSchema.prefault({}),
+  /** What to type after the command that starts it, e.g. `[plan file or feature]`. */
+  argumentHint: z.string().optional(),
   /** Prose description of the workflow, compiled into the orchestration skill. */
   body: markdownBodySchema,
 })

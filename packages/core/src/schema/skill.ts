@@ -44,9 +44,22 @@ export const skillResourceSchema = z.object({
   content: z.string(),
 })
 
+/**
+ * How a person reaches the skill, as opposed to when the model loads it (`activation`).
+ * A knowledge skill the model applies on its own has no business in the command menu;
+ * a skill that takes an argument should say what.
+ */
+export const skillInvocationSchema = z.object({
+  /** Listed as a command a person can run. Off for skills only the model should pick. */
+  userInvocable: z.boolean().default(true),
+  /** What to type after the command, e.g. `[file or directory]`. */
+  argumentHint: z.string().optional(),
+})
+
 export const skillSchema = entityBaseSchema.extend({
   whenToUse: z.string().optional(),
   activation: skillActivationSchema.prefault({}),
+  invocation: skillInvocationSchema.prefault({}),
   referenceIds: slugListSchema,
   allowedToolIds: slugListSchema,
   resources: z.array(skillResourceSchema).default([]),

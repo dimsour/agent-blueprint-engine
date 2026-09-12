@@ -426,6 +426,51 @@ describe('hook scripts', () => {
   })
 })
 
+/**
+ * How a person reaches a skill or a workflow (P9-31): a knowledge skill stays out of the
+ * command menu, and a command that takes an argument says what.
+ */
+describe('invocation', () => {
+  it('hides a model-only skill from the menu and states the argument, natively on Claude', async () => {
+    const blueprint = structuredClone(await loadFixture())
+    blueprint.skills[0]!.invocation = { userInvocable: false }
+    blueprint.skills[1]!.invocation = { userInvocable: true, argumentHint: '[test project]' }
+    blueprint.workflows[0]!.argumentHint = '[class or feature to test]'
+
+    const { files } = compileBlueprint(blueprint, { targets: ['claude-code', 'codex'] })
+    const claude = (path: string) => textOf(files.find((file) => file.path === path))
+    expect(claude('.claude/skills/xunit/SKILL.md')).toContain('user-invocable: false')
+    expect(claude('.claude/skills/test-design/SKILL.md')).toContain(
+      'argument-hint: "[test project]"',
+    )
+    expect(claude('.claude/skills/test-design/SKILL.md')).not.toContain('user-invocable')
+    const workflow = claude('.claude/skills/write-tests/SKILL.md')
+    expect(workflow).toContain('argument-hint: "[class or feature to test]"')
+    expect(workflow).toContain(
+      '## Usage\n\nInvoke: /write-tests, with `[class or feature to test]` as the argument.',
+    )
+
+    // The portable tree has no field for either, so the argument is a line in the body and
+    // the menu question does not arise.
+    const shared = claude('.agents/skills/test-design/SKILL.md')
+    expect(shared).toContain('**Argument:** `[test project]`')
+    expect(shared).not.toContain('argument-hint')
+    expect(claude('.agents/skills/write-tests/SKILL.md')).toContain(
+      'Invoke: the `write-tests` skill, with `[class or feature to test]` as the argument.',
+    )
+  })
+
+  it('emits nothing for the defaults', async () => {
+    const blueprint = await loadFixture()
+    const { files } = compileBlueprint(blueprint, { targets: ['claude-code'] })
+    for (const file of files) {
+      if (!file.path.endsWith('SKILL.md')) continue
+      expect(textOf(file), file.path).not.toContain('argument-hint')
+      expect(textOf(file), file.path).not.toContain('## Usage')
+    }
+  })
+})
+
 describe('codex adapter', () => {
   it('emits the portable set plus Codex-specific files', async () => {
     const blueprint = await loadFixture()

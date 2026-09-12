@@ -211,9 +211,10 @@ Turns the graph into an orchestration `SKILL.md` body. Algorithm:
    - `review`: "Review the result against …", `human-approval`: "Stop and ask the user for approval: <approvalPrompt>", `output`: "Produce: <outputSpec>", `synthesis`: "Synthesize the branch results into one …", `retry`: "Retry up to <maxAttempts> times", `end`: "Report the outcome".
 5. Retry edges render on their source step: "If <condition>, go back to step N (at most <maxAttempts> times)". Fallback edges: "If this fails, do step N instead".
 6. Trailer: iron laws in scope for the workflow (`scope.workflowIds`) as a "Non-negotiable" list, and the workflow `body` as "Notes".
+7. When the workflow has an `argumentHint`, a "Usage" section before the steps: "Invoke: `<phrasing.workflowInvocation>`, with `<hint>` as the argument", so the skill says how it is called and not only what it does (P9-31).
 
 Frontmatter: `name` = workflow id, `description` = workflow description, plus harness extras
-(`user-invocable: true` for Claude Code; `agents/openai.yaml` sidecar for Codex). Step numbers are
+(`user-invocable: true` and `argument-hint` for Claude Code; `agents/openai.yaml` sidecar for Codex). Step numbers are
 stable because nodes are visited in walk order and ties (several outgoing sequential edges) are
 broken by target node id.
 

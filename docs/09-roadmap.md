@@ -1015,6 +1015,16 @@ something, it says what and where that thing still exists.
 - Found on the way: the P9-25 wrapper discarded a command's stdout on success, which is where a hook that decides or injects context answers. The wrapper now prints the output as it was when the command passes, and rewrites only the failure path. Goldens updated.
 - Not built: scripts for OpenCode and Pi, whose hooks are code that does not exist yet (P8-10, P8-11); a PowerShell variant of a script.
 
+### P9-31 How a skill is called (done)
+
+- Package: `packages/core` (schema), `packages/exporters`, `apps/web` (skill and workflow forms)
+- Depends on: P2-01
+- Description: A skill said when the model should load it and never how a person reaches it. Two things follow. Every skill, including reference knowledge the model applies on its own, landed in the slash-command menu, so a Blueprint with fifteen skills offered fifteen commands of which three made sense to type. And a command that takes an argument — a plan file, a test project — never said so; the orchestration skill described the steps and left what to invoke it with as a guess.
+- Acceptance: `skill.invocation.userInvocable` (default true) and `skill.invocation.argumentHint`; `workflow.argumentHint`; Claude Code writes `user-invocable: false` and `argument-hint` natively; the portable tree, which has neither field, carries the hint as an **Argument** line in the skill body; a workflow skill with a hint opens with a Usage section in the harness's own invocation syntax; the defaults emit nothing; both forms have the fields.
+- Verify: `pnpm --filter @agent-blueprint/exporters test`
+- Built: `skillInvocationSchema`, the two frontmatter extras in the Claude adapter, the Argument line in `activationBlock`, the Usage section in `emitWorkflowSkill` through `phrasing.workflowInvocation`.
+- Not built: named arguments (`arguments: [name]` with `$name` substitution), which only Claude Code documents; a menu flag for Codex, which has none.
+
 ### Open questions
 
 1. ~~**The logo needs a mark-only export.**~~ Settled: rather than crop by CSS, the cut is a script. `pnpm --filter web logo` measures nothing at run time — the rectangles live in `e2e/logo-assets.spec.ts`, taken from the artwork's alpha channel — and writes the three assets the app imports. A redrawn logo needs that one command and a re-measurement, and no component changes.

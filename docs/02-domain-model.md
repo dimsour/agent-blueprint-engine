@@ -143,14 +143,15 @@ PermissionSet (`permissionSetSchema`):
 
 `skillSchema` = EntityBase +
 
-| Field            | Type            | Default        | Meaning                                                                                |
-| ---------------- | --------------- | -------------- | -------------------------------------------------------------------------------------- |
-| `whenToUse`      | string          |                | Compiled into `when_to_use` / description text                                         |
-| `activation`     | SkillActivation | all lists `[]` | When the skill becomes active (see below)                                              |
-| `referenceIds`   | Slug[]          | `[]`           | References the skill relies on                                                         |
-| `allowedToolIds` | Slug[]          | `[]`           | Tools the skill may use (→ Agent Skills `allowed-tools`)                               |
-| `resources`      | SkillResource[] | `[]`           | Files shipped next to SKILL.md                                                         |
-| `body`           | Markdown        | `''`           | SKILL.md body: purpose, when to use, instructions, constraints, examples, verification |
+| Field            | Type                                                | Default                   | Meaning                                                                                                                                                                                                                                                           |
+| ---------------- | --------------------------------------------------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `whenToUse`      | string                                              |                           | Compiled into `when_to_use` / description text                                                                                                                                                                                                                    |
+| `activation`     | SkillActivation                                     | all lists `[]`            | When the skill becomes active (see below)                                                                                                                                                                                                                         |
+| `invocation`     | `{ userInvocable: boolean; argumentHint?: string }` | `{ userInvocable: true }` | How a person reaches it (P9-31): `userInvocable: false` keeps a knowledge skill out of the command menu (Claude `user-invocable: false`); `argumentHint` says what to type after the command (Claude `argument-hint`; an **Argument** line in the body elsewhere) |
+| `referenceIds`   | Slug[]                                              | `[]`                      | References the skill relies on                                                                                                                                                                                                                                    |
+| `allowedToolIds` | Slug[]                                              | `[]`                      | Tools the skill may use (→ Agent Skills `allowed-tools`)                                                                                                                                                                                                          |
+| `resources`      | SkillResource[]                                     | `[]`                      | Files shipped next to SKILL.md                                                                                                                                                                                                                                    |
+| `body`           | Markdown                                            | `''`                      | SKILL.md body: purpose, when to use, instructions, constraints, examples, verification                                                                                                                                                                            |
 
 SkillActivation (`skillActivationSchema`), every list ORed with the others:
 
@@ -169,13 +170,14 @@ SkillResource: `{ path: relative path (no leading `/`, no drive letter, no `..`)
 
 `workflowSchema` = EntityBase +
 
-| Field         | Type                                      | Default                         | Meaning                                                  |
-| ------------- | ----------------------------------------- | ------------------------------- | -------------------------------------------------------- |
-| `entryNodeId` | Slug                                      |                                 | Must point at a `start` node (`BP-WF-001`)               |
-| `nodes`       | WorkflowNode[]                            | `[]`                            | Sorted by id by normalization                            |
-| `edges`       | WorkflowEdge[]                            | `[]`                            | Sorted by id by normalization                            |
-| `triggers`    | `{ intents: string[]; agentIds: Slug[] }` | `{ intents: [], agentIds: [] }` | What starts the workflow                                 |
-| `body`        | Markdown                                  | `''`                            | Prose description, compiled into the orchestration skill |
+| Field          | Type                                      | Default                         | Meaning                                                                                                                                |
+| -------------- | ----------------------------------------- | ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `entryNodeId`  | Slug                                      |                                 | Must point at a `start` node (`BP-WF-001`)                                                                                             |
+| `nodes`        | WorkflowNode[]                            | `[]`                            | Sorted by id by normalization                                                                                                          |
+| `edges`        | WorkflowEdge[]                            | `[]`                            | Sorted by id by normalization                                                                                                          |
+| `triggers`     | `{ intents: string[]; agentIds: Slug[] }` | `{ intents: [], agentIds: [] }` | What starts the workflow                                                                                                               |
+| `argumentHint` | string                                    |                                 | What to type after the command that starts it (P9-31); the orchestration skill opens with a Usage line and Claude gets `argument-hint` |
+| `body`         | Markdown                                  | `''`                            | Prose description, compiled into the orchestration skill                                                                               |
 
 WorkflowNode (`workflowNodeSchema`):
 

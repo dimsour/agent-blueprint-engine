@@ -436,6 +436,35 @@ function KindFields({ kind, entity, blueprint, update, hint }: KindFieldProps) {
             rows={2}
           />
           <ActivationFields entity={entity} update={update} hint={hint} />
+          <CheckboxField
+            label="Offered as a command"
+            checked={
+              (entity['invocation'] as { userInvocable?: boolean } | undefined)?.userInvocable ??
+              true
+            }
+            text="A person can run it by name"
+            help="Off for knowledge the model applies on its own: it stays out of the command menu but still loads when its activation matches."
+            onChange={(userInvocable) =>
+              update({ invocation: { ...(entity['invocation'] as object), userInvocable } })
+            }
+          />
+          <TextField
+            label="Argument hint"
+            mono
+            value={
+              (entity['invocation'] as { argumentHint?: string } | undefined)?.argumentHint ?? ''
+            }
+            onChange={(argumentHint) =>
+              update({
+                invocation: {
+                  ...(entity['invocation'] as object),
+                  argumentHint: argumentHint || undefined,
+                },
+              })
+            }
+            placeholder="[file or directory]"
+            help="What to type after the command, shown where the harness shows it and written into the skill where it cannot."
+          />
           <LinkField
             label="References"
             kind="reference"
@@ -468,6 +497,15 @@ function KindFields({ kind, entity, blueprint, update, hint }: KindFieldProps) {
             help="Requests that should start this workflow."
             {...exampleFor(kind, 'intents')}
             {...hint('triggers')}
+          />
+          <TextField
+            label="Argument hint"
+            mono
+            value={string('argumentHint')}
+            onChange={(argumentHint) => update({ argumentHint: argumentHint || undefined })}
+            placeholder="[plan file or feature]"
+            help="What to type after the command that starts this workflow. The compiled skill opens with a Usage line saying so."
+            {...hint('argumentHint')}
           />
           <Field
             label="Steps"
