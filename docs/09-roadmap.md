@@ -954,6 +954,16 @@ something, it says what and where that thing still exists.
 - Built: the offer moved from after the failure to as soon as the name is known — the list of repositories the token can push to is already fetched, so "not in it" is known the moment the field is. Preview stays beside it on purpose: the list is what a fine-grained token can _see_, not everything that exists, and GitHub refuses a taken name with a message that says so. The 404 path is kept for exactly that case.
 - Built: **New repository: `<login>/<blueprint-id>`**, shown while the field is empty. One click fills the name in; the creation offer appears under it; the next click makes it.
 
+### P9-23 The first commit (done)
+
+- Package: `apps/web/src/lib/github/client.ts`
+- Depends on: P9-22
+- Description: Reported from use, on a repository P9-22 had just created: _"Git Repository is empty."_ — as an error. GitHub answers the ref, branch and tree endpoints of a repository with no commits with 409 and that sentence, not 404, and the client treated every 409 as a conflict. To a preview, an empty repository is the one case with nothing to compare against; the push should simply be the first commit.
+- Acceptance: a preview against an empty repository lists everything as an addition and reports no error; the push creates a commit with no parent and a ref rather than moving one.
+- Verify: `pnpm --filter web test`
+- Built: `allowMissing` now also accepts a 409 whose message says the repository is empty, and only that 409 — a real reference conflict still throws. The initial-commit path in `pushToGitHub` already existed (no `base_tree`, no `parents`, `POST /git/refs`); it had never been reached, because the preview before it failed.
+- Found in the tests: `repos.test.ts` had a case named _"because an empty repository has none"_ that stubbed a 404. It was asserting the wrong answer and passing. The push dialog's fake GitHub had the same 404; both now answer the way GitHub does.
+
 ### Open questions
 
 1. ~~**The logo needs a mark-only export.**~~ Settled: rather than crop by CSS, the cut is a script. `pnpm --filter web logo` measures nothing at run time — the rectangles live in `e2e/logo-assets.spec.ts`, taken from the artwork's alpha channel — and writes the three assets the app imports. A redrawn logo needs that one command and a re-measurement, and no component changes.

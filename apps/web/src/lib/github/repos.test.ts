@@ -131,11 +131,28 @@ describe('branches', () => {
     ])
   })
 
-  it('says a branch is absent rather than failing, because an empty repository has none', async () => {
+  it('says a branch is absent rather than failing when the branch is not there', async () => {
     github({ body: { message: 'Not Found' }, status: 404 })
     await expect(
       getBranch(TOKEN, { owner: 'octocat', name: 'blueprints' }, 'main'),
     ).resolves.toBeUndefined()
+  })
+
+  it('says a branch is absent when the repository is empty, which GitHub says with a 409', async () => {
+    // This test used to stub a 404 and claim it was the empty-repository case. It is not:
+    // a repository with no commits answers the git-data endpoints with 409 and this sentence,
+    // and the preview failed with it on a repository the dialog had just created (P9-23).
+    github({ body: { message: 'Git Repository is empty.' }, status: 409 })
+    await expect(
+      getBranch(TOKEN, { owner: 'octocat', name: 'blueprints' }, 'main'),
+    ).resolves.toBeUndefined()
+  })
+
+  it('still reports a real conflict as one', async () => {
+    github({ body: { message: 'Reference update failed' }, status: 409 })
+    await expect(
+      getBranch(TOKEN, { owner: 'octocat', name: 'blueprints' }, 'main'),
+    ).rejects.toThrow(/Reference update failed/)
   })
 
   it('asks for a branch whose name has a slash in it as one branch, not two segments', async () => {

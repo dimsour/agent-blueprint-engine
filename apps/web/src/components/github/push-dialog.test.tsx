@@ -80,8 +80,11 @@ async function github(
     if (path.includes('/branches'))
       return Promise.resolve(Response.json([{ name: 'main', commit: { sha: 'head' } }]))
     if (path.includes('/git/ref/heads/')) {
+      // What GitHub actually says for a repository with no commits: 409, not 404. The
+      // dialog used to fail the preview with this sentence on a repository it had itself
+      // just created (P9-23).
       return files.length === 0
-        ? Promise.resolve(Response.json({ message: 'Not Found' }, { status: 404 }))
+        ? Promise.resolve(Response.json({ message: 'Git Repository is empty.' }, { status: 409 }))
         : Promise.resolve(Response.json({ object: { sha: 'head' } }))
     }
     if (path.includes('/git/trees/')) {
@@ -329,5 +332,41 @@ describe('creating the repository', () => {
 
     await user.click(await screen.findByRole('button', { name: /New repository: octocat\// }))
     expect(screen.getByLabelText('Repository')).toHaveValue(`octocat/${blueprint.id}`)
+  })
+})
+
+/**
+ * The first commit (P9-23).
+ *
+ * Reported from use, on a repository the dialog had just created: "Git Repository is empty."
+ * GitHub answers the ref endpoints of a repository with no commits with 409 and that sentence,
+ * and the client treated every 409 as a conflict. To a preview, an empty repository is the one
+ * case with nothing to compare against — the push is simply the first commit.
+ */
+describe('pushing to an empty repository', () => {
+  it('previews against nothing and pushes a commit with no parent', async () => {
+    sessionStorage.setItem('ab:credentials:github', 'ghp_token')
+    await load()
+    const { requests } = await github({ missingUntilCreated: true })
+    const user = await openDialog()
+
+    await user.type(screen.getByLabelText('Repository'), 'octocat/blueprints')
+    await user.click(await screen.findByRole('button', { name: 'Create octocat/blueprints' }))
+
+    // The preview ran against the empty repository and listed everything as an addition.
+    await screen.findByRole('list', { name: 'Changes' })
+    expect(screen.queryByRole('alert')).toBeNull()
+
+    await user.click(screen.getByRole('button', { name: 'Push' }))
+    await screen.findByRole('link', { name: /See it on GitHub/ })
+
+    // A commit with no parent, and a ref created rather than moved.
+    const commit = requests.find(
+      (request) => request.url.endsWith('/git/commits') && request.method === 'POST',
+    )
+    expect(commit?.body).toMatchObject({ parents: [] })
+    expect(
+      requests.some((request) => request.url.endsWith('/git/refs') && request.method === 'POST'),
+    ).toBe(true)
   })
 })

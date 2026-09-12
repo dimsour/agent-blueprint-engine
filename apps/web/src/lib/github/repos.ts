@@ -113,6 +113,8 @@ export interface GitHubBranch {
 }
 
 export async function listBranches(token: string, ref: RepoRef): Promise<GitHubBranch[]> {
+  // The branches endpoint answers an empty repository with 200 and `[]`, so no special case
+  // is needed here; it is the git-data endpoints that answer 409, and `getBranch` covers them.
   const payloads = await githubPaginate<{ name: string; commit: { sha: string } }>(token, {
     path: `/repos/${ref.owner}/${ref.name}/branches`,
     query: { per_page: 100 },

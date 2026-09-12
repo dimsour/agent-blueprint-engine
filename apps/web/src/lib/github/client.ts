@@ -97,13 +97,31 @@ export async function githubRequest<T>(
   const parsed = parseJson(text)
 
   if (!response.ok) {
-    if (response.status === 404 && request.allowMissing) {
+    if (request.allowMissing && (response.status === 404 || isEmptyRepository(response, parsed))) {
       return { data: undefined as T, headers: response.headers }
     }
     throw errorFor(response, parsed)
   }
 
   return { data: parsed as T, headers: response.headers }
+}
+
+/**
+ * "Git Repository is empty." (P9-23).
+ *
+ * A repository with no commits answers the ref, branch and tree endpoints with 409 and that
+ * sentence — not 404. To a caller asking "is there a branch called main" the two mean the same
+ * thing: no. Reported from use, on a repository the dialog had itself just created: the
+ * preview failed with GitHub's words, when an empty repository is exactly the one case where
+ * there is nothing to preview against and the push should simply be the first commit.
+ */
+export function isEmptyRepository(response: Response, parsed: unknown): boolean {
+  if (response.status !== 409) return false
+  const message =
+    typeof parsed === 'object' && parsed !== null && 'message' in parsed
+      ? String((parsed as { message?: unknown }).message ?? '')
+      : ''
+  return /repository is empty/i.test(message)
 }
 
 /**
