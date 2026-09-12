@@ -570,6 +570,15 @@ export const DIAGNOSTIC_CODES: readonly DiagnosticCode[] = [
     source: 'validation',
   },
   {
+    code: 'BP-COPILOT-003',
+    severity: 'error',
+    summary: 'In the plugin layout a path-scoped rule has the id of the guide rule.',
+    remedy:
+      'A Copilot plugin has no AGENTS.md, so the persona and Iron Laws become the instruction file `guide`. A path-scoped rule with that id would overwrite it; rename it.',
+    fields: ['id'],
+    source: 'validation',
+  },
+  {
     code: 'BP-OPENCODE-001',
     severity: 'error',
     summary: 'A workflow and a skill share an id and would overwrite each other.',

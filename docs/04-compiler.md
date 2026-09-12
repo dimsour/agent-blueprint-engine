@@ -281,15 +281,16 @@ subagent primitive, or to persona-switch prompts where subagents are unsupported
 
 ## Copilot adapter mapping (summary; full table in `docs/harness/copilot.md`)
 
-| Blueprint                                           | Output                                                                  |
-| --------------------------------------------------- | ----------------------------------------------------------------------- |
-| Primary agent + laws + rules + roster + memory seed | `AGENTS.md` (shared) + `.github/copilot-instructions.md` pointing at it |
-| Skills                                              | `.github/skills/<id>/SKILL.md` + resources                              |
-| Other agents                                        | `.github/agents/<id>.agent.md` (`tools` allowlist, `agents` subagents)  |
-| Workflows                                           | `.github/skills/<id>/SKILL.md` + `.github/prompts/<id>.prompt.md`       |
-| Rules with `paths`                                  | `.github/instructions/<id>.instructions.md` (`applyTo`)                 |
-| Hooks, gates, hook-enforced laws                    | `.github/hooks/blueprint.json`                                          |
-| MCP tools                                           | `.vscode/mcp.json` (editor only)                                        |
+| Blueprint                                           | Output                                                                                                                                                                                                                           |
+| --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Primary agent + laws + rules + roster + memory seed | `AGENTS.md` (shared) + `.github/copilot-instructions.md` pointing at it                                                                                                                                                          |
+| Skills                                              | `.github/skills/<id>/SKILL.md` + resources                                                                                                                                                                                       |
+| Other agents                                        | `.github/agents/<id>.agent.md` (`tools` allowlist, `agents` subagents)                                                                                                                                                           |
+| Workflows                                           | `.github/skills/<id>/SKILL.md` + `.github/prompts/<id>.prompt.md`                                                                                                                                                                |
+| Rules with `paths`                                  | `.github/instructions/<id>.instructions.md` (`applyTo`)                                                                                                                                                                          |
+| Hooks, gates, hook-enforced laws                    | `.github/hooks/blueprint.json`                                                                                                                                                                                                   |
+| With `layout: plugin` (P9-36)                       | `plugins/copilot/` (Agent Plugins 1.0 `plugin.json`, `skills/`, `mcp.json`, `com.github.copilot/` agents, rules and hooks) and `.github/plugin/marketplace.json`; no `AGENTS.md` — see `docs/harness/copilot.md` "Plugin layout" |
+| MCP tools                                           | `.vscode/mcp.json` (editor only)                                                                                                                                                                                                 |
 
 ## OpenCode adapter mapping (summary; full table in `docs/harness/opencode.md`)
 
@@ -338,8 +339,9 @@ subagent primitive, or to persona-switch prompts where subagents are unsupported
 
 With `layout: plugin` on the Claude Code target (P9-27), its files move under `plugins/claude-code/`
 and `.claude-plugin/marketplace.json` appears at the root; the Codex target does the same under
-`plugins/codex/` with `.agents/plugins/marketplace.json` (P9-28); nothing of either is written at
-the root otherwise. A target option changes what a harness can carry, so `HarnessAdapter.capabilitiesFor`
+`plugins/codex/` with `.agents/plugins/marketplace.json` (P9-28), and the Copilot target under
+`plugins/copilot/` with `.github/plugin/marketplace.json` (P9-36); nothing of any of them is
+written at the root otherwise. A target option changes what a harness can carry, so `HarnessAdapter.capabilitiesFor`
 returns the matrix for the parsed options and `portabilityOf` reads that rather than the
 static `capabilities`.
 

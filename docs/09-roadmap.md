@@ -1085,6 +1085,16 @@ something, it says what and where that thing still exists.
 - Built: `CODEX_PLUGIN_SCRIPTS`, the SessionStart hook, `instructions.md` composed by the same call as the guide, the golden.
 - Not built: permissions as `PreToolUse` hooks, which P9-34 did for Claude — a Codex handler has a tool-name `matcher` but no `if`, so matching a command pattern would need a script that parses the hook's JSON input, which the compiler would be inventing. Recorded under Open questions.
 
+### P9-36 The same plugin for Copilot (done)
+
+- Package: `packages/exporters` (`copilot/plugin.ts`, `copilot/emit.ts`, `copilot/options.ts`, `registry.ts`, `shared/readme.ts`), `packages/core` (`BP-COPILOT-003`)
+- Depends on: P9-27
+- Description: P9-27 recorded "a plugin for Copilot, OpenCode or Pi, none of which has a documented marketplace format" as not built. Copilot has one now: `.github/plugin/marketplace.json`, `copilot plugin marketplace add <owner>/<repo>`, and two plugin formats, of which the docs recommend Agent Plugins 1.0 — a closed `plugin.json` with the spec's `$schema`, skills and `mcp.json` at fixed paths, and Copilot's own agents, rules and hooks under `com.github.copilot/`. A plugin has no `AGENTS.md`, but the "Rules" component takes modular instruction files, and one with `applyTo: "**"` applies everywhere.
+- Acceptance: with `layout: plugin` on the Copilot target the adapter writes `plugins/copilot/` and `.github/plugin/marketplace.json` and nothing else at the root; the manifest carries only the spec's fields; the persona, laws, rules and command policy are `com.github.copilot/rules/guide.instructions.md` with `applyTo: "**"`, path-scoped rules are files beside it, custom agents carry every law; workflows are skills invoked as `/<id>` with no prompt file; `mcp.json` is the spec's file with no env values and each needed variable reported; scripted hooks are reported as unsupported; the compatibility view offers the switch, the README and push dialog say how to install; a golden pins the fixture.
+- Verify: `pnpm --filter @agent-blueprint/exporters test`
+- Built: `compileCopilotPlugin`, the agent and instruction emitters moved to `copilot/emit.ts` so both layouts share them, `PLUGIN_LAYOUT_TARGETS` naming all three harnesses, the golden `dotnet-testing-expert.copilot-plugin`. On the way: the Claude plugin's rule pointer rendered with doubled backticks, since the composer wrapped an already-formatted location; the location is Markdown now.
+- Not built: hook scripts in the plugin, until Copilot documents `PLUGIN_ROOT` for hooks as it does for MCP and LSP servers; prompt files under `com.github.copilot/commands/`, whose format is not documented; a plugin for OpenCode or Pi, which still have no marketplace.
+
 ### Open questions
 
 1. **Permissions in a Codex plugin.** Codex hooks have `PreToolUse` with a `permissionDecision` output, as Claude's do, but filter by a regex on the tool name only; there is no `if` in permission-rule syntax. Enforcing `Bash(git push *)` from a plugin would need a script that reads the hook's JSON input and matches the command itself — with no JSON tool guaranteed on the machine — and one that fails closed. Left as the command policy in the instructions until Codex documents an argument filter.

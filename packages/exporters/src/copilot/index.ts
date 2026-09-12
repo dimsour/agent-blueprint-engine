@@ -8,9 +8,8 @@
  *
  * File conventions and field names: docs/harness/copilot.md.
  */
-import type { Agent, Blueprint, Diagnostic, Rule, Workflow } from '@agent-blueprint/core'
+import type { Blueprint, Diagnostic, Workflow } from '@agent-blueprint/core'
 import { stableJson } from '@agent-blueprint/core'
-import { z } from 'zod'
 
 import { withHeader } from '../shared/header'
 import { type Frontmatter, markdownWithFrontmatter } from '../shared/frontmatter'
@@ -24,26 +23,15 @@ import {
   type GeneratedFile,
   type HarnessAdapter,
 } from '../types'
-import { buildHooks, hookScriptFiles, mcpServers, toolAliases, unnamedMcpTools } from './settings'
+import { AGENT_BODY_MAX_CHARS, agentBody, agentFile, agentIssues, instructionFile } from './emit'
+import { type CopilotOptions, optionsSchema } from './options'
+import { compileCopilotPlugin, GUIDE_RULE_ID } from './plugin'
+import { buildHooks, hookScriptFiles, mcpServers, unnamedMcpTools } from './settings'
 
 const SKILLS_DIR = '.github/skills'
-const AGENTS_DIR = '.github/agents'
 const PROMPTS_DIR = '.github/prompts'
-const INSTRUCTIONS_DIR = '.github/instructions'
 const REFERENCES_DIR = '.github/references'
 const HOOKS_FILE = '.github/hooks/blueprint.json'
-
-/** Copilot caps a custom agent body. */
-const AGENT_BODY_MAX_CHARS = 30_000
-
-const optionsSchema = z
-  .object({
-    /** Set false when the repository already has hand-written `.github/hooks/`. */
-    emitHooks: z.boolean().default(true),
-  })
-  .prefault({})
-
-export type CopilotOptions = z.output<typeof optionsSchema>
 
 const capabilities: CapabilityMatrix = {
   skills: {
@@ -107,86 +95,65 @@ const capabilities: CapabilityMatrix = {
   },
 }
 
+/** What changes when the same Blueprint is a Copilot plugin rather than a project (P9-36). */
+const pluginCapabilities: CapabilityMatrix = {
+  ...capabilities,
+  skills: {
+    support: 'native',
+    explanation:
+      "Skills compile to the plugin's `skills/<id>/SKILL.md` and are invoked as `/<id>`; a project or personal skill with the same name wins over the plugin's.",
+  },
+  agents: {
+    support: 'native',
+    explanation:
+      "Every non-primary agent becomes a custom agent in the plugin's `com.github.copilot/agents/`, carrying every law that binds it.",
+  },
+  workflows: {
+    support: 'adapted',
+    explanation:
+      'Copilot has no workflow engine. Each workflow becomes an orchestration skill, invoked as `/<id>`, so the steps are instructions rather than enforced control flow.',
+  },
+  hooks: {
+    support: 'native',
+    explanation:
+      "Hooks compile to the plugin's `com.github.copilot/hooks/hooks.json`. Hooks with a script are not emitted: Copilot documents `PLUGIN_ROOT` for a plugin's MCP and LSP servers, not for its hooks.",
+  },
+  permissions: {
+    support: 'limited',
+    explanation:
+      "A custom agent carries an allowlist of tool categories, which is enforced, but Copilot has no per-command rule syntax, so patterns stay the command policy in the guide rule. An MCP server's secret has to be set in the environment Copilot runs in.",
+  },
+  memory: {
+    support: 'unsupported',
+    explanation:
+      'Copilot has no persistent memory; memory definitions become instructions in the guide rule to keep notes in the repository.',
+  },
+  pathScopedRules: {
+    support: 'native',
+    explanation:
+      "Rules with path globs compile to the plugin's `com.github.copilot/rules/<id>.instructions.md` with an `applyTo` glob, so they load only for matching files.",
+  },
+  commands: {
+    support: 'native',
+    explanation: 'Skills and workflows are `/`-invocable by name, as every Copilot skill is.',
+  },
+  ironLaws: {
+    support: 'adapted',
+    explanation: `A plugin has no \`AGENTS.md\`. The persona, Iron Laws and rules are the plugin's \`com.github.copilot/rules/${GUIDE_RULE_ID}.instructions.md\`, an instruction file with \`applyTo: "**"\`; laws marked for hook enforcement also print a reminder when the agent stops.`,
+  },
+  references: {
+    support: 'adapted',
+    explanation:
+      "References attached to a skill are copied beside it; the others live in the plugin's `references/` and are named from the guide rule by their installed path.",
+  },
+}
+
 const issue = (
   concept: CompatibilityIssue['concept'],
   support: CompatibilityIssue['support'],
   message: string,
   extra: Partial<CompatibilityIssue> = {},
 ): CompatibilityIssue => ({ harnessId: 'copilot', concept, support, message, ...extra })
-
-function describe(agent: Agent): string {
-  return agent.description ?? agent.responsibilities.join('; ')
-}
-
-/** The persona, plus the parts of the Blueprint that only apply to this agent. */
-function agentBody(agent: Agent, blueprint: Blueprint): string {
-  const laws = lawsForAgent(blueprint, agent.id).filter((law) => !law.scope.all)
-  const sections = [agent.body]
-  if (agent.responsibilities.length > 0) {
-    sections.push(
-      ['## Responsibilities', ...agent.responsibilities.map((item) => `- ${item}`)].join('\n'),
-    )
-  }
-  if (agent.outputRequirements.length > 0) {
-    sections.push(
-      ['## Output requirements', ...agent.outputRequirements.map((item) => `- ${item}`)].join('\n'),
-    )
-  }
-  if (laws.length > 0) {
-    sections.push(
-      ['## Iron Laws', ...laws.map((law) => `- **${law.name}.** ${law.rule}`)].join('\n'),
-    )
-  }
-  return sections.filter((section) => section.trim().length > 0).join('\n\n')
-}
-
-/** Delegation targets that have an agent file of their own to hand off to. */
-function delegatesOf(agent: Agent, blueprint: Blueprint, primaryId: string | undefined): string[] {
-  return (agent.delegation?.canDelegateTo ?? []).filter(
-    (id) => id !== primaryId && blueprint.agents.some((candidate) => candidate.id === id),
-  )
-}
-
-function agentFile(agent: Agent, blueprint: Blueprint, primaryId: string | undefined) {
-  const delegates = delegatesOf(agent, blueprint, primaryId)
-  const tools = toolAliases(agent, blueprint.tools, delegates.length)
-  const frontmatter: Frontmatter = {
-    name: agent.id,
-    description: describe(agent),
-    ...(tools.length > 0 ? { tools } : {}),
-    ...(agent.model?.hint ? { model: agent.model.hint } : {}),
-    ...(delegates.length > 0 ? { agents: delegates } : {}),
-    'user-invocable': true,
-  }
-  return generatedFile(
-    `${AGENTS_DIR}/${agent.id}.agent.md`,
-    markdownWithFrontmatter(
-      frontmatter,
-      agentBody(agent, blueprint),
-      `blueprint/agents/${agent.id}.md`,
-    ),
-    'markdown',
-    'copilot',
-    [{ kind: 'agent', id: agent.id }],
-  )
-}
-
-function instructionFile(rule: Rule): GeneratedFile {
-  const frontmatter: Frontmatter = {
-    name: rule.name,
-    description: rule.description ?? rule.guidance,
-    // Several globs are one comma-separated value, not a list.
-    applyTo: rule.paths.join(', '),
-  }
-  const body = [`# ${rule.name}`, rule.guidance, rule.body].filter(Boolean).join('\n\n')
-  return generatedFile(
-    `${INSTRUCTIONS_DIR}/${rule.id}.instructions.md`,
-    markdownWithFrontmatter(frontmatter, body, `blueprint/rules/${rule.id}.md`),
-    'markdown',
-    'copilot',
-    [{ kind: 'rule', id: rule.id }],
-  )
-}
 
 /**
  * The prompt file makes a workflow invocable as `/<id>`. It points at the orchestration
@@ -235,16 +202,19 @@ function instructionsPointer(blueprint: Blueprint): GeneratedFile {
   )
 }
 
+export type { CopilotOptions }
+
 export const copilotAdapter: HarnessAdapter<CopilotOptions> = {
   id: 'copilot',
   name: 'GitHub Copilot',
   version: '1.0.0',
   docsUrl: 'https://docs.github.com/en/copilot/reference/custom-agents-configuration',
   capabilities,
+  capabilitiesFor: (options) => (options.layout === 'plugin' ? pluginCapabilities : capabilities),
   optionsSchema,
   parseOptions: (raw) => optionsSchema.parse(raw),
 
-  validate(blueprint) {
+  validate(blueprint, options) {
     const diagnostics: Diagnostic[] = []
     for (const workflow of blueprint.workflows) {
       if (blueprint.skills.some((skill) => skill.id === workflow.id)) {
@@ -257,11 +227,24 @@ export const copilotAdapter: HarnessAdapter<CopilotOptions> = {
         })
       }
     }
+    // A plugin's instructions are the rule file `guide`; a path-scoped rule with that id
+    // would be written to the same path.
+    if (options.layout === 'plugin') {
+      for (const rule of blueprint.rules) {
+        if (rule.id !== GUIDE_RULE_ID || rule.paths.length === 0) continue
+        diagnostics.push({
+          code: 'BP-COPILOT-003',
+          severity: 'error',
+          message: `Rule "${rule.id}" compiles to ${GUIDE_RULE_ID}.instructions.md in the plugin layout, which is the file the plugin's instructions take, so one would overwrite the other.`,
+          ref: { kind: 'rule', id: rule.id },
+        })
+      }
+    }
 
     const primary = primaryAgentOf(blueprint)
     for (const agent of blueprint.agents) {
       if (agent.id === primary?.id) continue
-      const size = agentBody(agent, blueprint).length
+      const size = agentBody(agent, blueprint, options.layout === 'plugin').length
       if (size > AGENT_BODY_MAX_CHARS) {
         diagnostics.push({
           code: 'BP-COPILOT-002',
@@ -275,6 +258,8 @@ export const copilotAdapter: HarnessAdapter<CopilotOptions> = {
   },
 
   compile(blueprint, options): CompileResult {
+    if (options.layout === 'plugin') return compileCopilotPlugin(blueprint, options)
+
     const files: GeneratedFile[] = []
     const issues: CompatibilityIssue[] = []
     const primary = primaryAgentOf(blueprint)
@@ -370,59 +355,7 @@ export const copilotAdapter: HarnessAdapter<CopilotOptions> = {
       )
     }
 
-    const withPatterns = blueprint.agents.filter((agent) => agent.permissions.patterns.length > 0)
-    for (const agent of withPatterns) {
-      issues.push(
-        issue(
-          'permissions',
-          'limited',
-          `A Copilot allowlist names tool categories, not commands, so the ${agent.permissions.patterns.length} per-command rule(s) on "${agent.name}" cannot be enforced. They are written into AGENTS.md as a command policy the agent is told to follow.`,
-          {
-            ref: { kind: 'agent', id: agent.id },
-            adaptation: 'AGENTS.md "Command policy" section',
-          },
-        ),
-      )
-    }
-
-    const preferenceOnly = blueprint.agents.filter(
-      (agent) => agent.model?.preference && !agent.model.hint,
-    )
-    if (preferenceOnly.length > 0) {
-      issues.push(
-        issue(
-          'agents',
-          'limited',
-          `Copilot names a model explicitly and has no fast, balanced or strong tier, so the model preference on ${preferenceOnly.length} agent(s) is left to whichever model the user has picked.`,
-        ),
-      )
-    }
-
-    if (primary && delegatesOf(primary, blueprint, undefined).length > 0) {
-      issues.push(
-        issue(
-          'agents',
-          'adapted',
-          `The primary agent is AGENTS.md rather than a custom agent file, so "${primary.name}" cannot declare its handoffs in frontmatter. The agents it delegates to are named in the AGENTS.md roster and in each workflow.`,
-          { ref: { kind: 'agent', id: primary.id } },
-        ),
-      )
-    }
-    for (const agent of subagents) {
-      const dropped = (agent.delegation?.canDelegateTo ?? []).filter(
-        (id) => id === primary?.id && primary !== undefined,
-      )
-      if (dropped.length > 0) {
-        issues.push(
-          issue(
-            'agents',
-            'limited',
-            `"${agent.name}" may delegate back to the primary agent, which has no custom agent file to hand off to. On Copilot it returns to the main session instead.`,
-            { ref: { kind: 'agent', id: agent.id } },
-          ),
-        )
-      }
-    }
+    issues.push(...agentIssues(blueprint, 'AGENTS.md'))
 
     return { files, issues }
   },

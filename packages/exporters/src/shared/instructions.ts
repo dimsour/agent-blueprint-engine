@@ -24,7 +24,7 @@ export interface InstructionsOptions {
   sourcePath: string
   /** True when the harness compiles `paths`-scoped rules to its own files. */
   nativePathScopedRules: boolean
-  /** Where a natively compiled path-scoped rule ended up, for the pointer line. */
+  /** Where a natively compiled path-scoped rule ended up, for the pointer line, as Markdown. */
   pathScopedRuleLocation?: (ruleId: string) => string
   /** How the harness names a subagent invocation, for the roster table. */
   agentInvocation?: (agentId: string) => string
@@ -239,7 +239,7 @@ function renderRules(rules: Rule[], options: InstructionsOptions): string {
     if (rule.paths.length > 0) {
       parts.push(
         options.nativePathScopedRules && options.pathScopedRuleLocation
-          ? `Loaded automatically for ${rule.paths.map(code).join(', ')} (${code(options.pathScopedRuleLocation(rule.id))}).`
+          ? `Loaded automatically for ${rule.paths.map(code).join(', ')} (${options.pathScopedRuleLocation(rule.id)}).`
           : `Applies to: ${rule.paths.map(code).join(', ')}.`,
       )
     }

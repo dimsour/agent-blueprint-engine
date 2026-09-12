@@ -237,3 +237,137 @@ describe('copilot adapter', () => {
     expect(files.map((file) => file.path)).not.toContain('.github/hooks/blueprint.json')
   })
 })
+
+/**
+ * The plugin layout (P9-36): an Agent Plugins 1.0 package with Copilot's components under
+ * `com.github.copilot/`, and a marketplace at `.github/plugin/marketplace.json`.
+ */
+describe('copilot plugin layout', () => {
+  const asPlugin = async (mutate?: (blueprint: Blueprint) => void) => {
+    const blueprint = structuredClone(await loadFixture())
+    blueprint.targets = [{ harnessId: 'copilot', enabled: true, options: { layout: 'plugin' } }]
+    mutate?.(blueprint)
+    return compileBlueprint(blueprint)
+  }
+
+  it('writes an Agent Plugins package and nothing else at the root but the marketplace', async () => {
+    const { files } = await asPlugin()
+    const paths = files.map((file) => file.path)
+    expect(paths.filter((path) => !path.startsWith('plugins/copilot/'))).toEqual([
+      '.github/plugin/marketplace.json',
+      'README.md',
+    ])
+    const manifest = JSON.parse(
+      textOf(files.find((f) => f.path === 'plugins/copilot/plugin.json')),
+    ) as Record<string, unknown>
+    expect(manifest.$schema).toBe('https://agent-plugins.org/schemas/1.0.0/plugin.schema.json')
+    expect(manifest.name).toBe('dotnet-testing-expert')
+    // The spec's manifest is closed: no component paths.
+    expect(Object.keys(manifest).sort()).toEqual(['$schema', 'description', 'name', 'version'])
+    const marketplace = JSON.parse(
+      textOf(files.find((f) => f.path === '.github/plugin/marketplace.json')),
+    ) as { name: string; plugins: { name: string; source: string }[] }
+    expect(marketplace.name).toBe('dotnet-testing-expert')
+    expect(marketplace.plugins[0]).toMatchObject({
+      name: 'dotnet-testing-expert',
+      source: './plugins/copilot',
+    })
+  })
+
+  it('carries the instructions as a rule that applies to every path', async () => {
+    const { files, issues } = await asPlugin()
+    const guide = files.find(
+      (f) => f.path === 'plugins/copilot/com.github.copilot/rules/guide.instructions.md',
+    )
+    const text = textOf(guide)
+    expect(frontmatterOf(text)).toMatchObject({ applyTo: '**' })
+    expect(text).toContain('## Iron Laws')
+    expect(text).toContain('## Command policy')
+    // The path-scoped rule is beside it, and the guide says so.
+    expect(
+      files.some(
+        (f) =>
+          f.path ===
+          'plugins/copilot/com.github.copilot/rules/prefer-existing-framework.instructions.md',
+      ),
+    ).toBe(true)
+    expect(text).toContain('`rules/prefer-existing-framework.instructions.md` in this plugin')
+    expect(files.some((f) => f.path === 'AGENTS.md')).toBe(false)
+    const laws = issues.find((i) => i.harnessId === 'copilot' && i.concept === 'ironLaws')
+    expect(laws?.support).toBe('adapted')
+  })
+
+  it('invokes workflows as skills, with no prompt file', async () => {
+    const { files } = await asPlugin()
+    const paths = files.map((file) => file.path)
+    expect(paths).toContain('plugins/copilot/skills/write-tests/SKILL.md')
+    expect(paths.some((path) => path.endsWith('.prompt.md'))).toBe(false)
+    const readme = textOf(files.find((f) => f.path === 'README.md'))
+    expect(readme).toContain('copilot plugin marketplace add <owner>/<repo>')
+    expect(readme).toContain('copilot plugin install dotnet-testing-expert@dotnet-testing-expert')
+    expect(readme).toContain('`/write-tests`')
+  })
+
+  it('gives a custom agent every law it is bound by, since there is no AGENTS.md', async () => {
+    const blueprint = await withTeam()
+    blueprint.targets = [{ harnessId: 'copilot', enabled: true, options: { layout: 'plugin' } }]
+    const { files } = compileBlueprint(blueprint)
+    const agent = textOf(
+      files.find((f) => f.path === 'plugins/copilot/com.github.copilot/agents/reviewer.agent.md'),
+    )
+    expect(agent).toContain('## Iron Laws\n- **Never Fake Verification.**')
+    expect(frontmatterOf(agent)).toMatchObject({ agents: ['researcher'] })
+  })
+
+  it('writes the MCP file the spec defines, and leaves the secret to the environment', async () => {
+    const blueprint = await withMcpTool(['search'])
+    blueprint.targets = [{ harnessId: 'copilot', enabled: true, options: { layout: 'plugin' } }]
+    const { files, issues } = compileBlueprint(blueprint)
+    const mcp = JSON.parse(textOf(files.find((f) => f.path === 'plugins/copilot/mcp.json'))) as {
+      $schema: string
+      mcpServers: Record<string, Record<string, unknown>>
+    }
+    expect(mcp.$schema).toBe('https://agent-plugins.org/schemas/1.0.0/mcp.schema.json')
+    expect(mcp.mcpServers['issue-tracker']).toEqual({
+      type: 'stdio',
+      command: 'issue-tracker-mcp',
+      args: ['--repo', '.'],
+    })
+    expect(JSON.stringify(mcp)).not.toContain('ISSUE_TRACKER_TOKEN')
+    const reported = issues.find(
+      (i) => i.harnessId === 'copilot' && i.ref?.id === 'issue-tracker' && i.support === 'limited',
+    )
+    expect(reported?.message).toContain('ISSUE_TRACKER_TOKEN')
+  })
+
+  it('keeps inline hooks and drops scripted ones, saying why', async () => {
+    const { files, issues } = await asPlugin((blueprint) => {
+      blueprint.hooks[0]!.action = { type: 'command', script: 'exit 0', async: false }
+    })
+    const hooks = textOf(
+      files.find((f) => f.path === 'plugins/copilot/com.github.copilot/hooks/hooks.json'),
+    )
+    // The gate's stop hook stays; the scripted hook has no root variable to find its file by.
+    expect(hooks).toContain('agentStop')
+    expect(hooks).not.toContain('postToolUse')
+    expect(files.some((f) => f.path.includes('/hooks/scripts/'))).toBe(false)
+    const dropped = issues.find(
+      (i) => i.harnessId === 'copilot' && i.ref?.id === 'run-tests-after-change',
+    )
+    expect(dropped?.support).toBe('unsupported')
+  })
+
+  it('refuses a path-scoped rule named like the guide, in the plugin layout only', async () => {
+    const blueprint = structuredClone(await loadFixture())
+    blueprint.rules[0]!.id = 'guide'
+    blueprint.agents[0]!.ruleIds = blueprint.agents[0]!.ruleIds.map((id) =>
+      id === 'prefer-existing-framework' ? 'guide' : id,
+    )
+    const codes = (layout: 'project' | 'plugin') =>
+      adapterFor('copilot')
+        .validate(blueprint, { emitHooks: true, layout })
+        .map((d) => d.code)
+    expect(codes('plugin')).toContain('BP-COPILOT-003')
+    expect(codes('project')).not.toContain('BP-COPILOT-003')
+  })
+})

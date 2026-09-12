@@ -54,6 +54,11 @@ const CASES: GoldenCase[] = [
     targets: ['codex'],
     options: { codex: { layout: 'plugin' } },
   },
+  {
+    name: 'dotnet-testing-expert.copilot-plugin',
+    targets: ['copilot'],
+    options: { copilot: { layout: 'plugin' } },
+  },
 ]
 
 function readTree(root: string): Record<string, ProjectFile> {

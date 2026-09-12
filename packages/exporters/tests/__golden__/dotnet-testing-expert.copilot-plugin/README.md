@@ -9,29 +9,30 @@ This repository is an AI agent configuration compiled from a Blueprint. Clone it
 ## What is here
 
 - `blueprint/` — the source of truth. Every other file is generated from it.
-- Claude Code — a plugin at `plugins/claude-code/`, listed in `.claude-plugin/marketplace.json`.
+- GitHub Copilot — a plugin at `plugins/copilot/`, listed in `.github/plugin/marketplace.json`.
 
 ## Installing
 
 Once this repository is on GitHub, the plugin installs from it; `<owner>/<repo>` is the repository path there.
 
-**Claude Code:**
+**GitHub Copilot:**
 
 ```
-/plugin marketplace add <owner>/<repo>
-/plugin install dotnet-testing-expert@dotnet-testing-expert
+copilot plugin marketplace add <owner>/<repo>
+copilot plugin install dotnet-testing-expert@dotnet-testing-expert
 ```
 
 ## Workflows
 
-| Workflow | What it does | Claude Code |
+| Workflow | What it does | GitHub Copilot |
 | --- | --- | --- |
-| Write Unit Tests | From a request to the finished, verified test file. | `/dotnet-testing-expert:write-tests` |
-| Review Unit Tests | Review an existing test suite for coverage gaps, brittleness and readability. | `/dotnet-testing-expert:review-tests` |
+| Write Unit Tests | From a request to the finished, verified test file. | `/write-tests` |
+| Review Unit Tests | Review an existing test suite for coverage gaps, brittleness and readability. | `/review-tests` |
 
 ## Before you trust it
 
-- **Claude Code:** Hooks are in `plugins/claude-code/hooks/hooks.json`; review them before installing. The deny and ask rules are among them, as PreToolUse hooks; what the Blueprint allowed is left to the project that installs the plugin.
+- **GitHub Copilot:** Hooks are in `plugins/copilot/com.github.copilot/hooks/hooks.json`; review them before installing. Memory is not supported, and per-command permissions are guidance rather than a boundary; both are described in the guide rule of the plugin only.
+- **GitHub Copilot:** Any MCP server the plugin lists needs its variables set in the environment Copilot runs in; the plugin carries their names, never a value.
 
 ## Changing the agent
 

@@ -278,6 +278,26 @@ describe('CompatibilityView', () => {
     ).toEqual({})
   })
 
+  it('offers the plugin switch for every harness that has a plugin format', async () => {
+    await load()
+    const user = userEvent.setup()
+    render(<CompatibilityView />)
+
+    // Copilot is not a target of the fixture; turning it on brings its switch (P9-36).
+    expect(screen.queryByRole('checkbox', { name: /Package for GitHub Copilot/ })).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'GitHub Copilot', pressed: false }))
+    await user.click(
+      screen.getByRole('checkbox', { name: /Package for GitHub Copilot as a plugin/ }),
+    )
+    expect(
+      useWorkspace.getState().blueprint?.targets.find((t) => t.harnessId === 'copilot')?.options,
+    ).toEqual({ layout: 'plugin' })
+    const notes = screen.getByRole('list', { name: 'Compatibility notes' })
+    expect(within(notes).getByText(/A plugin has no `AGENTS.md`/)).toBeInTheDocument()
+    // Pi has no plugin format, so no switch.
+    expect(screen.queryByRole('checkbox', { name: /Package for Pi/ })).toBeNull()
+  })
+
   it('turning every harness off leaves nothing to be compatible with', async () => {
     const blueprint = await load()
     useWorkspace.getState().load('test', { ...blueprint, targets: [] })

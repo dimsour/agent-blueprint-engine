@@ -160,6 +160,54 @@ behind it may run, which is why denying `git.push` alone does not remove `execut
 | `delegation.canDelegateTo` (not an operation) | `agent`                                            |
 | MCP tools                                     | `<server>/<operation>` for each declared operation |
 
+## Plugin layout (P9-36)
+
+Target option `layout: 'plugin'` compiles the Blueprint as a Copilot plugin, installed from a
+marketplace file in the repository. Verified against the CLI plugin reference, the plugin how-to
+and the plugin concepts page (sources below). Copilot reads two formats; the adapter writes the
+one the docs recommend for a new plugin, Agent Plugins 1.0: "Declaring the canonical `$schema`
+in `plugin.json` opts the plugin into this format", skills and MCP servers sit at fixed
+locations, and "Copilot-specific components such as agents, commands, rules, hooks, and LSP
+servers come from the `com.github.copilot` directory in the plugin".
+
+```
+.github/plugin/marketplace.json          name = Blueprint id; owner.name = Blueprint name; one plugin, source ./plugins/copilot
+plugins/copilot/
+  plugin.json                            $schema (agent-plugins.org 1.0.0), name = Blueprint id, version, description
+  skills/<id>/SKILL.md                   skills and workflows, as in the portable tree; invoked as /<id>
+  references/<id>.md                     references attached only to agents
+  mcp.json                               $schema (mcp.schema.json), mcpServers with type stdio | streamable-http | sse
+  com.github.copilot/
+    agents/<id>.agent.md                 custom agents, carrying every law that binds them
+    rules/guide.instructions.md          the composed instructions, applyTo: "**"
+    rules/<id>.instructions.md           one per path-scoped rule, applyTo from its globs
+    hooks/hooks.json                     hooks with inline commands, gates, the law reminder
+```
+
+Installing, once the repository is on GitHub: `copilot plugin marketplace add <owner>/<repo>`,
+then `copilot plugin install <id>@<id>` (the plugin and the marketplace share the Blueprint's
+id; the marketplace's own name "becomes its registration key"). The marketplace file is read
+from `.github/plugin/marketplace.json` first; `.claude-plugin/marketplace.json` is also
+checked, which is why a repository with both a Claude and a Copilot plugin keeps them apart by
+path. A marketplace install lands in `~/.copilot/installed-plugins/<marketplace>/<plugin>/`,
+which is how the guide names a loose reference.
+
+What a Copilot plugin has no place for, and what the adapter does instead (`capabilitiesFor`
+gives the compatibility view this matrix when the layout is on):
+
+| Concept             | Project layout                              | Plugin layout                                                                                                                                                                                                   |
+| ------------------- | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Instructions        | `AGENTS.md` + `copilot-instructions.md`     | `com.github.copilot/rules/guide.instructions.md` with `applyTo: "**"` — the documented "Rules" component, in the modular instruction format the CLI lists with `applyTo`. Adapted. `BP-COPILOT-003` on a clash. |
+| Custom agents       | `.github/agents/<id>.agent.md`              | `com.github.copilot/agents/<id>.agent.md`, with every law that binds the agent, since no `AGENTS.md` carries the global ones.                                                                                   |
+| Workflows           | skill + `.github/prompts/<id>.prompt.md`    | The skill alone: every skill is `/<name>`-invocable, and the `commands/` component's file format is not documented. Adapted.                                                                                    |
+| Rules with paths    | `.github/instructions/<id>.instructions.md` | `com.github.copilot/rules/<id>.instructions.md`, same frontmatter. Native.                                                                                                                                      |
+| Hook scripts        | `.github/hooks/scripts/<id>.sh`             | Not emitted: `PLUGIN_ROOT` is documented for a plugin's MCP and LSP servers, not for its hooks. Reported as unsupported.                                                                                        |
+| MCP servers         | `.vscode/mcp.json` with empty env values    | `mcp.json` in the spec's format, with no `env` at all — it takes literal values, and an empty one would shadow the real variable. The variables are reported; the README says to set them.                      |
+| Permissions, memory | as the project                              | As the project: the allowlist on each agent, the command policy in the guide; no memory.                                                                                                                        |
+
+Skills and agents from a plugin lose to a project or personal one of the same name ("first-found
+wins"); MCP servers win ("last-wins").
+
 ## Known limitations and open questions
 
 - No memory primitive.
@@ -168,6 +216,7 @@ behind it may run, which is why denying `git.push` alone does not remove `execut
 - An MCP server whose operations the Blueprint does not name cannot be put in a `tools` allowlist, because an entry is `server/tool`. The adapter reports this rather than guessing a wildcard.
 - The coding agent reads only `.github/hooks/*.json`; VS Code custom-agent hooks are preview.
 - MCP for the cloud coding agent is configured in repository settings, not in files. `.vscode/mcp.json` serves the editor; `sse` is written as `http`, the transport that replaced it.
+- A plugin's hooks: whether `PLUGIN_ROOT` reaches a hook command is not in the sources below, only that it reaches MCP and LSP servers; scripted hooks stay out of the plugin until it is. The format of files under `com.github.copilot/commands/` is not documented either, so workflows are skills only.
 
 ## Sources
 
@@ -180,3 +229,9 @@ behind it may run, which is why denying `git.push` alone does not remove `execut
 - https://code.visualstudio.com/docs/copilot/customization/prompt-files
 - https://code.visualstudio.com/docs/copilot/customization/custom-agents
 - https://code.visualstudio.com/docs/copilot/customization/mcp-servers
+- https://docs.github.com/en/copilot/concepts/agents/about-plugins
+- https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/plugins-creating
+- https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/plugins-marketplace
+- https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-plugin-reference
+- https://docs.github.com/en/copilot/reference/hooks-reference
+- https://agent-plugins.org/specification

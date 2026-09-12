@@ -73,6 +73,7 @@ const NOT_ARTIFACT_WORK: Record<string, string> = {
   'BP-CODEX-003': 'Rename the artifact from the inspector.',
   'BP-CODEX-001': 'Rename either the workflow or the skill from the inspector.',
   'BP-COPILOT-001': 'Rename either the workflow or the skill from the inspector.',
+  'BP-COPILOT-003': 'Rename the rule from the inspector.',
   'BP-OPENCODE-001': 'Rename either the workflow or the skill from the inspector.',
   'BP-PI-001': 'Rename either the workflow or the skill from the inspector.',
   'BP-EVAL-PORT-001':

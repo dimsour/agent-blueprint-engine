@@ -11,6 +11,7 @@ import { stableJson } from '@agent-blueprint/core'
 import type { Frontmatter } from '../shared/frontmatter'
 import { markdownWithFrontmatter } from '../shared/frontmatter'
 import { composeInstructions, lawsForAgent, primaryAgentOf } from '../shared/instructions'
+import { code } from '../shared/markdown'
 import { CLAUDE_PHRASING } from '../shared/phrasing'
 import { emitSkillDir, renderReference } from '../shared/skill-dir'
 import { emitWorkflowSkill } from '../shared/workflow-skill'
@@ -199,7 +200,7 @@ export const claudeCodeAdapter: HarnessAdapter<ClaudeCodeOptions> = {
       phrasing: CLAUDE_PHRASING,
       sourcePath: 'blueprint/',
       nativePathScopedRules: true,
-      pathScopedRuleLocation: (ruleId) => `${RULES_DIR}/${ruleId}.md`,
+      pathScopedRuleLocation: (ruleId) => code(`${RULES_DIR}/${ruleId}.md`),
       memoryNative: true,
       referenceLink: (referenceId) => `@${REFERENCES_DIR}/${referenceId}.md`,
     })

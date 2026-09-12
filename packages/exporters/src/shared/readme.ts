@@ -84,6 +84,10 @@ export function installCommands(
     case 'codex':
       return [`codex plugin marketplace add ${repository}`]
     case 'copilot':
+      return [
+        `copilot plugin marketplace add ${repository}`,
+        `copilot plugin install ${blueprint.id}@${blueprint.id}`,
+      ]
     case 'opencode':
     case 'pi':
       return []
@@ -98,7 +102,7 @@ function usageOf(blueprint: Blueprint, target: HarnessId, plugin: boolean): Harn
         entry: 'a plugin at `plugins/claude-code/`, listed in `.claude-plugin/marketplace.json`.',
         workflow: (id) => `/${blueprint.id}:${id}`,
         notes: [
-          'Hooks are in `plugins/claude-code/hooks/hooks.json`; review them before installing. The plugin carries no permissions: the project that installs it decides what is allowed.',
+          'Hooks are in `plugins/claude-code/hooks/hooks.json`; review them before installing. The deny and ask rules are among them, as PreToolUse hooks; what the Blueprint allowed is left to the project that installs the plugin.',
         ],
       }
     case 'codex':
@@ -110,6 +114,14 @@ function usageOf(blueprint: Blueprint, target: HarnessId, plugin: boolean): Harn
         ],
       }
     case 'copilot':
+      return {
+        entry: 'a plugin at `plugins/copilot/`, listed in `.github/plugin/marketplace.json`.',
+        workflow: (id) => `/${id}`,
+        notes: [
+          'Hooks are in `plugins/copilot/com.github.copilot/hooks/hooks.json`; review them before installing. Memory is not supported, and per-command permissions are guidance rather than a boundary; both are described in the guide rule of the plugin only.',
+          'Any MCP server the plugin lists needs its variables set in the environment Copilot runs in; the plugin carries their names, never a value.',
+        ],
+      }
     case 'opencode':
     case 'pi':
       return USAGE[target]

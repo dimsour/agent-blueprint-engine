@@ -119,7 +119,11 @@ export function permissionHandlers(
             : `The ${pluginName} plugin asks before ${rule}.`,
       },
     }
-    return { type: 'command', if: rule, command: `printf '%s' ${shellQuote(JSON.stringify(output))}` }
+    return {
+      type: 'command',
+      if: rule,
+      command: `printf '%s' ${shellQuote(JSON.stringify(output))}`,
+    }
   }
   return [
     ...(lists.deny ?? []).map((rule) => handler(rule, 'deny')),

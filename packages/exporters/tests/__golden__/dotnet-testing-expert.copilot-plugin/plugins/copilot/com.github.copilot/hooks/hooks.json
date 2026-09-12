@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "hooks": {
+    "agentStop": [
+      {
+        "type": "command",
+        "bash": "dotnet test || echo '{\"decision\":\"block\",\"reason\":\"Tests must pass: All tests in the affected projects pass.\"}'",
+        "powershell": "dotnet test; if ($LASTEXITCODE -ne 0) { Write-Output '{\"decision\":\"block\",\"reason\":\"Tests must pass: All tests in the affected projects pass.\"}' }",
+        "timeoutSec": 600
+      },
+      {
+        "type": "command",
+        "bash": "echo \"Before finishing, check these Iron Laws: Never Fake Verification.\"",
+        "powershell": "Write-Output \"Before finishing, check these Iron Laws: Never Fake Verification.\""
+      }
+    ],
+    "postToolUse": [
+      {
+        "type": "command",
+        "bash": "dotnet test --no-restore",
+        "powershell": "dotnet test --no-restore",
+        "timeoutSec": 600,
+        "matcher": "edit|write"
+      }
+    ]
+  }
+}

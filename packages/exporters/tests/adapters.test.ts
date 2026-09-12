@@ -594,14 +594,17 @@ describe('claude-code plugin layout', () => {
     const handlers = hooks.hooks.PreToolUse.flatMap((entry) => entry.hooks)
     const push = handlers.find((handler) => handler.if === 'Bash(git push *)')
     expect(push?.command).toContain('"permissionDecision":"deny"')
-    expect(push?.command).toContain('Bash(git push *) is denied by the dotnet-testing-expert plugin.')
+    expect(push?.command).toContain(
+      'Bash(git push *) is denied by the dotnet-testing-expert plugin.',
+    )
     const commit = handlers.find((handler) => handler.if === 'Bash(git commit *)')
     expect(commit?.command).toContain('"permissionDecision":"ask"')
     // The fixture allows `dotnet test`; no handler grants it.
     expect(handlers.some((handler) => handler.if === 'Bash(dotnet test *)')).toBe(false)
     expect(handlers.some((handler) => handler.command.includes('"allow"'))).toBe(false)
     const limited = issues.filter(
-      (i) => i.harnessId === 'claude-code' && i.concept === 'permissions' && i.support === 'limited',
+      (i) =>
+        i.harnessId === 'claude-code' && i.concept === 'permissions' && i.support === 'limited',
     )
     expect(limited.some((i) => i.message.includes('allow rule(s)'))).toBe(true)
   })
@@ -687,9 +690,7 @@ describe('codex plugin layout', () => {
     expect(paths).toContain('plugins/codex/hooks/scripts/run-tests-after-change.sh')
     const hooks = textOf(files.find((f) => f.path === 'plugins/codex/hooks/hooks.json'))
     expect(hooks).toContain('"Stop"')
-    expect(hooks).toContain(
-      'bash \\"${PLUGIN_ROOT}/hooks/scripts/run-tests-after-change.sh\\"',
-    )
+    expect(hooks).toContain('bash \\"${PLUGIN_ROOT}/hooks/scripts/run-tests-after-change.sh\\"')
   })
 
   it('injects the instructions at session start and keeps them as the guide skill', async () => {

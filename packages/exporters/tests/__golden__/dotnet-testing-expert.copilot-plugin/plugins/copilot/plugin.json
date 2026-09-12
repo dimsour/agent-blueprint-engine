@@ -1,0 +1,6 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "dotnet-testing-expert",
+  "version": "1.0.0",
+  "description": "An expert .NET agent that writes and reviews high-quality xUnit unit tests."
+}
