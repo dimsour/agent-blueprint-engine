@@ -1,0 +1,5 @@
+interface:
+  display_name: FluentAssertions
+  short_description: Express assertions with FluentAssertions so failures read as sentences.
+policy:
+  allow_implicit_invocation: true

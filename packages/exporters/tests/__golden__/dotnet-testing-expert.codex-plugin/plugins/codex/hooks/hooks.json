@@ -1,0 +1,33 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "out=$(dotnet test --no-restore 2>&1) || { printf '%s\\n' \"$out\" >&2; exit 2; }; [ -z \"$out\" ] || printf '%s\\n' \"$out\"",
+            "timeout": 600,
+            "statusMessage": "Run tests after change (returns failures to the agent)"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "out=$(dotnet test 2>&1) || { printf '%s\\n' \"$out\" >&2; exit 2; }; [ -z \"$out\" ] || printf '%s\\n' \"$out\"",
+            "timeout": 600,
+            "statusMessage": "Tests must pass: All tests in the affected projects pass."
+          },
+          {
+            "type": "command",
+            "command": "echo \"Before finishing, check these Iron Laws: Never Fake Verification.\"",
+            "statusMessage": "Checking the Iron Laws"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -268,15 +268,16 @@ subagent primitive, or to persona-switch prompts where subagents are unsupported
 
 ## Codex adapter mapping (summary; full table in `docs/harness/codex.md`)
 
-| Blueprint                                           | Output                                                                        |
-| --------------------------------------------------- | ----------------------------------------------------------------------------- |
-| Primary agent + laws + rules + roster + memory seed | `AGENTS.md` (shared)                                                          |
-| Skills                                              | `.agents/skills/<id>/SKILL.md` + `agents/openai.yaml` + resources (shared)    |
-| Other agents                                        | `.codex/agents/<id>.toml` + `[agents]` / `[features]` in `.codex/config.toml` |
-| Workflows                                           | `.agents/skills/<id>/SKILL.md` (orchestration, shared)                        |
-| Hooks, gates                                        | `.codex/hooks.json`                                                           |
-| Permissions, MCP, memories flags                    | `.codex/config.toml`                                                          |
-| Rules with directory `paths`                        | nested `AGENTS.md`                                                            |
+| Blueprint                                           | Output                                                                                                                                                                                        |
+| --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Primary agent + laws + rules + roster + memory seed | `AGENTS.md` (shared)                                                                                                                                                                          |
+| Skills                                              | `.agents/skills/<id>/SKILL.md` + `agents/openai.yaml` + resources (shared)                                                                                                                    |
+| Other agents                                        | `.codex/agents/<id>.toml` + `[agents]` / `[features]` in `.codex/config.toml`                                                                                                                 |
+| Workflows                                           | `.agents/skills/<id>/SKILL.md` (orchestration, shared)                                                                                                                                        |
+| Hooks, gates                                        | `.codex/hooks.json`                                                                                                                                                                           |
+| Permissions, MCP, memories flags                    | `.codex/config.toml`                                                                                                                                                                          |
+| Rules with directory `paths`                        | nested `AGENTS.md`                                                                                                                                                                            |
+| With `layout: plugin` (P9-28)                       | `plugins/codex/` (manifest, `guide` skill, skills, hooks, `.mcp.json`) and `.agents/plugins/marketplace.json`; no `AGENTS.md`, agents or config — see `docs/harness/codex.md` "Plugin layout" |
 
 ## Copilot adapter mapping (summary; full table in `docs/harness/copilot.md`)
 
@@ -336,8 +337,9 @@ subagent primitive, or to persona-switch prompts where subagents are unsupported
 ```
 
 With `layout: plugin` on the Claude Code target (P9-27), its files move under `plugins/claude-code/`
-and `.claude-plugin/marketplace.json` appears at the root; nothing of it is written at the root
-otherwise. A target option changes what a harness can carry, so `HarnessAdapter.capabilitiesFor`
+and `.claude-plugin/marketplace.json` appears at the root; the Codex target does the same under
+`plugins/codex/` with `.agents/plugins/marketplace.json` (P9-28); nothing of either is written at
+the root otherwise. A target option changes what a harness can carry, so `HarnessAdapter.capabilitiesFor`
 returns the matrix for the parsed options and `portabilityOf` reads that rather than the
 static `capabilities`.
 

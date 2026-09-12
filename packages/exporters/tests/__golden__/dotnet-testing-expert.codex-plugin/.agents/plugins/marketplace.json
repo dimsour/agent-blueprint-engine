@@ -1,0 +1,20 @@
+{
+  "name": "dotnet-testing-expert",
+  "interface": {
+    "displayName": ".NET Testing Expert"
+  },
+  "plugins": [
+    {
+      "name": "dotnet-testing-expert",
+      "source": {
+        "source": "local",
+        "path": "./plugins/codex"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Development"
+    }
+  ]
+}

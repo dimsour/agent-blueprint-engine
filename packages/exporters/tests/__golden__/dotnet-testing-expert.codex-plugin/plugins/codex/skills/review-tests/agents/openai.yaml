@@ -1,0 +1,5 @@
+interface:
+  display_name: Review Unit Tests
+  short_description: Review an existing test suite for coverage gaps, brittleness and readability.
+policy:
+  allow_implicit_invocation: true

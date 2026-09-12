@@ -1,0 +1,5 @@
+interface:
+  display_name: .NET Testing Expert guide
+  short_description: Who .NET Testing Expert is and what it must never do.
+policy:
+  allow_implicit_invocation: true

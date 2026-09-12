@@ -1045,6 +1045,16 @@ something, it says what and where that thing still exists.
 - Built: the adapter split into `options.ts`, `emit.ts` (what one artifact becomes, shared by both layouts) and `plugin.ts`; `HarnessAdapter.capabilitiesFor(options)` so the compatibility matrix is the one for the layout chosen; `pluginPhrasing` so the instructions say `/<id>:<workflow>`; a `SessionStart` hook that prints `instructions.md`, the one door a plugin has into every session; the golden `dotnet-testing-expert.plugin`.
 - Not built: a marketplace with more than one plugin — one Blueprint is one repository is one plugin, and the manifest lists exactly that; `homepage` and `repository` in the manifest, which the compiler cannot know; a plugin for Copilot, OpenCode or Pi, none of which has a documented marketplace format.
 
+### P9-28 The same plugin for Codex (done)
+
+- Package: `packages/exporters` (`codex/plugin.ts`, `codex/sidecar.ts`), `packages/core` (`BP-CODEX-003`)
+- Depends on: P9-27
+- Description: Codex has the same idea with a different file: `.agents/plugins/marketplace.json` in a Git repository, pointing at a directory with `.codex-plugin/plugin.json`, `skills/`, `hooks/` and `.mcp.json`. A Codex plugin carries less than a Claude one — no instruction file, no agents, no config — so more has to be said about what is not there.
+- Acceptance: with `layout: plugin` on the Codex target the adapter writes `plugins/codex/` and `.agents/plugins/marketplace.json` and nothing else at the root; the persona, laws, rules and command policy are the `guide` skill; workflow skills say `$<id>:<workflow>`; subagents, permissions, memory and scripted hooks are reported as unsupported; the compatibility view offers the switch and shows the plugin matrix; the README and push dialog say how to install; a golden pins the fixture.
+- Verify: `pnpm --filter @agent-blueprint/exporters test`
+- Built: `compileCodexPlugin`, `codexPluginPhrasing`, the sidecar moved to its own module so both layouts share it, `emitPortableSkillSet` taking a phrasing, `PLUGIN_LAYOUT_TARGETS` now naming both harnesses, the golden `dotnet-testing-expert.codex-plugin`.
+- Not built: an always-loaded instruction file — Codex plugins have none, so the guide is a skill the model loads when its description matches; hook scripts in the plugin, until Codex documents how a plugin hook finds its own files.
+
 ### Open questions
 
 1. ~~**The logo needs a mark-only export.**~~ Settled: rather than crop by CSS, the cut is a script. `pnpm --filter web logo` measures nothing at run time — the rectangles live in `e2e/logo-assets.spec.ts`, taken from the artwork's alpha channel — and writes the three assets the app imports. A redrawn logo needs that one command and a re-measurement, and no component changes.

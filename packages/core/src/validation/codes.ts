@@ -525,6 +525,15 @@ export const DIAGNOSTIC_CODES: readonly DiagnosticCode[] = [
     source: 'validation',
   },
   {
+    code: 'BP-CODEX-003',
+    severity: 'error',
+    summary: 'In the plugin layout an artifact has the id of the guide skill.',
+    remedy:
+      'A Codex plugin has no instruction file, so the persona and Iron Laws become the skill `guide`. A skill or workflow with that id would overwrite it; rename it.',
+    fields: ['id'],
+    source: 'validation',
+  },
+  {
     code: 'BP-CLAUDE-002',
     severity: 'error',
     summary: 'In the plugin layout a path-scoped rule and a skill would share a directory.',

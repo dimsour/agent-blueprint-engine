@@ -7,10 +7,9 @@
  * `hooks.json`. File conventions: docs/harness/codex.md.
  */
 import type { Agent, Blueprint, Diagnostic } from '@agent-blueprint/core'
-import { stableJson, toYaml } from '@agent-blueprint/core'
+import { stableJson } from '@agent-blueprint/core'
 import { z } from 'zod'
 
-import { firstSentence } from '../shared/markdown'
 import { lawsForAgent, primaryAgentOf } from '../shared/instructions'
 import {
   directoryScopedRules,
@@ -32,6 +31,8 @@ import {
   type HarnessAdapter,
 } from '../types'
 import { buildConfig, buildHooks, hookScriptFiles, lowerPermissions } from './config'
+import { compileCodexPlugin, GUIDE_SKILL_ID } from './plugin'
+import { openAiSidecar } from './sidecar'
 
 const optionsSchema = z
   .object({
@@ -39,6 +40,12 @@ const optionsSchema = z
     instructionsMaxBytes: z.number().int().min(1024).default(PORTABLE_INSTRUCTIONS_MAX_BYTES),
     /** Set false when the repository already has a hand-written `.codex/config.toml`. */
     emitConfig: z.boolean().default(true),
+    /**
+     * `project`: `AGENTS.md`, `.agents/skills/` and `.codex/`, picked up by opening the
+     * repository. `plugin`: a plugin under `plugins/codex/` and a marketplace listing it,
+     * installed with `codex plugin marketplace add` (P9-28).
+     */
+    layout: z.enum(['project', 'plugin']).default('project'),
   })
   .prefault({})
 
@@ -106,28 +113,6 @@ const capabilities: CapabilityMatrix = {
   },
 }
 
-function openAiSidecar(
-  id: string,
-  displayName: string,
-  description: string | undefined,
-  owner: 'codex',
-): GeneratedFile {
-  const sidecar = {
-    interface: {
-      display_name: displayName,
-      short_description: firstSentence(description) || displayName,
-    },
-    policy: { allow_implicit_invocation: true },
-  }
-  return generatedFile(
-    `${PORTABLE_SKILLS_DIR}/${id}/agents/openai.yaml`,
-    toYaml(sidecar),
-    'yaml',
-    owner,
-    [],
-  )
-}
-
 function developerInstructions(agent: Agent, blueprint: Blueprint): string {
   const parts = [agent.body]
   if (agent.responsibilities.length > 0) {
@@ -147,17 +132,88 @@ function developerInstructions(agent: Agent, blueprint: Blueprint): string {
   return parts.filter((part) => part.trim().length > 0).join('\n\n')
 }
 
+/** What changes when the same Blueprint is a Codex plugin rather than a project (P9-28). */
+const pluginCapabilities: CapabilityMatrix = {
+  ...capabilities,
+  skills: {
+    support: 'native',
+    explanation:
+      "Skills compile to the plugin's `skills/<id>/SKILL.md` with an `agents/openai.yaml` sidecar and are invoked with `$<plugin>:<id>`.",
+  },
+  agents: {
+    support: 'unsupported',
+    explanation:
+      "A Codex plugin installs no subagents. Steps that delegate ask the session to adopt the agent's persona instead.",
+  },
+  parallelAgents: {
+    support: 'unsupported',
+    explanation:
+      'Without subagents there is nothing to run in parallel; branches run one after another.',
+  },
+  hooks: {
+    support: 'native',
+    explanation:
+      "Hooks compile to the plugin's `hooks/hooks.json`. Hooks with a script are not emitted: Codex documents no variable a plugin hook could reach its own files by.",
+  },
+  permissions: {
+    support: 'unsupported',
+    explanation:
+      "A Codex plugin carries no config. The permissions are the command policy in the guide skill; the session's own sandbox and approval policy apply.",
+  },
+  memory: {
+    support: 'unsupported',
+    explanation:
+      'A Codex plugin cannot turn the memories feature on; the seed is in the guide skill.',
+  },
+  pathScopedRules: {
+    support: 'adapted',
+    explanation:
+      'A plugin has no nested `AGENTS.md`; every rule is in the guide skill, with an "Applies to" note when it has paths.',
+  },
+  commands: {
+    support: 'adapted',
+    explanation: 'Skills act as commands, invoked with `$<plugin>:<id>`.',
+  },
+  ironLaws: {
+    support: 'adapted',
+    explanation:
+      'A Codex plugin has no instruction file. The persona and Iron Laws are the `guide` skill, loaded when asked or when its description matches rather than always.',
+  },
+  references: {
+    support: 'adapted',
+    explanation:
+      'References attached to a skill are copied beside it; the others live beside the guide skill and are named from it.',
+  },
+}
+
 export const codexAdapter: HarnessAdapter<CodexOptions> = {
   id: 'codex',
   name: 'OpenAI Codex',
   version: '1.0.0',
   docsUrl: 'https://learn.chatgpt.com/docs/agent-configuration/agents-md.md',
   capabilities,
+  capabilitiesFor: (options) => (options.layout === 'plugin' ? pluginCapabilities : capabilities),
   optionsSchema,
   parseOptions: (raw) => optionsSchema.parse(raw),
 
   validate(blueprint, options) {
     const diagnostics: Diagnostic[] = []
+    // The plugin's instruction skill takes one id; a Blueprint artifact with that id would
+    // overwrite it.
+    if (options.layout === 'plugin') {
+      for (const item of [...blueprint.skills, ...blueprint.workflows]) {
+        if (item.id !== GUIDE_SKILL_ID) continue
+        diagnostics.push({
+          code: 'BP-CODEX-003',
+          severity: 'error',
+          message: `"${item.id}" is the id of the plugin's guide skill, which carries the persona and Iron Laws; rename this artifact or it overwrites the guide.`,
+          ref: {
+            kind: blueprint.skills.includes(item as never) ? 'skill' : 'workflow',
+            id: item.id,
+          },
+        })
+      }
+    }
     for (const workflow of blueprint.workflows) {
       if (blueprint.skills.some((skill) => skill.id === workflow.id)) {
         diagnostics.push({
@@ -182,6 +238,8 @@ export const codexAdapter: HarnessAdapter<CodexOptions> = {
   },
 
   compile(blueprint, options): CompileResult {
+    if (options.layout === 'plugin') return compileCodexPlugin(blueprint)
+
     const files: GeneratedFile[] = []
     const issues: CompatibilityIssue[] = []
     const primary = primaryAgentOf(blueprint)

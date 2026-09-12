@@ -1,0 +1,10 @@
+{
+  "name": "dotnet-testing-expert",
+  "version": "1.0.0",
+  "description": "An expert .NET agent that writes and reviews high-quality xUnit unit tests.",
+  "skills": "./skills/",
+  "interface": {
+    "displayName": ".NET Testing Expert",
+    "shortDescription": "An expert .NET agent that writes and reviews high-quality xUnit unit tests."
+  }
+}

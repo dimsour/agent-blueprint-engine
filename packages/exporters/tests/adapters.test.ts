@@ -580,6 +580,70 @@ describe('claude-code plugin layout', () => {
   })
 })
 
+/** The Codex plugin layout (P9-28): skills, hooks and MCP, and the rest reported. */
+describe('codex plugin layout', () => {
+  const asPlugin = async (
+    mutate?: (blueprint: Awaited<ReturnType<typeof loadFixture>>) => void,
+  ) => {
+    const blueprint = structuredClone(await loadFixture())
+    blueprint.targets = [{ harnessId: 'codex', enabled: true, options: { layout: 'plugin' } }]
+    mutate?.(blueprint)
+    return compileBlueprint(blueprint)
+  }
+
+  it('writes nothing at the root but the marketplace, and no subagent files', async () => {
+    const { files, issues } = await asPlugin((blueprint) => {
+      blueprint.agents.push({
+        ...structuredClone(blueprint.agents[0]!),
+        id: 'reviewer',
+        name: 'Reviewer',
+      })
+      blueprint.hooks[0]!.action = { type: 'command', script: 'exit 0', async: false }
+    })
+    const paths = files.map((file) => file.path)
+    expect(paths.filter((path) => !path.startsWith('plugins/codex/'))).toEqual([
+      '.agents/plugins/marketplace.json',
+      'README.md',
+    ])
+    expect(paths.some((path) => path.includes('/agents/reviewer'))).toBe(false)
+    const codex = issues.filter((issue) => issue.harnessId === 'codex')
+    expect(codex.find((issue) => issue.ref?.id === 'reviewer')?.support).toBe('unsupported')
+    // A scripted hook has no way to reach its script from a plugin, so it is not emitted.
+    expect(codex.find((issue) => issue.ref?.id === 'run-tests-after-change')?.support).toBe(
+      'unsupported',
+    )
+    // The gate's Stop hook is still there; the scripted PostToolUse hook is not.
+    const hooks = textOf(files.find((f) => f.path === 'plugins/codex/hooks/hooks.json'))
+    expect(hooks).toContain('"Stop"')
+    expect(hooks).not.toContain('PostToolUse')
+  })
+
+  it('speaks the plugin invocation syntax in the workflow skills', async () => {
+    const { files } = await asPlugin()
+    const readme = textOf(files.find((f) => f.path === 'README.md'))
+    expect(readme).toContain('codex plugin marketplace add <owner>/<repo>')
+    expect(readme).toContain('`$dotnet-testing-expert:write-tests`')
+    const guide = textOf(files.find((f) => f.path === 'plugins/codex/skills/guide/SKILL.md'))
+    expect(guide).toContain('$dotnet-testing-expert:write-tests —')
+  })
+
+  it('refuses an artifact named like the guide skill, in the plugin layout only', async () => {
+    const blueprint = structuredClone(await loadFixture())
+    blueprint.workflows[0]!.id = 'guide'
+    const options = { instructionsMaxBytes: 30720, emitConfig: true }
+    expect(
+      adapterFor('codex')
+        .validate(blueprint, { ...options, layout: 'plugin' })
+        .map((d) => d.code),
+    ).toContain('BP-CODEX-003')
+    expect(
+      adapterFor('codex')
+        .validate(blueprint, { ...options, layout: 'project' })
+        .map((d) => d.code),
+    ).not.toContain('BP-CODEX-003')
+  })
+})
+
 describe('codex adapter', () => {
   it('emits the portable set plus Codex-specific files', async () => {
     const blueprint = await loadFixture()

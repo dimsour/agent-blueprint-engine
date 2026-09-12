@@ -49,6 +49,11 @@ const CASES: GoldenCase[] = [
     targets: ['claude-code'],
     options: { 'claude-code': { layout: 'plugin' } },
   },
+  {
+    name: 'dotnet-testing-expert.codex-plugin',
+    targets: ['codex'],
+    options: { codex: { layout: 'plugin' } },
+  },
 ]
 
 function readTree(root: string): Record<string, ProjectFile> {

@@ -143,6 +143,38 @@ Codex permissions are global, so the adapter lowers the **primary agent's** perm
 | `git.push` / `git.force-push` = `deny`      | `AGENTS.md` instruction "Never run `git push`" (adapted; no native rule)                                 |
 | `patterns[]`                                | `AGENTS.md` "Command policy" list (adapted)                                                              |
 
+## Plugin layout (P9-28)
+
+Target option `layout: 'plugin'` compiles the Blueprint as a Codex plugin, installed from a
+marketplace file in the repository. Verified against the Codex plugin build reference (sources
+below): a plugin is `.codex-plugin/plugin.json` plus `skills/`, `hooks/`, `.mcp.json`; the
+marketplace is `.agents/plugins/marketplace.json` at the repository root with a `local` source.
+
+```
+.agents/plugins/marketplace.json         name = Blueprint id; one plugin, source { source: local, path: ./plugins/codex }
+plugins/codex/
+  .codex-plugin/plugin.json              name = Blueprint id, version, description, skills: ./skills/, interface
+  skills/guide/SKILL.md                  what AGENTS.md would carry: persona, laws, rules, command policy
+  skills/guide/references/<id>.md        references attached only to agents
+  skills/<id>/SKILL.md + agents/openai.yaml   skills and workflows, as in the portable tree
+  hooks/hooks.json                       hooks with inline commands, gates, the law reminder
+  .mcp.json                              server entries with env variable names (values never)
+```
+
+Installing, once the repository is on GitHub: `codex plugin marketplace add <owner>/<repo>`, then
+the plugin from the Plugins directory. Skills are qualified by the plugin name: `$<id>:<skill>`.
+
+What a Codex plugin has no place for, and what the adapter does instead (`capabilitiesFor`
+gives the compatibility view this matrix when the layout is on):
+
+| Concept             | Project layout            | Plugin layout                                                                                                         |
+| ------------------- | ------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Instructions        | `AGENTS.md`               | The `guide` skill, loaded when asked or when its description matches, not always. Adapted. `BP-CODEX-003` on a clash. |
+| Subagents           | `.codex/agents/<id>.toml` | None: a plugin installs no agents. Delegating steps adopt the persona. Unsupported.                                   |
+| Permissions, memory | `.codex/config.toml`      | None: a plugin carries no config. The command policy is in the guide. Unsupported.                                    |
+| Rules with paths    | nested `AGENTS.md`        | In the guide with an "Applies to" note. Adapted.                                                                      |
+| Hook scripts        | `.codex/hooks/<id>.sh`    | Not emitted: Codex documents no variable a plugin hook could reach its own files by. Reported.                        |
+
 ## Known limitations and open questions
 
 - Per-command permission patterns cannot be enforced natively; they become instructions and a `CompatibilityIssue` with support `limited`.
@@ -158,6 +190,7 @@ Codex permissions are global, so the adapter lowers the **primary agent's** perm
 - https://learn.chatgpt.com/docs/config-file/config-basic.md
 - https://learn.chatgpt.com/docs/build-skills
 - https://learn.chatgpt.com/docs/hooks
+- https://developers.openai.com/plugins/build/plugins
 - https://learn.chatgpt.com/docs/agent-configuration/subagents
 - https://learn.chatgpt.com/docs/customization/memories.md
 - https://agentskills.io/specification

@@ -12,7 +12,7 @@ import type { Agent, Blueprint, HarnessId } from '@agent-blueprint/core'
 import { markdownWithFrontmatter } from './frontmatter'
 import { composeInstructions, type InstructionsResult, primaryAgentOf } from './instructions'
 import { code, Markdown } from './markdown'
-import { SHARED_PHRASING } from './phrasing'
+import { type Phrasing, SHARED_PHRASING } from './phrasing'
 import { emitSkillDir, renderReference } from './skill-dir'
 import { emitWorkflowSkill } from './workflow-skill'
 import { generatedFile, type GeneratedFile } from '../types'
@@ -105,6 +105,8 @@ export interface PortableSkillSetOptions {
   owner: HarnessId | 'shared'
   /** Where loose references go; omit to skip them. */
   referencesDir?: string
+  /** How workflow skills refer to skills and agents; neutral wording unless the tree is one harness's. */
+  phrasing?: Phrasing
 }
 
 /**
@@ -130,7 +132,7 @@ export function emitPortableSkillSet(
   }
 
   for (const workflow of blueprint.workflows) {
-    const { body } = emitWorkflowSkill(workflow, blueprint, SHARED_PHRASING)
+    const { body } = emitWorkflowSkill(workflow, blueprint, options.phrasing ?? SHARED_PHRASING)
     files.push(
       generatedFile(
         `${options.root}/${workflow.id}/SKILL.md`,

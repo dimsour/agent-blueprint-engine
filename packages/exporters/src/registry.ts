@@ -17,7 +17,7 @@ export const ADAPTERS: Record<HarnessId, AnyHarnessAdapter> = {
 }
 
 /** Targets whose adapter has a `layout: 'plugin'` option (P9-27). */
-export const PLUGIN_LAYOUT_TARGETS: readonly HarnessId[] = ['claude-code']
+export const PLUGIN_LAYOUT_TARGETS: readonly HarnessId[] = ['claude-code', 'codex']
 
 export function adapterFor(id: HarnessId): AnyHarnessAdapter {
   return ADAPTERS[id]

@@ -104,7 +104,7 @@ function usageOf(blueprint: Blueprint, target: HarnessId, plugin: boolean): Harn
     case 'codex':
       return {
         entry: 'a plugin at `plugins/codex/`, listed in `.agents/plugins/marketplace.json`.',
-        workflow: (id) => `${blueprint.id}:${id}`,
+        workflow: (id) => `$${blueprint.id}:${id}`,
         notes: [
           'Hooks are in `plugins/codex/hooks/hooks.json`; review them before installing. Subagents, permissions and memory are not part of a Codex plugin; the persona and Iron Laws are the `guide` skill.',
         ],
