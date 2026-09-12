@@ -71,7 +71,7 @@ export function ironLawJudgePrompt(laws: readonly IronLaw[]): string {
   return [
     'Claude has finished a turn and wants to stop. These Iron Laws bind its work:',
     list,
-    'Answer {"ok": true} unless the transcript shows the work of this turn breaking one of these laws. Then answer {"ok": false, "reason": "<law>: what was done, and what to correct"}. Unfinished work, missing evidence and checks nobody ran are not violations; do not withhold ok for them.',
+    'Answer {"ok": true} unless the transcript shows the work of this turn breaking one of these laws. Then answer {"ok": false, "reason": "<law>: what was done, and what to correct"}. Unfinished work, missing evidence and checks nobody ran are not violations; do not withhold ok for them. If the input has "stop_hook_active": true, Claude was already sent back once this turn: answer {"ok": true}.',
   ].join('\n\n')
 }
 
@@ -114,14 +114,39 @@ export function gateFailureOutcomeOf(gate: Gate): FailureOutcome {
  * The syntax is POSIX shell. Claude Code runs hooks in `sh` and, on Windows, in Git Bash,
  * which it requires; Codex runs `command` through the same shell.
  */
-export function failing(command: string, outcome: FailureOutcome, note?: string): string {
+export function failing(
+  command: string,
+  outcome: FailureOutcome,
+  note?: string,
+  options: FailingOptions = {},
+): string {
   if (outcome === 'ignore') return `${command} || true`
   const code = outcome === 'block' ? 2 : 1
   const prefix = note ? `printf '%s\\n' ${shellQuote(note)} >&2; ` : ''
   // On success the output goes where it went: a hook that answers on stdout — JSON with a
   // decision or context to inject — must not have its answer swallowed by the wrapper.
-  return `out=$(${command} 2>&1) || { ${prefix}printf '%s\\n' "$out" >&2; exit ${code}; }; [ -z "$out" ] || printf '%s\\n' "$out"`
+  const tail = `|| { ${prefix}printf '%s\\n' "$out" >&2; exit ${code}; }; [ -z "$out" ] || printf '%s\\n' "$out"`
+  if (!options.stop || code !== 2) return `out=$(${command} 2>&1) ${tail}`
+  // Blocking a stop sends the agent back with the output; when it stops again the harness
+  // says so (`stop_hook_active`), and blocking a second time on the same failure would only
+  // send it round again — Claude Code gives up after 8 rounds, Codex has the same field. So
+  // the command still runs, a fix is worth verifying, but a repeat failure is reported (exit
+  // 1) rather than blocking. The input is read first and passed on, so a script keeps it.
+  const repeat = `[ "$code" = 2 ] || printf '%s\\n' ${shellQuote(STOP_REPEAT_NOTE)} >&2; `
+  return `in=$(cat); if printf '%s' "$in" | grep -qE '"stop_hook_active": ?true'; then code=1; else code=2; fi; out=$(printf '%s' "$in" | ${command} 2>&1) || { ${repeat}${prefix}printf '%s\\n' "$out" >&2; exit $code; }; [ -z "$out" ] || printf '%s\\n' "$out"`
 }
+
+export interface FailingOptions {
+  /**
+   * The command runs when the agent stops (`Stop`, `SubagentStop`): block once per turn,
+   * and report a repeat of the failure instead of blocking on it again.
+   */
+  stop?: boolean
+}
+
+/** What a repeat failure says before the output, so the user knows why the turn ended. */
+export const STOP_REPEAT_NOTE =
+  'Still failing after the agent was sent back once; not blocking again this turn.'
 
 /** Where a harness keeps hook scripts and how it runs one. */
 export interface ScriptLocation {

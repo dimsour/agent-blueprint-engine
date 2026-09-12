@@ -135,7 +135,11 @@ export function buildHooks(
         type: 'command',
         // Same exit-code convention as Claude Code, so the same wrapper makes a failure mean
         // what the Blueprint says (P9-25). A background hook's result is discarded.
-        command: hook.action.async ? command : failing(command, failureOutcomeOf(hook)),
+        command: hook.action.async
+          ? command
+          : failing(command, failureOutcomeOf(hook), undefined, {
+              stop: event === 'Stop' || event === 'SubagentStop',
+            }),
         ...(hook.action.timeoutSec === undefined ? {} : { timeout: hook.action.timeoutSec }),
         statusMessage: hookStatusMessage(hook),
         ...background,
@@ -180,6 +184,7 @@ export function buildHooks(
           gate.onFail === 'request-approval'
             ? `${gate.name} failed. Ask the user before continuing.`
             : undefined,
+          { stop: true },
         ),
         timeout: 600,
         statusMessage: `${gate.name}: ${criterion.description}`,

@@ -87,6 +87,9 @@ describe('generated files', () => {
 /** The failure wrapper of P9-25 / P9-30 around a command, as the adapters emit it. */
 const wrapped = (command: string, code: 2 | 1, note?: string) =>
   `out=$(${command} 2>&1) || { ${note ? `printf '%s\\n' '${note}' >&2; ` : ''}printf '%s\\n' "$out" >&2; exit ${code}; }; [ -z "$out" ] || printf '%s\\n' "$out"`
+/** The blocking form on Stop: blocks once, reports a repeat (`stop_hook_active`). */
+const wrappedStop = (command: string, note?: string) =>
+  `in=$(cat); if printf '%s' "$in" | grep -qE '"stop_hook_active": ?true'; then code=1; else code=2; fi; out=$(printf '%s' "$in" | ${command} 2>&1) || { [ "$code" = 2 ] || printf '%s\\n' 'Still failing after the agent was sent back once; not blocking again this turn.' >&2; ${note ? `printf '%s\\n' '${note}' >&2; ` : ''}printf '%s\\n' "$out" >&2; exit $code; }; [ -z "$out" ] || printf '%s\\n' "$out"`
 
 describe('claude-code adapter', () => {
   it('emits the documented file set for the fixture', async () => {
@@ -147,7 +150,7 @@ describe('claude-code adapter', () => {
     expect(judge).toContain('Never Fake Verification')
     expect(judge).toContain('Answer {"ok": true} unless')
     expect(judge).not.toContain('Never claim a verification you did not run')
-    expect(stop[0]?.hooks[0]?.command).toBe(wrapped('dotnet test', 2))
+    expect(stop[0]?.hooks[0]?.command).toBe(wrappedStop('dotnet test'))
     expect(settings.autoMemoryEnabled).toBe(true)
   })
 
@@ -200,10 +203,10 @@ describe('claude-code adapter', () => {
     const stopCommands = (settings.hooks.Stop ?? []).flatMap((entry) =>
       entry.hooks.map((handler) => handler.command),
     )
-    expect(stopCommands).toContain(wrapped('scan-secrets', 2))
+    expect(stopCommands).toContain(wrappedStop('scan-secrets'))
     expect(stopCommands).toContain('dotnet test || true')
     expect(stopCommands).toContain(
-      wrapped('check', 2, 'Approval failed. Ask the user before continuing.'),
+      wrappedStop('check', 'Approval failed. Ask the user before continuing.'),
     )
     // A Bash hook has no path to filter by: the pattern stays a note, and an issue says so.
     const guard = settings.hooks.PreToolUse?.find((entry) => entry.matcher === 'Bash')?.hooks[0]

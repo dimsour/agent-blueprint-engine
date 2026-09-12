@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "out=$(dotnet test 2>&1) || { printf '%s\\n' \"$out\" >&2; exit 2; }; [ -z \"$out\" ] || printf '%s\\n' \"$out\"",
+            "command": "in=$(cat); if printf '%s' \"$in\" | grep -qE '\"stop_hook_active\": ?true'; then code=1; else code=2; fi; out=$(printf '%s' \"$in\" | dotnet test 2>&1) || { [ \"$code\" = 2 ] || printf '%s\\n' 'Still failing after the agent was sent back once; not blocking again this turn.' >&2; printf '%s\\n' \"$out\" >&2; exit $code; }; [ -z \"$out\" ] || printf '%s\\n' \"$out\"",
             "timeout": 600,
             "statusMessage": "Tests must pass: All tests in the affected projects pass."
           },

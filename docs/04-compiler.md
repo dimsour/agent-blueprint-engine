@@ -492,7 +492,12 @@ and prints to stdout, so passed through verbatim it could never block and its fa
 never be seen. `failing()` in `shared/hooks.ts` wraps every command in both adapters:
 silent on success, the output on stderr with the code the outcome needs on failure. The
 wrapper is the one place that knows the convention; the adapters pass the Blueprint's
-`onFailure` or a gate's `onFail` and nothing else.
+`onFailure` or a gate's `onFail`, and whether the command runs when the agent stops. On
+`Stop` and `SubagentStop` both harnesses say in the input whether the agent was already sent
+back once this turn (`stop_hook_active`), and a block that repeats on the same failure would
+only send it round again — Claude Code stops that after eight rounds — so there the wrapper
+blocks once and reports a repeat with exit 1. Reported from use: a secret scanner the
+installed project did not have blocked every stop, eight times per turn.
 
 ### A subagent's permissions are its own (P9-26)
 

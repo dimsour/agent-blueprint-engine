@@ -284,7 +284,7 @@ export function lowerHooks(
 
   for (const hook of blueprint.hooks) {
     const { event, matcher } = lowerTrigger(hook)
-    const handler = handlerFor(hook, laws, scripts)
+    const handler = handlerFor(hook, laws, scripts, STOP_EVENTS.has(event))
     if (!handler) {
       issues.push(
         issue(
@@ -339,6 +339,7 @@ export function lowerHooks(
           gate.onFail === 'request-approval'
             ? `${gate.name} failed. Ask the user before continuing.`
             : undefined,
+          { stop: true },
         ),
         timeout: 600,
         statusMessage: `${gate.name}: ${criterion.description}`,
@@ -393,10 +394,14 @@ function pathFilter(event: string, matcher: string | undefined, hook: Hook): str
     .join('|')
 }
 
+/** Events that carry `stop_hook_active`: a block sends the agent back, and it stops again. */
+const STOP_EVENTS = new Set(['Stop', 'SubagentStop'])
+
 function handlerFor(
   hook: Hook,
   laws: IronLaw[],
   scripts: ScriptLocation,
+  stop: boolean,
 ): ClaudeHookHandler | undefined {
   if (isCommandAction(hook)) {
     const command = effectiveCommand(hook, scripts)
@@ -404,7 +409,9 @@ function handlerFor(
     return {
       type: 'command',
       // A background hook's result is discarded, so there is nothing to wrap its failure for.
-      command: hook.action.async ? command : failing(command, failureOutcomeOf(hook)),
+      command: hook.action.async
+        ? command
+        : failing(command, failureOutcomeOf(hook), undefined, { stop }),
       ...(hook.action.timeoutSec === undefined ? {} : { timeout: hook.action.timeoutSec }),
       statusMessage: hookStatusMessage(hook),
       ...(hook.action.async ? { async: true } : {}),

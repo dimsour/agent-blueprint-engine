@@ -60,13 +60,13 @@
         "hooks": [
           {
             "type": "command",
-            "command": "out=$(dotnet test 2>&1) || { printf '%s\\n' \"$out\" >&2; exit 2; }; [ -z \"$out\" ] || printf '%s\\n' \"$out\"",
+            "command": "in=$(cat); if printf '%s' \"$in\" | grep -qE '\"stop_hook_active\": ?true'; then code=1; else code=2; fi; out=$(printf '%s' \"$in\" | dotnet test 2>&1) || { [ \"$code\" = 2 ] || printf '%s\\n' 'Still failing after the agent was sent back once; not blocking again this turn.' >&2; printf '%s\\n' \"$out\" >&2; exit $code; }; [ -z \"$out\" ] || printf '%s\\n' \"$out\"",
             "timeout": 600,
             "statusMessage": "Tests must pass: All tests in the affected projects pass."
           },
           {
             "type": "prompt",
-            "prompt": "Claude has finished a turn and wants to stop. These Iron Laws bind its work:\n\n- Never Fake Verification: Never claim code works, compiles, or passes tests without actually running the verification and reading its output.\n\nAnswer {\"ok\": true} unless the transcript shows the work of this turn breaking one of these laws. Then answer {\"ok\": false, \"reason\": \"<law>: what was done, and what to correct\"}. Unfinished work, missing evidence and checks nobody ran are not violations; do not withhold ok for them.",
+            "prompt": "Claude has finished a turn and wants to stop. These Iron Laws bind its work:\n\n- Never Fake Verification: Never claim code works, compiles, or passes tests without actually running the verification and reading its output.\n\nAnswer {\"ok\": true} unless the transcript shows the work of this turn breaking one of these laws. Then answer {\"ok\": false, \"reason\": \"<law>: what was done, and what to correct\"}. Unfinished work, missing evidence and checks nobody ran are not violations; do not withhold ok for them. If the input has \"stop_hook_active\": true, Claude was already sent back once this turn: answer {\"ok\": true}.",
             "statusMessage": "Checking the Iron Laws"
           }
         ]
