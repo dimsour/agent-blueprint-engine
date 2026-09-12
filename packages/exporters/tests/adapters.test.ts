@@ -609,6 +609,24 @@ describe('claude-code plugin layout', () => {
     expect(limited.some((i) => i.message.includes('allow rule(s)'))).toBe(true)
   })
 
+  /**
+   * An ask on a whole tool is a prompt on every call of it in every project the plugin is
+   * enabled in, even in bypass mode; a narrowed ask is not.
+   */
+  it('warns when an ask rule covers a whole tool', async () => {
+    const asks = (issues: { message: string; support: string }[]) =>
+      issues.filter((i) => i.support === 'limited' && i.message.includes('asks before every use'))
+    // The fixture asks before every mutating shell command: `shell.mutating: ask` → `Bash`.
+    const whole = await asPlugin()
+    expect(asks(whole.issues).map((i) => i.message)).toEqual([
+      expect.stringContaining('asks before every use of Bash'),
+    ])
+    const narrowed = await asPlugin((blueprint) => {
+      blueprint.agents[0]!.permissions.operations['shell.mutating'] = 'allow'
+    })
+    expect(asks(narrowed.issues)).toEqual([])
+  })
+
   it('prints the decision a hook returns exactly as Claude reads it', async () => {
     const { files } = await asPlugin()
     const hooks = JSON.parse(

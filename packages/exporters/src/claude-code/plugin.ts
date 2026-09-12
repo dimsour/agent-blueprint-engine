@@ -313,6 +313,19 @@ export function compilePlugin(blueprint: Blueprint, options: ClaudeCodeOptions):
         { ref: { kind: 'agent', id: primary.id }, adaptation: `${PLUGIN_ROOT}/hooks/hooks.json` },
       ),
     )
+    // An ask on a whole tool prompts on every call of it, and a plugin's rules apply in every
+    // project it is enabled in. Claude prompts for an ask rule even in bypassPermissions mode,
+    // and offers no "don't ask again": an allow saved from the prompt would lose to the ask.
+    for (const rule of (permissions.permissions.ask ?? []).filter((r) => !r.includes('('))) {
+      issues.push(
+        issue(
+          'permissions',
+          'limited',
+          `"${primary.name}" asks before every use of ${rule}. Installed as a plugin, that is a prompt on each ${rule} call in every project the plugin is enabled in, also in sessions that skip permissions, with no "don't ask again". Allow the operation, or narrow it to patterns, if that is not meant.`,
+          { ref: { kind: 'agent', id: primary.id } },
+        ),
+      )
+    }
     if ((permissions.permissions.allow ?? []).length > 0) {
       issues.push(
         issue(

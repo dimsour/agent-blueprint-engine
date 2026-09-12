@@ -296,6 +296,14 @@ limited. Two documented differences from a rule in `settings.json`: a Bash `if` 
 through a `$VAR` expansion, so the handler "runs anyway" and a deny is stricter than the rule
 would have been; and a hook is one more thing the `disableAllHooks` setting turns off.
 
+An `ask` behaves as the rule would in `settings.json`: Claude prompts for an ask rule "even in
+`auto` mode" and "explicit ask rules ... still prompt" in `bypassPermissions` mode, and the prompt
+has no "don't ask again", since an allow saved from it would lose to the ask. What differs is
+the reach: a plugin's rules apply in every project it is enabled in. So an ask on a whole tool
+(`shell.mutating: ask` is `Bash`, the starters' default) is a prompt on every shell command
+everywhere the plugin is on, and the adapter reports it as limited; narrow the operation to
+patterns, or allow it, when that is not meant.
+
 ## Known limitations and open questions
 
 - Hook file-pattern conditions are native only on tool events, through `if`; a `Stop` or `Bash` hook with a pattern has to check the path itself.
