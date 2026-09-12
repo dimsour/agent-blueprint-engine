@@ -297,6 +297,8 @@ function agentFile(agent: Agent, blueprint: Blueprint, options: ClaudeCodeOption
     ...(tools.length > 0 ? { tools } : {}),
     ...(denials.disallowed.length > 0 ? { disallowedTools: denials.disallowed } : {}),
     ...(modelFor(agent) ? { model: modelFor(agent) } : {}),
+    ...(agent.budget?.effort ? { effort: agent.budget.effort } : {}),
+    ...(agent.budget?.maxTurns ? { maxTurns: agent.budget.maxTurns } : {}),
     ...(agent.skillIds.length > 0 ? { skills: [...agent.skillIds] } : {}),
     ...(permissionModeFor(agent, options)
       ? { permissionMode: permissionModeFor(agent, options) }

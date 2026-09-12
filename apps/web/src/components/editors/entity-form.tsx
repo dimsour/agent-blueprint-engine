@@ -13,6 +13,8 @@
 import {
   AGENT_ROLE_INFO,
   AGENT_ROLES,
+  EFFORT_LEVEL_INFO,
+  EFFORT_LEVELS,
   ENTITY_KIND_INFO,
   GATE_CRITERION_KIND_INFO,
   GATE_CRITERION_KINDS,
@@ -55,6 +57,7 @@ import { exampleFor } from '@/components/editors/field-examples'
 import {
   CheckboxField,
   Field,
+  NumberField,
   RefListField,
   SelectField,
   StringListField,
@@ -398,6 +401,27 @@ function KindFields({ kind, entity, blueprint, update, hint }: KindFieldProps) {
               })
             }
             help="Compiled to a concrete model per harness: fast, balanced or strong."
+          />
+          <SelectField
+            label="Effort"
+            value={
+              ((entity['budget'] as { effort?: string } | undefined)?.effort ??
+                'medium') as (typeof EFFORT_LEVELS)[number]
+            }
+            options={EFFORT_LEVELS}
+            describe={EFFORT_LEVEL_INFO}
+            onChange={(effort) => update({ budget: { ...(entity['budget'] as object), effort } })}
+            help="How hard it may think. Compiled to the harness's effort setting where it has one."
+          />
+          <NumberField
+            label="Turn budget"
+            value={(entity['budget'] as { maxTurns?: number } | undefined)?.maxTurns}
+            min={1}
+            max={1000}
+            onChange={(maxTurns) =>
+              update({ budget: { ...(entity['budget'] as object), maxTurns } })
+            }
+            help="Tool-call turns before it must stop and report. Empty means no limit. Enforced where the harness can; reported where it cannot."
           />
           <RefListField
             label="Can delegate to"

@@ -230,6 +230,7 @@ describe('claude-code adapter', () => {
       role: 'reviewer',
       toolIds: ['filesystem', 'dotnet-cli'],
       delegation: { canDelegateTo: [primary.id] },
+      budget: { effort: 'high', maxTurns: 25 },
       permissions: {
         operations: {
           'fs.read': 'allow',
@@ -258,6 +259,16 @@ describe('claude-code adapter', () => {
 
     const toml = textOf(files.find((file) => file.path === '.codex/agents/reviewer.toml'))
     expect(toml).toContain('sandbox_mode = "read-only"')
+
+    // The budget (P9-32): Claude has both fields; Codex has the effort and is told about the
+    // turn limit it cannot keep.
+    expect(frontmatter).toContain('effort: high')
+    expect(frontmatter).toContain('maxTurns: 25')
+    expect(toml).toContain('model_reasoning_effort = "high"')
+    const { issues } = compileBlueprint(blueprint, { targets: ['codex'] })
+    expect(
+      issues.some((issue) => issue.ref?.id === 'reviewer' && issue.message.includes('turn budget')),
+    ).toBe(true)
   })
 })
 

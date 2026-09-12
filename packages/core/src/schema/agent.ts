@@ -57,6 +57,18 @@ export const modelPreferenceSchema = z.object({
   hint: z.string().optional(),
 })
 
+export const EFFORT_LEVELS = ['low', 'medium', 'high'] as const
+
+/**
+ * How hard the agent may think and how long it may run. Harness-neutral: Claude Code has
+ * `effort` and `maxTurns`, Codex has `model_reasoning_effort`; the rest are told.
+ */
+export const agentBudgetSchema = z.object({
+  effort: z.enum(EFFORT_LEVELS).optional(),
+  /** Tool-call turns before the agent must stop and report. */
+  maxTurns: z.number().int().min(1).max(1000).optional(),
+})
+
 export const agentSchema = entityBaseSchema.extend({
   role: agentRoleSchema,
   expertise: stringListSchema,
@@ -71,6 +83,7 @@ export const agentSchema = entityBaseSchema.extend({
   permissions: permissionSetSchema.prefault({}),
   outputRequirements: stringListSchema,
   model: modelPreferenceSchema.optional(),
+  budget: agentBudgetSchema.optional(),
   delegation: z
     .object({
       canDelegateTo: z.array(slugSchema).default([]),

@@ -1025,6 +1025,16 @@ something, it says what and where that thing still exists.
 - Built: `skillInvocationSchema`, the two frontmatter extras in the Claude adapter, the Argument line in `activationBlock`, the Usage section in `emitWorkflowSkill` through `phrasing.workflowInvocation`.
 - Not built: named arguments (`arguments: [name]` with `$name` substitution), which only Claude Code documents; a menu flag for Codex, which has none.
 
+### P9-32 An agent's budget (done)
+
+- Package: `packages/core` (schema, options), `packages/exporters`, `apps/web` (agent form)
+- Depends on: P2-01
+- Description: An agent could say which model it preferred and nothing about how hard that model should think or how long it could run. A researcher that reads forty files at maximum effort costs what a whole review costs; a reviewer with no turn limit reads until the context is gone. Both harnesses with subagent files have a setting for effort and Claude Code has one for turns; the Blueprint had no field to compile into either.
+- Acceptance: `agent.budget.effort` (`low` / `medium` / `high`, each described) and `agent.budget.maxTurns` (1–1000); Claude Code writes `effort` and `maxTurns` on the subagent; Codex writes `model_reasoning_effort` and reports a turn budget it cannot keep; the agent form has both fields; unset emits nothing.
+- Verify: `pnpm --filter @agent-blueprint/exporters test`
+- Built: `agentBudgetSchema`, `EFFORT_LEVEL_INFO`, the two frontmatter lines, the TOML key and the issue, a `NumberField` in the form kit.
+- Not built: a budget on the primary agent, which has no file of its own on any harness (Claude's `effort` there is a session setting, not a project one); Copilot, OpenCode and Pi agent files, none of which documents an effort field.
+
 ### Open questions
 
 1. ~~**The logo needs a mark-only export.**~~ Settled: rather than crop by CSS, the cut is a script. `pnpm --filter web logo` measures nothing at run time — the rectangles live in `e2e/logo-assets.spec.ts`, taken from the artwork's alpha channel — and writes the three assets the app imports. A redrawn logo needs that one command and a re-measurement, and no component changes.

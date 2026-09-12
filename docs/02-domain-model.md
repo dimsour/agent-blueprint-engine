@@ -111,23 +111,24 @@ A compile-time assertion in `schema/blueprint.ts` fails the build if `BLUEPRINT_
 
 `agentSchema` = EntityBase +
 
-| Field                | Type                                                              | Default                            | Meaning                                                                                     |
-| -------------------- | ----------------------------------------------------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------- |
-| `role`               | AgentRole                                                         | required                           | `worker`, `reviewer`, `researcher`, `investigator`, `architect`, `verifier`, `orchestrator` |
-| `expertise`          | string[]                                                          | `[]`                               | Domains / technologies                                                                      |
-| `responsibilities`   | string[]                                                          | `[]`                               | What the agent is accountable for (warned when empty)                                       |
-| `skillIds`           | Slug[]                                                            | `[]`                               | Skills the agent may use (order is meaningful: priority)                                    |
-| `workflowIds`        | Slug[]                                                            | `[]`                               | Workflows the agent runs                                                                    |
-| `ironLawIds`         | Slug[]                                                            | `[]`                               | Laws bound to the agent                                                                     |
-| `ruleIds`            | Slug[]                                                            | `[]`                               | Rules followed                                                                              |
-| `toolIds`            | Slug[]                                                            | `[]`                               | Tools available                                                                             |
-| `referenceIds`       | Slug[]                                                            | `[]`                               | Deep knowledge available                                                                    |
-| `memoryIds`          | Slug[]                                                            | `[]`                               | Memory definitions                                                                          |
-| `permissions`        | PermissionSet                                                     | `{ operations: {}, patterns: [] }` | What the agent _may_ do (distinct from tools: what it _can_ do)                             |
-| `outputRequirements` | string[]                                                          | `[]`                               | What a finished task must include                                                           |
-| `model`              | `{ preference: 'fast' \| 'balanced' \| 'strong'; hint?: string }` |                                    | Model preference; `hint` may carry a concrete model id                                      |
-| `delegation`         | `{ canDelegateTo: Slug[] }`                                       |                                    | Agents this one may delegate to                                                             |
-| `body`               | Markdown                                                          | `''`                               | Persona / system prompt                                                                     |
+| Field                | Type                                                              | Default                            | Meaning                                                                                                                                                         |
+| -------------------- | ----------------------------------------------------------------- | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `role`               | AgentRole                                                         | required                           | `worker`, `reviewer`, `researcher`, `investigator`, `architect`, `verifier`, `orchestrator`                                                                     |
+| `expertise`          | string[]                                                          | `[]`                               | Domains / technologies                                                                                                                                          |
+| `responsibilities`   | string[]                                                          | `[]`                               | What the agent is accountable for (warned when empty)                                                                                                           |
+| `skillIds`           | Slug[]                                                            | `[]`                               | Skills the agent may use (order is meaningful: priority)                                                                                                        |
+| `workflowIds`        | Slug[]                                                            | `[]`                               | Workflows the agent runs                                                                                                                                        |
+| `ironLawIds`         | Slug[]                                                            | `[]`                               | Laws bound to the agent                                                                                                                                         |
+| `ruleIds`            | Slug[]                                                            | `[]`                               | Rules followed                                                                                                                                                  |
+| `toolIds`            | Slug[]                                                            | `[]`                               | Tools available                                                                                                                                                 |
+| `referenceIds`       | Slug[]                                                            | `[]`                               | Deep knowledge available                                                                                                                                        |
+| `memoryIds`          | Slug[]                                                            | `[]`                               | Memory definitions                                                                                                                                              |
+| `permissions`        | PermissionSet                                                     | `{ operations: {}, patterns: [] }` | What the agent _may_ do (distinct from tools: what it _can_ do)                                                                                                 |
+| `outputRequirements` | string[]                                                          | `[]`                               | What a finished task must include                                                                                                                               |
+| `model`              | `{ preference: 'fast' \| 'balanced' \| 'strong'; hint?: string }` |                                    | Model preference; `hint` may carry a concrete model id                                                                                                          |
+| `budget`             | `{ effort?: 'low' \| 'medium' \| 'high'; maxTurns?: int 1–1000 }` |                                    | How hard it may think and how long it may run (P9-32). Claude Code: `effort`, `maxTurns`; Codex: `model_reasoning_effort`, the turn limit reported; others told |
+| `delegation`         | `{ canDelegateTo: Slug[] }`                                       |                                    | Agents this one may delegate to                                                                                                                                 |
+| `body`               | Markdown                                                          | `''`                               | Persona / system prompt                                                                                                                                         |
 
 PermissionSet (`permissionSetSchema`):
 
@@ -582,6 +583,14 @@ Every fixed choice a form offers, with what choosing it does. The same text is s
 | `fast` | Fast | A small, quick model. For routine work where latency matters more than depth. |
 | `balanced` | Balanced | The harness default. Most agents. |
 | `strong` | Strong | The most capable model available. For review, architecture, and anything that is hard to undo. |
+
+#### Agent `budget.effort`
+
+| Value | Label | Means |
+| --- | --- | --- |
+| `low` | Low | Little deliberation. For lookups, formatting, and work with one obvious answer. |
+| `medium` | Medium | The harness default. Most workers and reviewers. |
+| `high` | High | As much thinking as the model will do. For planning, architecture, and anything hard to undo. Slower and dearer. |
 
 #### Iron Law `enforcement`
 

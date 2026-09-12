@@ -14,6 +14,7 @@
  */
 import {
   AGENT_ROLES,
+  EFFORT_LEVELS,
   ENFORCEMENT_MECHANISMS,
   GATE_CRITERION_KINDS,
   GATE_FAILURE_BEHAVIORS,
@@ -244,6 +245,22 @@ export const MODEL_PREFERENCE_INFO: InfoOf<typeof MODEL_PREFERENCES> = {
     label: 'Strong',
     description:
       'The most capable model available. For review, architecture, and anything that is hard to undo.',
+  },
+}
+
+export const EFFORT_LEVEL_INFO: InfoOf<typeof EFFORT_LEVELS> = {
+  low: {
+    label: 'Low',
+    description: 'Little deliberation. For lookups, formatting, and work with one obvious answer.',
+  },
+  medium: {
+    label: 'Medium',
+    description: 'The harness default. Most workers and reviewers.',
+  },
+  high: {
+    label: 'High',
+    description:
+      'As much thinking as the model will do. For planning, architecture, and anything hard to undo. Slower and dearer.',
   },
 }
 
@@ -658,6 +675,7 @@ export const OPTION_TABLES = {
   PERMISSION_OPERATIONS: [PERMISSION_OPERATIONS, PERMISSION_OPERATION_INFO],
   PERMISSION_DECISIONS: [PERMISSION_DECISIONS, PERMISSION_DECISION_INFO],
   MODEL_PREFERENCES: [MODEL_PREFERENCES, MODEL_PREFERENCE_INFO],
+  EFFORT_LEVELS: [EFFORT_LEVELS, EFFORT_LEVEL_INFO],
   ENFORCEMENT_MECHANISMS: [ENFORCEMENT_MECHANISMS, ENFORCEMENT_MECHANISM_INFO],
   RULE_PRIORITIES: [RULE_PRIORITIES, RULE_PRIORITY_INFO],
   HOOK_TRIGGERS: [HOOK_TRIGGERS, HOOK_TRIGGER_INFO],

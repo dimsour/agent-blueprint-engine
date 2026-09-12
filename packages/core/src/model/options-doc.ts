@@ -30,6 +30,7 @@ const HEADINGS: Record<keyof typeof OPTION_TABLES, string> = {
   PERMISSION_OPERATIONS: 'Permission operations (`permissions.operations`)',
   PERMISSION_DECISIONS: 'Permission decisions',
   MODEL_PREFERENCES: 'Agent `model.preference`',
+  EFFORT_LEVELS: 'Agent `budget.effort`',
   ENFORCEMENT_MECHANISMS: 'Iron Law `enforcement`',
   RULE_PRIORITIES: 'Rule `priority`',
   HOOK_TRIGGERS: 'Hook `trigger`',

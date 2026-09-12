@@ -268,6 +268,15 @@ export const codexAdapter: HarnessAdapter<CodexOptions> = {
     }
 
     for (const agent of subagents) {
+      if (agent.budget?.maxTurns) {
+        issues.push({
+          harnessId: 'codex',
+          concept: 'agents',
+          support: 'limited',
+          ref: { kind: 'agent', id: agent.id },
+          message: `Agent "${agent.name}" has a turn budget of ${agent.budget.maxTurns}, which Codex agent files cannot express; it is not enforced.`,
+        })
+      }
       files.push(
         generatedFile(
           `.codex/agents/${agent.id}.toml`,
@@ -276,6 +285,7 @@ export const codexAdapter: HarnessAdapter<CodexOptions> = {
             description: agent.description ?? agent.responsibilities.join('; '),
             developer_instructions: developerInstructions(agent, blueprint),
             ...(agent.model?.hint ? { model: agent.model.hint } : {}),
+            ...(agent.budget?.effort ? { model_reasoning_effort: agent.budget.effort } : {}),
             // The one permission a subagent can carry on its own: whether it may write at
             // all (P9-26). The rest is the session's, and reported as such.
             ...(agent.permissions.operations['fs.write'] === 'deny'
