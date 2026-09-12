@@ -276,6 +276,11 @@ export const codexAdapter: HarnessAdapter<CodexOptions> = {
             description: agent.description ?? agent.responsibilities.join('; '),
             developer_instructions: developerInstructions(agent, blueprint),
             ...(agent.model?.hint ? { model: agent.model.hint } : {}),
+            // The one permission a subagent can carry on its own: whether it may write at
+            // all (P9-26). The rest is the session's, and reported as such.
+            ...(agent.permissions.operations['fs.write'] === 'deny'
+              ? { sandbox_mode: 'read-only' }
+              : {}),
           }),
           'toml',
           'codex',

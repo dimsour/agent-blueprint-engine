@@ -212,6 +212,53 @@ describe('claude-code adapter', () => {
     expect(diagnostics.map((diagnostic) => diagnostic.code)).toEqual(['BP-CLAUDE-001'])
     expect(diagnostics[0]?.severity).toBe('error')
   })
+
+  /**
+   * A subagent's permissions used to be dropped: only the primary agent's became rules, and
+   * a reviewer that must not write got a permission mode and nothing else (P9-26). A denial
+   * turns a whole tool off when every operation behind it is denied; a denial that cannot
+   * (pushing, while the shell stays) is written into the prompt instead. And an agent that
+   * delegates keeps the Agent tool on its list, or the list would take delegation away.
+   */
+  it('gives a subagent its denials, and the Agent tool when it delegates', async () => {
+    const blueprint = structuredClone(await loadFixture())
+    const primary = blueprint.agents[0]!
+    blueprint.agents.push({
+      ...structuredClone(primary),
+      id: 'reviewer',
+      name: 'Reviewer',
+      role: 'reviewer',
+      toolIds: ['filesystem', 'dotnet-cli'],
+      delegation: { canDelegateTo: [primary.id] },
+      permissions: {
+        operations: {
+          'fs.read': 'allow',
+          'fs.write': 'deny',
+          'shell.readonly': 'allow',
+          'git.push': 'deny',
+          'net.any': 'deny',
+        },
+        patterns: [],
+      },
+    })
+
+    const { files } = compileBlueprint(blueprint, { targets: ['claude-code', 'codex'] })
+    const agent = textOf(files.find((file) => file.path === '.claude/agents/reviewer.md'))
+    const frontmatter = agent.slice(0, agent.indexOf('\n---\n'))
+    expect(frontmatter).toContain(
+      'disallowedTools:\n  - Edit\n  - NotebookEdit\n  - WebFetch\n  - WebSearch\n  - Write',
+    )
+    // Write and Edit came from the filesystem tool; a tool that is turned off is not listed.
+    expect(frontmatter).toContain(
+      'tools:\n  - Bash\n  - Glob\n  - Grep\n  - Read\n  - Agent(testing-expert)',
+    )
+    // Bash survives because read-only commands are allowed, so the push ban is a sentence.
+    expect(agent).toContain('## Not allowed\n- Never push to a remote.')
+    expect(agent).not.toContain('Never create or edit files')
+
+    const toml = textOf(files.find((file) => file.path === '.codex/agents/reviewer.toml'))
+    expect(toml).toContain('sandbox_mode = "read-only"')
+  })
 })
 
 describe('codex adapter', () => {

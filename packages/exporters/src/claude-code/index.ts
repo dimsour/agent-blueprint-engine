@@ -12,6 +12,7 @@ import { z } from 'zod'
 import type { Frontmatter } from '../shared/frontmatter'
 import { markdownWithFrontmatter } from '../shared/frontmatter'
 import { composeInstructions, lawsForAgent, primaryAgentOf } from '../shared/instructions'
+import type { PermissionDecision, PermissionOperation } from '../shared/permissions'
 import { CLAUDE_PHRASING } from '../shared/phrasing'
 import { emitSkillDir, renderReference } from '../shared/skill-dir'
 import { emitWorkflowSkill } from '../shared/workflow-skill'
@@ -157,6 +158,78 @@ function toolNames(toolIds: readonly string[], blueprint: Blueprint): string[] {
   return [...names].sort()
 }
 
+/** The Claude tools an operation goes through; MCP servers are resolved per Blueprint. */
+const TOOLS_BEHIND_OPERATION: Record<Exclude<PermissionOperation, 'mcp'>, string[]> = {
+  'fs.read': ['Read', 'Glob', 'Grep'],
+  'fs.write': ['Edit', 'Write', 'NotebookEdit'],
+  'fs.delete': ['Bash'],
+  'shell.readonly': ['Bash'],
+  'shell.mutating': ['Bash'],
+  'git.read': ['Bash'],
+  'git.commit': ['Bash'],
+  'git.push': ['Bash'],
+  'git.force-push': ['Bash'],
+  'net.docs': ['WebFetch'],
+  'net.any': ['WebFetch', 'WebSearch'],
+}
+
+/**
+ * What a subagent's denied operations turn off, and what they cannot (P9-26).
+ *
+ * A subagent has no permission lists of its own; it has `tools` and `disallowedTools`, and
+ * those name whole tools. A tool is turned off only when every operation behind it that the
+ * agent decides is denied: denying `git.push` while allowing `git.read` still needs `Bash`.
+ * The denials that survive that way are returned as `kept`, so the agent file can say them
+ * in words — a reviewer that must not push is still told not to.
+ */
+function lowerSubagentDenials(
+  agent: Agent,
+  blueprint: Blueprint,
+): { disallowed: string[]; kept: PermissionOperation[] } {
+  const toolsBehind = (operation: PermissionOperation): string[] =>
+    operation === 'mcp'
+      ? blueprint.tools.filter((tool) => tool.mcp).map((tool) => `mcp__${tool.id}`)
+      : TOOLS_BEHIND_OPERATION[operation]
+
+  const denied = new Set<string>()
+  const survives = new Set<string>()
+  const entries = Object.entries(agent.permissions.operations) as [
+    PermissionOperation,
+    PermissionDecision,
+  ][]
+  for (const [operation, decision] of entries) {
+    for (const tool of toolsBehind(operation)) {
+      if (decision === 'deny') denied.add(tool)
+      else survives.add(tool)
+    }
+  }
+
+  const disallowed = [...denied].filter((tool) => !survives.has(tool)).sort()
+  const kept = entries
+    .filter(
+      ([operation, decision]) =>
+        decision === 'deny' && toolsBehind(operation).some((tool) => !disallowed.includes(tool)),
+    )
+    .map(([operation]) => operation)
+  return { disallowed, kept }
+}
+
+/** One line per denial the subagent has to honour by itself. */
+const DENIAL_LINES: Record<PermissionOperation, string> = {
+  'fs.read': 'Never read files.',
+  'fs.write': 'Never create or edit files.',
+  'fs.delete': 'Never delete files.',
+  'shell.readonly': 'Never run shell commands, not even read-only ones.',
+  'shell.mutating': 'Never run a shell command that changes anything.',
+  'git.read': 'Never read git history.',
+  'git.commit': 'Never commit.',
+  'git.push': 'Never push to a remote.',
+  'git.force-push': 'Never force-push or rewrite shared history.',
+  'net.docs': 'Never fetch documentation from the network.',
+  'net.any': 'Never reach the network.',
+  mcp: 'Never use an MCP server.',
+}
+
 function permissionModeFor(agent: Agent, options: ClaudeCodeOptions): string | undefined {
   if (options.permissionMode) return options.permissionMode
   const decisions = Object.values(agent.permissions.operations)
@@ -199,10 +272,30 @@ function agentFile(agent: Agent, blueprint: Blueprint, options: ClaudeCodeOption
     )
   }
 
+  // Denied operations turn whole tools off where they can (P9-26). Where they cannot —
+  // pushing is denied but the shell is not — the agent is told, since nothing else will.
+  const denials = lowerSubagentDenials(agent, blueprint)
+  if (denials.kept.length > 0) {
+    sections.push(
+      ['## Not allowed', ...denials.kept.map((operation) => `- ${DENIAL_LINES[operation]}`)].join(
+        '\n',
+      ),
+    )
+  }
+
+  // A tool list is a whitelist: an agent that delegates needs the Agent tool on it, or the
+  // list silently takes delegation away. Naming the delegates keeps it to them.
+  const delegates = agent.delegation?.canDelegateTo ?? []
+  const tools = [
+    ...toolNames(agent.toolIds, blueprint).filter((tool) => !denials.disallowed.includes(tool)),
+    ...(agent.toolIds.length > 0 && delegates.length > 0 ? [`Agent(${delegates.join(', ')})`] : []),
+  ]
+
   const frontmatter: Frontmatter = {
     name: agent.id,
     description: agent.description ?? agent.responsibilities.join('; '),
-    ...(agent.toolIds.length > 0 ? { tools: toolNames(agent.toolIds, blueprint) } : {}),
+    ...(tools.length > 0 ? { tools } : {}),
+    ...(denials.disallowed.length > 0 ? { disallowedTools: denials.disallowed } : {}),
     ...(modelFor(agent) ? { model: modelFor(agent) } : {}),
     ...(agent.skillIds.length > 0 ? { skills: [...agent.skillIds] } : {}),
     ...(permissionModeFor(agent, options)

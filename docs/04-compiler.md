@@ -482,6 +482,16 @@ silent on success, the output on stderr with the code the outcome needs on failu
 wrapper is the one place that knows the convention; the adapters pass the Blueprint's
 `onFailure` or a gate's `onFail` and nothing else.
 
+### A subagent's permissions are its own (P9-26)
+
+Claude Code has no permission lists per subagent, only `tools` and `disallowedTools`, which
+name whole tools. The adapter turns a tool off when every operation behind it that the agent
+decides is denied — the rule Copilot's `toolAliases` already used — and writes the denials
+that survive (`git.push` while the shell stays) into the agent's prompt. A `tools:` list is a
+whitelist, so an agent that delegates gets `Agent(<delegates>)` on it; without that line the
+list would take delegation away. Codex's agent file gets the one permission it can carry,
+`sandbox_mode = "read-only"`.
+
 ### Codex hooks file shape
 
 `docs/harness/codex.md` documents the events and handler fields but not the wrapper object.
