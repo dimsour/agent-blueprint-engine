@@ -7,7 +7,7 @@
  * that it now reaches the screen, and that it reaches a keyboard.
  */
 import { DIAGNOSTIC_CODES, type Diagnostic } from '@agent-blueprint/core'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -135,5 +135,76 @@ describe('the controls on a finding', () => {
       // `size-6` — 24px. The icon inside is 14px; what grew is the padding around it.
       expect(screen.getByRole('button', { name }).className).toContain('size-6')
     }
+  })
+})
+
+/**
+ * Where to look (P9-19).
+ *
+ * Reported from use: a requirement's finding said "nothing in the Blueprint meets its check"
+ * and the cause was a hook with the wrong action type — three artifacts away, with nothing on
+ * the screen pointing at it. `related` has always been on the diagnostic; this renders it.
+ */
+describe('the pointer to where the problem is', () => {
+  const UNMET = {
+    code: 'BP-REQ-001',
+    severity: 'error' as const,
+    message:
+      'Requirement "Security enforcement" is not satisfied: Secret scanning is enforced before the agent stops. Nothing in the Blueprint meets its check. The nearest is hook "Secret scan before stop": its action is command, not secret-scan.',
+    ref: { kind: 'requirement' as const, id: 'security-enforcement' },
+    related: [{ kind: 'hook' as const, id: 'secret-scan-before-stop' }],
+    data: {
+      failed: ['hook-exists'],
+      nearMisses: [
+        {
+          kind: 'hook',
+          id: 'secret-scan-before-stop',
+          because: 'its action is command, not secret-scan',
+        },
+      ],
+    },
+  }
+
+  it('lists every related artifact under the finding, and navigates to it', async () => {
+    const user = userEvent.setup()
+    const navigate = vi.fn()
+    render(<DiagnosticRow diagnostic={UNMET} onNavigate={navigate} />)
+
+    const pointers = screen.getByRole('list', { name: 'Where to look' })
+    const hook = within(pointers).getByRole('button', { name: 'Hook: secret-scan-before-stop' })
+    // The reason sits beside the first pointer: it is the whole fix, most of the time.
+    expect(pointers).toHaveTextContent('its action is command, not secret-scan')
+
+    await user.click(hook)
+    // To the hook, not to the requirement the finding is filed against.
+    expect(navigate).toHaveBeenCalledWith(
+      { kind: 'hook', id: 'secret-scan-before-stop' },
+      undefined,
+    )
+  })
+
+  it('renders nothing for a finding that points nowhere else', () => {
+    render(<DiagnosticRow diagnostic={REQUIREMENT} onNavigate={vi.fn()} />)
+    expect(screen.queryByRole('list', { name: 'Where to look' })).toBeNull()
+  })
+
+  it('works for a contradiction, whose second half was always in related', () => {
+    render(
+      <DiagnosticRow
+        diagnostic={{
+          code: 'BP-CONTRA-001',
+          severity: 'warning',
+          message: 'Two artifacts tell the agent opposite things about mocking.',
+          ref: { kind: 'skill', id: 'xunit' },
+          related: [{ kind: 'iron-law', id: 'no-mocks' }],
+        }}
+        onNavigate={vi.fn()}
+      />,
+    )
+    expect(
+      within(screen.getByRole('list', { name: 'Where to look' })).getByRole('button', {
+        name: 'Iron Law: no-mocks',
+      }),
+    ).toBeVisible()
   })
 })

@@ -12,7 +12,12 @@
  * is where it is useful, and the badge is what keeps "a rule computed this" and "a model
  * thought this" from reading as the same claim.
  */
-import { type Diagnostic, diagnosticCode, type EntityRef } from '@agent-blueprint/core'
+import {
+  type Diagnostic,
+  diagnosticCode,
+  ENTITY_KIND_INFO,
+  type EntityRef,
+} from '@agent-blueprint/core'
 import { fixabilityOf } from '@agent-blueprint/ai'
 import {
   AlertTriangleIcon,
@@ -210,6 +215,88 @@ export function DiagnosticRow({
           reading what the finding means is the step before deciding to fix it. */}
       <DiagnosticHelp code={diagnostic.code} />
       <DiagnosticFix diagnostic={diagnostic} />
+      <Pointers diagnostic={diagnostic} onNavigate={onNavigate} />
     </div>
+  )
+}
+
+/** What a near miss looks like once it has been through JSON: the ref flattened. */
+interface NearMissData {
+  kind: string
+  id: string
+  because: string
+}
+
+function nearMissesOf(diagnostic: Diagnostic): NearMissData[] {
+  const raw: unknown = diagnostic.data?.['nearMisses']
+  if (!Array.isArray(raw)) return []
+  const out: NearMissData[] = []
+  for (const entry of raw as unknown[]) {
+    if (typeof entry !== 'object' || entry === null) continue
+    const { kind, id, because } = entry as Record<string, unknown>
+    if (typeof kind === 'string' && typeof id === 'string' && typeof because === 'string') {
+      out.push({ kind, id, because })
+    }
+  }
+  return out
+}
+
+/**
+ * Where else to look (P9-19).
+ *
+ * A finding's `ref` is the artifact it is filed against, and that is where the row navigates.
+ * But the cause is often somewhere else: a requirement fails because of a hook, a contradiction
+ * has a second half, a broken reference has a target. That is what `related` has always
+ * carried, and nothing rendered it — so a reader stood in the requirement editor looking for a
+ * problem that was three artifacts away.
+ *
+ * One chip per related artifact, on its own line under the message so the row stays a row.
+ * When the finding says why that artifact is related — a near miss carries its reason — the
+ * reason is the chip's title and, for the first one, sits beside it, because "its action is
+ * command, not secret-scan" is the whole fix.
+ */
+function Pointers({
+  diagnostic,
+  onNavigate,
+}: {
+  diagnostic: Diagnostic
+  onNavigate?: ((ref: EntityRef | undefined, nodeId: string | undefined) => void) | undefined
+}) {
+  const related = diagnostic.related ?? []
+  if (related.length === 0) return null
+  const reasons = new Map(
+    nearMissesOf(diagnostic).map((miss) => [`${miss.kind}:${miss.id}`, miss.because]),
+  )
+
+  return (
+    <ul
+      aria-label="Where to look"
+      className="text-muted-foreground flex basis-full flex-wrap items-center gap-x-1.5 gap-y-1 pl-7 text-[11px]"
+    >
+      <li className="shrink-0">Where to look:</li>
+      {related.map((ref, index) => {
+        const because = reasons.get(`${ref.kind}:${ref.id}`)
+        const label = `${ENTITY_KIND_INFO[ref.kind].label}: ${ref.id}`
+        return (
+          <li key={`${ref.kind}:${ref.id}`} className="flex min-w-0 items-center gap-1">
+            {onNavigate ? (
+              <button
+                type="button"
+                onClick={() => onNavigate(ref, undefined)}
+                title={because}
+                className="hover:border-accent hover:text-foreground rounded border px-1.5 py-0.5 font-mono"
+              >
+                {label}
+              </button>
+            ) : (
+              <span title={because} className="rounded border px-1.5 py-0.5 font-mono">
+                {label}
+              </span>
+            )}
+            {index === 0 && because ? <span className="min-w-0">— {because}</span> : null}
+          </li>
+        )
+      })}
+    </ul>
   )
 }

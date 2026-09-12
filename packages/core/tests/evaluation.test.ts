@@ -221,3 +221,142 @@ describe('healthSummary', () => {
     expect(health.topFindings[0]?.severity).toBe('error')
   })
 })
+
+/**
+ * Where a failed check nearly passed (P9-19).
+ *
+ * Reported from use: "Nothing in the Blueprint meets its check" on a requirement, and the
+ * cause was a hook with the right trigger and the wrong action type — three artifacts away,
+ * with nothing on screen pointing at it. A failed check knows what it looked at.
+ */
+describe('near misses', () => {
+  it('names the hook that has the trigger but not the action, and says which', async () => {
+    const blueprint = upsertEntity(await loadFixture(), 'hook', {
+      id: 'secret-scan-before-stop',
+      name: 'Secret scan before stop',
+      trigger: 'before-stop',
+      action: { type: 'command', command: 'dotnet tool run dotnet-secretscan --scan .' },
+      severity: 'critical',
+    })
+
+    const result = evaluateCheck(blueprint, {
+      type: 'hook-exists',
+      trigger: 'before-stop',
+      actionType: 'secret-scan',
+    })
+
+    expect(result.status).toBe('fail')
+    expect(result.nearMisses).toEqual([
+      {
+        ref: { kind: 'hook', id: 'secret-scan-before-stop' },
+        because: 'its action is command, not secret-scan',
+      },
+    ])
+  })
+
+  it('names the hook that has the action but not the trigger, the other way round', async () => {
+    const blueprint = await loadFixture()
+    const result = evaluateCheck(blueprint, {
+      type: 'hook-exists',
+      trigger: 'before-stop',
+      actionType: 'run-tests',
+    })
+
+    expect(result.status).toBe('fail')
+    expect(result.nearMisses?.[0]).toEqual({
+      ref: { kind: 'hook', id: 'run-tests-after-change' },
+      because: 'it runs on after-file-change, not before-stop',
+    })
+  })
+
+  it('leaves out a hook that matches neither, which is not a near miss', async () => {
+    const blueprint = await loadFixture()
+    const result = evaluateCheck(blueprint, {
+      type: 'hook-exists',
+      trigger: 'session-start',
+      actionType: 'secret-scan',
+    })
+    expect(result.status).toBe('fail')
+    expect(result.nearMisses).toBeUndefined()
+  })
+
+  it('carries the pointer onto the finding: in the message, as related, and as data', async () => {
+    let blueprint = upsertEntity(await loadFixture(), 'hook', {
+      id: 'secret-scan-before-stop',
+      name: 'Secret scan before stop',
+      trigger: 'before-stop',
+      action: { type: 'command', command: 'scan' },
+      severity: 'critical',
+    })
+    blueprint = upsertEntity(blueprint, 'requirement', {
+      id: 'security-enforcement',
+      name: 'Security enforcement',
+      statement: 'Secret scanning is enforced before the agent stops.',
+      level: 'must',
+      checks: [{ type: 'hook-exists', trigger: 'before-stop', actionType: 'secret-scan' }],
+    })
+
+    const finding = evaluateRequirements(blueprint).diagnostics.find(
+      (d) => d.code === 'BP-REQ-001' && d.ref?.id === 'security-enforcement',
+    )!
+
+    // The one line every surface shows carries the pointer, not only the structured fields.
+    expect(finding.message).toContain(
+      'The nearest is hook "Secret scan before stop": its action is command, not secret-scan.',
+    )
+    // `related` is what every findings list already navigates to.
+    expect(finding.related).toEqual([{ kind: 'hook', id: 'secret-scan-before-stop' }])
+    // And `data` is what the fix operation reads as evidence.
+    expect(finding.data).toMatchObject({
+      nearMisses: [
+        {
+          kind: 'hook',
+          id: 'secret-scan-before-stop',
+          because: 'its action is command, not secret-scan',
+        },
+      ],
+    })
+  })
+
+  it('says what a gate has instead of the criterion asked for', async () => {
+    const blueprint = await loadFixture()
+    const result = evaluateCheck(blueprint, {
+      type: 'gate-exists',
+      criterionKind: 'human-approval',
+    })
+    expect(result.status).toBe('fail')
+    expect(result.nearMisses?.[0]?.because).toMatch(/its criteria are .*; none is human-approval/)
+  })
+
+  it('tells a tagged-but-unheld skill from an agent whose skills lack the tag', async () => {
+    const blueprint = upsertEntity(await loadFixture(), 'skill', {
+      id: 'rust-basics',
+      name: 'Rust basics',
+      tags: ['rust'],
+      body: '## Instructions\n\nCargo.',
+    })
+    const result = evaluateCheck(blueprint, { type: 'agent-has-skill-tag', tag: 'rust' })
+
+    expect(result.status).toBe('fail')
+    const because = (result.nearMisses ?? []).map(
+      (miss) => `${miss.ref.kind}:${miss.ref.id} ${miss.because}`,
+    )
+    expect(because.some((line) => line.startsWith('skill:rust-basics it is tagged "rust"'))).toBe(
+      true,
+    )
+    expect(
+      because.some((line) => line.startsWith('agent:') && line.includes('is tagged "rust"')),
+    ).toBe(true)
+  })
+
+  it('lists the step types a workflow has instead of the one it needs', async () => {
+    const blueprint = await loadFixture()
+    const result = evaluateCheck(blueprint, {
+      type: 'workflow-has-node-type',
+      nodeType: 'human-approval',
+    })
+    expect(result.status).toBe('fail')
+    expect(result.nearMisses?.length).toBeGreaterThan(0)
+    expect(result.nearMisses?.[0]?.because).toMatch(/its steps are .*; none is human-approval/)
+  })
+})

@@ -1197,3 +1197,61 @@ describe('fixFindings keeps what the finding was not about', () => {
     expect(result.notes.join(' ')).toContain('Put back')
   })
 })
+
+/**
+ * A fix that may change one key inside an object and no other (P9-19).
+ *
+ * Reported from use: BP-HOOK-010 said a secret-scan hook had no command. The fix added a
+ * command and changed the action type to `command` on the way — clearing the finding and
+ * failing a requirement that asked for a secret-scan hook by name. The remedy is "fill in the
+ * command"; the allow-list now says exactly that.
+ */
+describe('fixFindings and the command inside a hook', () => {
+  it('takes the command and keeps the action type', async () => {
+    const blueprint = upsertEntity(fixture, 'hook', {
+      id: 'secret-scan-before-stop',
+      name: 'Secret scan before stop',
+      trigger: 'before-stop',
+      action: { type: 'secret-scan' },
+      severity: 'critical',
+    })
+    const answer = JSON.stringify({
+      artifacts: [
+        {
+          kind: 'hook',
+          artifact: {
+            id: 'secret-scan-before-stop',
+            name: 'Secret scan before stop',
+            trigger: 'before-stop',
+            action: { type: 'command', command: 'dotnet tool run dotnet-secretscan --scan .' },
+            severity: 'critical',
+          },
+        },
+      ],
+    })
+
+    const result = await fixFindings(
+      { client: replayClient([answer]).client },
+      { blueprint },
+      {
+        diagnostics: [
+          {
+            code: 'BP-HOOK-010',
+            severity: 'info',
+            message: 'Hook "Secret scan before stop" runs a secret-scan action but has no command.',
+            ref: { kind: 'hook', id: 'secret-scan-before-stop' },
+          },
+        ],
+      },
+    )
+
+    const after = findEntity(
+      applyChangeSet(blueprint, result.changeSet).blueprint,
+      'hook',
+      'secret-scan-before-stop',
+    )!
+    expect(after.action.command).toBe('dotnet tool run dotnet-secretscan --scan .')
+    // The type the model changed is the one thing the finding was not about.
+    expect(after.action.type).toBe('secret-scan')
+  })
+})

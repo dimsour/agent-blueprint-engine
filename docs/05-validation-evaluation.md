@@ -189,7 +189,21 @@ Evaluation semantics for each `RequirementCheck` (`packages/core/src/schema/qual
 | `text-mentions`          | Regex (case-insensitive) matches the concatenated text fields (`name`, `description`, `body`, plus `rule`, `guidance`, `whenToUse`, `statement`, `input` where present) of at least one entity of the given `kinds` (empty = all kinds). |
 | `ai-judged`              | Not evaluated here. Result `skipped`; `BP-REQ-004` when it is the only kind of check. With AI configured, `judgeRequirements` (docs/06) returns `pass`, `fail` or `unclear` with a rationale, and the last two become `BP-AI-REQ-001`.   |
 
-Result per requirement: `satisfied` (all non-skipped checks pass, at least one evaluated), `partial` (some pass), `unsatisfied` (none pass), `unverifiable` (no checks or only skipped). Mapped to `BP-REQ-001/002/003/004` as in §2.3. A `RequirementResult { ref, status, checks: { check, status: 'pass' | 'fail' | 'skipped', evidence?: EntityRef[] }[] }` type is returned alongside the diagnostics so the UI can render the ✓ / ⚠ / ✕ list with links to the evidence.
+Result per requirement: `satisfied` (all non-skipped checks pass, at least one evaluated), `partial` (some pass), `unsatisfied` (none pass), `unverifiable` (no checks or only skipped). Mapped to `BP-REQ-001/002/003/004` as in §2.3. A `RequirementResult { ref, status, checks: { check, status: 'pass' | 'fail' | 'skipped', evidence?: EntityRef[], nearMisses?: NearMiss[] }[] }` type is returned alongside the diagnostics so the UI can render the ✓ / ⚠ / ✕ list with links to the evidence.
+
+### Near misses (P9-19)
+
+A failed check knows what it looked at, and says which candidate came closest and why it fell short: `NearMiss { ref, because }`, at most three per check, where `because` is a clause — _"its action is command, not secret-scan"_, _"it runs on after-file-change, not before-stop"_, _"its criteria are tests-pass, review; none is human-approval"_, _"it is tagged "rust" but no agent holds it"_. Reported from use: a requirement failed with "nothing in the Blueprint meets its check" and the cause was a hook three artifacts away with the right trigger and the wrong action type. The check had looked straight at it.
+
+| `type`                                           | What counts as a near miss                                                                                                        |
+| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| `hook-exists`                                    | A hook meeting exactly one of the two filters; the clause names the one it misses                                                 |
+| `gate-exists`                                    | Every gate, with its criterion kinds, or "it has no criteria at all"                                                              |
+| `workflow-has-node-type`                         | Every workflow looked at, with its step types                                                                                     |
+| `agent-has-skill-tag`                            | A skill carrying the tag that no considered agent holds (fix: attach it), and an agent none of whose skills carry it (fix: a tag) |
+| `iron-law-matches`, `text-mentions`, `ai-judged` | None — a regular expression that matched nothing has no nearest candidate worth naming                                            |
+
+The near misses of every failed check reach the `BP-REQ-001` / `BP-REQ-002` diagnostic three ways, because three different readers need them: the first one is appended to the **message** (_"The nearest is hook "Secret scan before stop": its action is command, not secret-scan."_), since the message is the one line every surface shows; the refs go in **`related`**, which is what every findings list navigates to; and the full list goes in **`data.nearMisses`** as `{ kind, id, because }`, which is what `fixFindings` reads as evidence (docs/06).
 
 ## 5. Dependency graph and orphans (implemented, `dependencies/graph.ts`)
 

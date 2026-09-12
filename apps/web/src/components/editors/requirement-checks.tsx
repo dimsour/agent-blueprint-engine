@@ -58,6 +58,9 @@ function defaultsFor(type: CheckType): Check {
   }
 }
 
+/** Shown for a narrowing that is not set. Never stored: `set` maps it back to undefined. */
+const ANY = '(any)'
+
 function CheckFields({
   check,
   index,
@@ -102,19 +105,26 @@ function CheckFields({
         />
       )
     case 'hook-exists':
+      // Both narrowings are optional, and unset means "any". The select used to show a default
+      // that was not stored, so the screen said "before-stop" while the check accepted every
+      // trigger (P9-19). ANY is a real option now, and what is shown is what is checked.
       return (
         <>
           <SelectField
             label={label('trigger')}
-            value={(check['trigger'] ?? 'before-stop') as (typeof HOOK_TRIGGERS)[number]}
-            options={HOOK_TRIGGERS}
-            onChange={(trigger) => set({ trigger })}
+            help="The hook has to run on this trigger. Any: on whichever trigger it runs."
+            value={(check['trigger'] as string | undefined) ?? ANY}
+            options={[ANY, ...HOOK_TRIGGERS]}
+            onChange={(trigger) => set({ trigger: trigger === ANY ? undefined : trigger })}
           />
           <SelectField
             label={label('action')}
-            value={(check['actionType'] ?? 'run-tests') as (typeof HOOK_ACTION_TYPES)[number]}
-            options={HOOK_ACTION_TYPES}
-            onChange={(actionType) => set({ actionType })}
+            help="The hook's action type has to be exactly this — a command hook that scans for secrets is not a secret-scan hook. Any: whatever it does."
+            value={(check['actionType'] as string | undefined) ?? ANY}
+            options={[ANY, ...HOOK_ACTION_TYPES]}
+            onChange={(actionType) =>
+              set({ actionType: actionType === ANY ? undefined : actionType })
+            }
           />
         </>
       )
@@ -122,9 +132,12 @@ function CheckFields({
       return (
         <SelectField
           label={label('criterion')}
-          value={(check['criterionKind'] ?? 'tests-pass') as (typeof GATE_CRITERION_KINDS)[number]}
-          options={GATE_CRITERION_KINDS}
-          onChange={(criterionKind) => set({ criterionKind })}
+          help="A gate has to carry a criterion of this kind. Any: any gate at all."
+          value={(check['criterionKind'] as string | undefined) ?? ANY}
+          options={[ANY, ...GATE_CRITERION_KINDS]}
+          onChange={(criterionKind) =>
+            set({ criterionKind: criterionKind === ANY ? undefined : criterionKind })
+          }
         />
       )
     case 'agent-has-skill-tag':

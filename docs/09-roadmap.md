@@ -907,6 +907,18 @@ something, it says what and where that thing still exists.
 - Also strengthened, because it costs nothing: the worked example in the prompt now names this failure specifically — _"An empty list is not 'unchanged'. Copy every field across."_
 - Found while fixing it: the retry was gated on the first attempt producing ops. An answer whose every field is rejected produces none, which is a wrong answer worth correcting rather than a model declining. It is gated on having returned an artifact now.
 
+### P9-19 Point at where the problem is (done)
+
+- Package: `packages/core/src/validation/requirements.ts`, `apps/web/src/components/views/diagnostic-row.tsx`, `evaluation-view.tsx`, `editors/requirement-checks.tsx`
+- Depends on: P9-10
+- Description: Reported from use, and worth quoting: _"I was getting an error in the Requirements → Security Enforcement artifact, but the error comes from a hook. It should show me exactly where the problem is."_ The finding said "nothing in the Blueprint meets its check", the cause was a hook with the right trigger and the wrong action type, and the reader was three artifacts away with nothing on screen pointing at it. Finding it took reading the check's source.
+- Acceptance: a failed check names the artifact that came closest and why it fell short; every findings list shows where else to look and navigates there; the check editor shows what is actually stored.
+- Verify: `pnpm --filter @agent-blueprint/core test`, `pnpm --filter web test`
+- Built, in core: **near misses**. A failed check knows what it looked at, so it says which candidate came closest and the one thing that stopped it — _"its action is command, not secret-scan"_, _"it runs on after-file-change, not before-stop"_, _"it is tagged "rust" but no agent holds it"_. The clause is the fix, most of the time. They reach the diagnostic three ways because three readers need them: the first in the **message** (the one line every surface shows), the refs in **`related`** (what every list navigates to), the full list in **`data`** (what the AI fix reads as evidence).
+- Built, generic: **Where to look**. `related` had been on the diagnostic since P1 — contradictions and broken references already filled it — and nothing had ever rendered it. One row of chips under the message in every findings list, each navigating to its artifact, with the reason beside the first. Contradictions and broken references gained a pointer for free.
+- Found and fixed, ours: the check editor showed `before-stop` / `run-tests` in its selects when nothing was stored, so the screen said one thing and the check did another. `(any)` is a real option now, with help that says what "any" means — and that _"a command hook that scans for secrets is not a secret-scan hook"_, which is this bug in one sentence.
+- Found and fixed, ours: the AI fix for `BP-HOOK-010` was allowed to change the whole `action`, and had taken the route of changing its type — clearing that finding and failing this requirement. The remedy is "fill in the command", so the allow-list now says `action.command`, and the merge learned one level of path.
+
 ### Open questions
 
 1. ~~**The logo needs a mark-only export.**~~ Settled: rather than crop by CSS, the cut is a script. `pnpm --filter web logo` measures nothing at run time — the rectangles live in `e2e/logo-assets.spec.ts`, taken from the artwork's alpha channel — and writes the three assets the app imports. A redrawn logo needs that one command and a re-measurement, and no component changes.

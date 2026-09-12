@@ -179,7 +179,10 @@ const FIELDS_BY_CODE: Record<string, readonly string[]> = {
   'BP-LAW-001': ['scope'],
   'BP-LAW-011': ['criteria'],
   'BP-GATE-010': ['criteria'],
-  'BP-HOOK-010': ['action'],
+  // The command inside the action, not the action: the remedy is "fill in the command", and a
+  // model allowed the whole object changed the type instead — clearing this finding and failing
+  // a requirement that asked for a secret-scan hook by name (P9-19).
+  'BP-HOOK-010': ['action.command'],
   'BP-REF-001': ['skillIds', 'workflowIds', 'ironLawIds', 'ruleIds', 'toolIds', 'referenceIds'],
   'BP-REQ-001': ['checks'],
   'BP-REQ-002': ['checks'],
@@ -677,8 +680,14 @@ function onlyWhatWasAsked(
   for (const [field, value] of Object.entries(proposed)) {
     if (field === 'id') continue
     if (allowed) {
-      if (allowed.has(field)) merged[field] = value
-      else if (!equal(value, merged[field])) rejected.push(field)
+      if (allowed.has(field)) {
+        merged[field] = value
+      } else if (subfieldsAllowed(allowed, field).length > 0) {
+        // `action.command`: the model may change one key inside the object and no other.
+        merged[field] = mergeSubfields(merged[field], value, subfieldsAllowed(allowed, field))
+      } else if (!equal(value, merged[field])) {
+        rejected.push(field)
+      }
       continue
     }
     if (isEmpty(value) && !isEmpty(merged[field])) restored.push(field)
@@ -695,6 +704,21 @@ function onlyWhatWasAsked(
       `Put back ${restored.join(', ')} on "${id}", which came back empty and was not what the ${about.length === 1 ? 'finding was' : 'findings were'} about.`,
     )
   }
+  return merged
+}
+
+/** The keys inside `field` the allow-list names as `field.key`. */
+function subfieldsAllowed(allowed: ReadonlySet<string>, field: string): string[] {
+  return [...allowed]
+    .filter((entry) => entry.startsWith(`${field}.`))
+    .map((entry) => entry.slice(field.length + 1))
+}
+
+/** The original object with only the named keys taken from the proposal. */
+function mergeSubfields(original: unknown, proposed: unknown, keys: readonly string[]): unknown {
+  if (!isRecord(original) || !isRecord(proposed)) return original
+  const merged: Record<string, unknown> = { ...original }
+  for (const key of keys) if (key in proposed) merged[key] = proposed[key]
   return merged
 }
 

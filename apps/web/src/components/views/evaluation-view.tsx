@@ -359,6 +359,24 @@ export function EvaluationView() {
                                 {ENTITY_KIND_INFO[ref.kind].label}: {ref.id}
                               </button>
                             ))}
+                            {/* A failed check says what came closest and why it fell short,
+                                one line each (P9-19). The reason is the fix, most of the time. */}
+                            {(check.nearMisses ?? []).map((miss) => (
+                              <span
+                                key={`near:${miss.ref.kind}:${miss.ref.id}`}
+                                className="text-muted-foreground flex basis-full items-baseline gap-1.5 pl-2"
+                              >
+                                <span className="shrink-0">nearest:</span>
+                                <button
+                                  type="button"
+                                  onClick={() => select(miss.ref)}
+                                  className="hover:border-accent hover:text-foreground rounded border px-1.5 py-0.5 font-mono"
+                                >
+                                  {ENTITY_KIND_INFO[miss.ref.kind].label}: {miss.ref.id}
+                                </button>
+                                <span className="min-w-0">— {miss.because}</span>
+                              </span>
+                            ))}
                           </li>
                         )
                       })}
