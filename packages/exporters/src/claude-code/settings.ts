@@ -360,7 +360,7 @@ export function lowerHooks(
   if (enforced.length > 0) {
     push('Stop', undefined, {
       type: 'prompt',
-      prompt: hookPrompt({ action: { type: 'check-iron-laws' } } as Hook, enforced),
+      prompt: hookPrompt({ action: { type: 'check-iron-laws' } } as Hook, enforced, 'judge'),
       statusMessage: 'Checking the Iron Laws',
     })
   }
@@ -412,7 +412,8 @@ function handlerFor(
   }
   return {
     type: 'prompt',
-    prompt: hookPrompt(hook, laws),
+    // A prompt hook is answered by a judge model, not by the agent it checks.
+    prompt: hookPrompt(hook, laws, 'judge'),
     statusMessage: hookStatusMessage(hook),
   }
 }

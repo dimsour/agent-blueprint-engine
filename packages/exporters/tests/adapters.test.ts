@@ -115,7 +115,10 @@ describe('claude-code adapter', () => {
       permissions: { allow: string[]; ask: string[]; deny: string[] }
       hooks: Record<
         string,
-        { matcher?: string; hooks: { type: string; command?: string; if?: string }[] }[]
+        {
+          matcher?: string
+          hooks: { type: string; command?: string; if?: string; prompt?: string }[]
+        }[]
       >
       autoMemoryEnabled: boolean
     }
@@ -139,6 +142,11 @@ describe('claude-code adapter', () => {
     // The gate command and the Iron Law check both run when the session stops.
     const stop = settings.hooks.Stop ?? []
     expect(stop[0]?.hooks.map((handler) => handler.type)).toEqual(['command', 'prompt'])
+    // The prompt is answered by a judge, not the agent: it must say when to answer ok.
+    const judge = stop[0]?.hooks[1]?.prompt
+    expect(judge).toContain('Never Fake Verification')
+    expect(judge).toContain('Answer {"ok": true} unless')
+    expect(judge).not.toContain('Never claim a verification you did not run')
     expect(stop[0]?.hooks[0]?.command).toBe(wrapped('dotnet test', 2))
     expect(settings.autoMemoryEnabled).toBe(true)
   })

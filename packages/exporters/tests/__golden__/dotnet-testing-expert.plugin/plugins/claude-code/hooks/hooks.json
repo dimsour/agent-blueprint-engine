@@ -87,7 +87,7 @@
           },
           {
             "type": "prompt",
-            "prompt": "Check the work just completed against these Iron Laws:\n\n- Never Fake Verification: Never claim code works, compiles, or passes tests without actually running the verification and reading its output.\n\nIf any law was violated, say which one and correct it before finishing. Never claim a verification you did not run.",
+            "prompt": "Claude has finished a turn and wants to stop. These Iron Laws bind its work:\n\n- Never Fake Verification: Never claim code works, compiles, or passes tests without actually running the verification and reading its output.\n\nAnswer {\"ok\": true} unless the transcript shows the work of this turn breaking one of these laws. Then answer {\"ok\": false, \"reason\": \"<law>: what was done, and what to correct\"}. Unfinished work, missing evidence and checks nobody ran are not violations; do not withhold ok for them.",
             "statusMessage": "Checking the Iron Laws"
           }
         ]

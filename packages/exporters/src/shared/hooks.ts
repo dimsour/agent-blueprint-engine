@@ -31,10 +31,23 @@ export function hookStatusMessage(hook: Hook): string {
  * The prompt used by `prompt-check` and `check-iron-laws` hooks. For iron laws the text is
  * generated from the laws themselves so the check cannot drift from the Blueprint.
  */
-export function hookPrompt(hook: Hook, laws: readonly IronLaw[]): string {
-  if (hook.action.type === 'check-iron-laws') return ironLawCheckPrompt(laws)
+export function hookPrompt(
+  hook: Hook,
+  laws: readonly IronLaw[],
+  reader: PromptReader = 'agent',
+): string {
+  if (hook.action.type === 'check-iron-laws') {
+    return reader === 'judge' ? ironLawJudgePrompt(laws) : ironLawCheckPrompt(laws)
+  }
   return hook.action.prompt ?? `Check: ${hook.description ?? hook.name}`
 }
+
+/**
+ * Who reads a generated prompt. `agent`: the model doing the work, told what to check before
+ * it finishes (a reminder printed into the session). `judge`: a separate model the harness
+ * asks whether the work may stop, which answers `ok` or not — Claude Code's prompt hook.
+ */
+export type PromptReader = 'agent' | 'judge'
 
 export function ironLawCheckPrompt(laws: readonly IronLaw[]): string {
   if (laws.length === 0) return 'Check the response against the Iron Laws before finishing.'
@@ -43,6 +56,22 @@ export function ironLawCheckPrompt(laws: readonly IronLaw[]): string {
     'Check the work just completed against these Iron Laws:',
     list,
     'If any law was violated, say which one and correct it before finishing. Never claim a verification you did not run.',
+  ].join('\n\n')
+}
+
+/**
+ * The same check put to a judge, which sees the transcript and is asked one thing: did this
+ * turn break a law. Worded as the reminder above, the judge refused to certify what it could
+ * not see — "never claim a verification you did not run" — and blocked every stop of an
+ * unfinished task.
+ */
+export function ironLawJudgePrompt(laws: readonly IronLaw[]): string {
+  if (laws.length === 0) return 'Answer {"ok": true}: no Iron Law binds this work.'
+  const list = laws.map((law) => `- ${law.name}: ${law.rule}`).join('\n')
+  return [
+    'Claude has finished a turn and wants to stop. These Iron Laws bind its work:',
+    list,
+    'Answer {"ok": true} unless the transcript shows the work of this turn breaking one of these laws. Then answer {"ok": false, "reason": "<law>: what was done, and what to correct"}. Unfinished work, missing evidence and checks nobody ran are not violations; do not withhold ok for them.',
   ].join('\n\n')
 }
 
