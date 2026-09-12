@@ -30,7 +30,7 @@ codex plugin marketplace add <owner>/<repo>
 
 ## Before you trust it
 
-- **OpenAI Codex:** Hooks are in `plugins/codex/hooks/hooks.json`; review them before installing. Subagents, permissions and memory are not part of a Codex plugin; the persona and Iron Laws are the `guide` skill.
+- **OpenAI Codex:** Hooks are in `plugins/codex/hooks/hooks.json`; review them, then trust them with `/hooks` — until then Codex skips them. The persona and Iron Laws are loaded at session start by one of those hooks, and are also the `guide` skill. Subagents, permissions and memory are not part of a Codex plugin.
 
 ## Changing the agent
 

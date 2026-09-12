@@ -154,26 +154,38 @@ marketplace is `.agents/plugins/marketplace.json` at the repository root with a 
 .agents/plugins/marketplace.json         name = Blueprint id; one plugin, source { source: local, path: ./plugins/codex }
 plugins/codex/
   .codex-plugin/plugin.json              name = Blueprint id, version, description, skills: ./skills/, interface
-  skills/guide/SKILL.md                  what AGENTS.md would carry: persona, laws, rules, command policy
+  instructions.md                        what AGENTS.md would carry: persona, laws, rules, command policy (P9-35)
+  skills/guide/SKILL.md                  the same text as a skill, for a session whose hooks are not trusted
   skills/guide/references/<id>.md        references attached only to agents
   skills/<id>/SKILL.md + agents/openai.yaml   skills and workflows, as in the portable tree
-  hooks/hooks.json                       hooks with inline commands, gates, the law reminder
+  hooks/hooks.json                       the hooks, gates, the law reminder, and a SessionStart hook that prints
+                                         where the plugin is and then instructions.md
+  hooks/scripts/<id>.sh                  hook scripts, run as bash "${PLUGIN_ROOT}/hooks/scripts/<id>.sh" (P9-35)
   .mcp.json                              server entries with env variable names (values never)
 ```
 
 Installing, once the repository is on GitHub: `codex plugin marketplace add <owner>/<repo>`, then
 the plugin from the Plugins directory. Skills are qualified by the plugin name: `$<id>:<skill>`.
 
+A plugin's hooks are "non-managed hooks, so Codex skips them until the user reviews and trusts
+the current hook definition" — `/hooks` in the CLI does that. Hook commands "receive the
+Codex-specific environment variables `PLUGIN_ROOT` and `PLUGIN_DATA`", which is how the
+scripts and the instructions are found (P9-35). Plain stdout from a `SessionStart` hook "is
+added as extra developer context", and a hook matching `source: "compact"` delivers it again
+after compaction; the instructions travel that way, and the `guide` skill is the same text
+for a session whose hooks are not trusted yet. Hook scripts "must exist in the execution
+environment; installing a plugin on the web doesn't deploy them".
+
 What a Codex plugin has no place for, and what the adapter does instead (`capabilitiesFor`
 gives the compatibility view this matrix when the layout is on):
 
-| Concept             | Project layout            | Plugin layout                                                                                                         |
-| ------------------- | ------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| Instructions        | `AGENTS.md`               | The `guide` skill, loaded when asked or when its description matches, not always. Adapted. `BP-CODEX-003` on a clash. |
-| Subagents           | `.codex/agents/<id>.toml` | None: a plugin installs no agents. Delegating steps adopt the persona. Unsupported.                                   |
-| Permissions, memory | `.codex/config.toml`      | None: a plugin carries no config. The command policy is in the guide. Unsupported.                                    |
-| Rules with paths    | nested `AGENTS.md`        | In the guide with an "Applies to" note. Adapted.                                                                      |
-| Hook scripts        | `.codex/hooks/<id>.sh`    | Not emitted: Codex documents no variable a plugin hook could reach its own files by. Reported.                        |
+| Concept             | Project layout            | Plugin layout                                                                                                                                    |
+| ------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Instructions        | `AGENTS.md`               | `instructions.md`, printed by a `SessionStart` hook once the hooks are trusted; the `guide` skill otherwise. Adapted. `BP-CODEX-003` on a clash. |
+| Subagents           | `.codex/agents/<id>.toml` | None: a plugin installs no agents. Delegating steps adopt the persona. Unsupported.                                                              |
+| Permissions, memory | `.codex/config.toml`      | None: a plugin carries no config. The command policy is in the guide. Unsupported.                                                               |
+| Rules with paths    | nested `AGENTS.md`        | In the guide with an "Applies to" note. Adapted.                                                                                                 |
+| Hook scripts        | `.codex/hooks/<id>.sh`    | `hooks/scripts/<id>.sh`, run through `PLUGIN_ROOT`. Native.                                                                                      |
 
 ## Known limitations and open questions
 

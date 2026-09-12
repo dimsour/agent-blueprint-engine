@@ -3,18 +3,19 @@
  *
  * A Codex plugin carries skills, hooks and MCP servers, and is installed from a marketplace
  * file in a Git repository. It has no instruction file, no agent files and no config, so the
- * persona and laws become a skill, subagents and permissions are reported, and everything
- * else is the project mapping at a different root. Layout and manifest fields:
- * docs/harness/codex.md, "Plugin layout".
+ * persona and laws are injected by a SessionStart hook and doubled as a skill, subagents and
+ * permissions are reported, and everything else is the project mapping at a different root.
+ * Layout and manifest fields: docs/harness/codex.md, "Plugin layout".
  *
  * ```
  * .agents/plugins/marketplace.json         the marketplace listing this one plugin
  * plugins/codex/
  *   .codex-plugin/plugin.json              name = Blueprint id, version = Blueprint version
- *   skills/guide/SKILL.md                  the composed instructions, as the skill to read first
+ *   instructions.md                        the composed instructions, injected at SessionStart (P9-35)
+ *   skills/guide/SKILL.md                  the same text as a skill, for a session whose hooks are not trusted
  *   skills/guide/references/<id>.md        references attached only to agents
  *   skills/<id>/SKILL.md + agents/openai.yaml
- *   hooks/hooks.json
+ *   hooks/hooks.json, hooks/scripts/<id>.sh
  *   .mcp.json
  * ```
  */
@@ -22,6 +23,7 @@ import type { Blueprint } from '@agent-blueprint/core'
 import { stableJson } from '@agent-blueprint/core'
 
 import { markdownWithFrontmatter } from '../shared/frontmatter'
+import { type ScriptLocation } from '../shared/hooks'
 import { composeInstructions, lawsForAgent, primaryAgentOf } from '../shared/instructions'
 import { firstSentence } from '../shared/markdown'
 import { type Phrasing, SHARED_PHRASING } from '../shared/phrasing'
@@ -32,13 +34,22 @@ import {
   generatedFile,
   type GeneratedFile,
 } from '../types'
-import { buildHooks } from './config'
+import { buildHooks, hookScriptFiles } from './config'
 import { openAiSidecar } from './sidecar'
 
 export const CODEX_PLUGIN_ROOT = 'plugins/codex'
 export const CODEX_MARKETPLACE_FILE = '.agents/plugins/marketplace.json'
 /** The skill that carries what `AGENTS.md` would have. */
 export const GUIDE_SKILL_ID = 'guide'
+
+/**
+ * Where a plugin keeps its hook scripts (P9-35). `PLUGIN_ROOT` is the variable Codex gives
+ * a plugin's hook commands for the installed plugin's directory.
+ */
+export const CODEX_PLUGIN_SCRIPTS: ScriptLocation = {
+  dir: `${CODEX_PLUGIN_ROOT}/hooks/scripts`,
+  invoke: (path) => `bash "\${PLUGIN_ROOT}/${path.slice(CODEX_PLUGIN_ROOT.length + 1)}"`,
+}
 
 /**
  * Codex qualifies a plugin's skills by the plugin name, and a plugin installs no subagents,
@@ -86,16 +97,32 @@ export function compileCodexPlugin(blueprint: Blueprint): CompileResult {
   const phrasing = codexPluginPhrasing(blueprint.id)
   const skillsRoot = `${CODEX_PLUGIN_ROOT}/skills`
 
-  // --- The guide: what AGENTS.md would have carried, as the skill to read first -------------
+  // --- The instructions: what AGENTS.md would have carried ----------------------------------
+  // Injected at SessionStart, where a hook's stdout becomes developer context (P9-35), and
+  // doubled as the guide skill for a session whose hooks the user has not trusted yet.
   const policy = commandPolicySection(primary)
-  const instructions = composeInstructions(blueprint, {
-    phrasing,
-    sourcePath: 'blueprint/',
-    nativePathScopedRules: false,
-    memoryNative: false,
-    referenceLink: (referenceId) => `(\`references/${referenceId}.md\` beside this skill)`,
-    ...(policy ? { extraSections: [{ title: 'Command policy', body: policy }] } : {}),
-  })
+  const compose = (referenceLink: (referenceId: string) => string) =>
+    composeInstructions(blueprint, {
+      phrasing,
+      sourcePath: 'blueprint/',
+      nativePathScopedRules: false,
+      memoryNative: false,
+      referenceLink,
+      ...(policy ? { extraSections: [{ title: 'Command policy', body: policy }] } : {}),
+    })
+  const referencesDir = `skills/${GUIDE_SKILL_ID}/references`
+  files.push(
+    generatedFile(
+      `${CODEX_PLUGIN_ROOT}/instructions.md`,
+      compose((referenceId) => `(\`${referencesDir}/${referenceId}.md\` in this plugin)`).content,
+      'markdown',
+      'codex',
+      [...(primary ? [{ kind: 'agent' as const, id: primary.id }] : [])],
+    ),
+  )
+  const instructions = compose(
+    (referenceId) => `(\`references/${referenceId}.md\` beside this skill)`,
+  )
   files.push(
     generatedFile(
       `${skillsRoot}/${GUIDE_SKILL_ID}/SKILL.md`,
@@ -126,8 +153,8 @@ export function compileCodexPlugin(blueprint: Blueprint): CompileResult {
     issue(
       'ironLaws',
       'adapted',
-      `A Codex plugin has no instruction file. The persona, Iron Laws and rules are the \`$${blueprint.id}:${GUIDE_SKILL_ID}\` skill, which the model loads when asked or when the description matches, rather than always.`,
-      { adaptation: `${skillsRoot}/${GUIDE_SKILL_ID}/SKILL.md` },
+      `A Codex plugin has no instruction file. The persona, Iron Laws and rules are instructions.md, which a SessionStart hook prints into every session once the plugin's hooks are trusted with /hooks; until then they are the \`$${blueprint.id}:${GUIDE_SKILL_ID}\` skill, loaded when asked or when its description matches.`,
+      { adaptation: `${CODEX_PLUGIN_ROOT}/instructions.md` },
     ),
   )
 
@@ -173,35 +200,37 @@ export function compileCodexPlugin(blueprint: Blueprint): CompileResult {
     )
   }
 
-  // --- Hooks: inline commands only; a plugin's root has no documented variable ------------
-  const scripted = blueprint.hooks.filter((hook) => hook.action.script)
-  const withoutScripts: Blueprint = {
-    ...blueprint,
-    hooks: blueprint.hooks.filter((hook) => !hook.action.script),
-  }
-  for (const hook of scripted) {
-    issues.push(
-      issue(
-        'hooks',
-        'unsupported',
-        `Hook "${hook.name}" runs a script, and Codex documents no variable a plugin's hook could reach its own files by; the hook was not emitted.`,
-        { ref: { kind: 'hook', id: hook.id } },
-      ),
-    )
-  }
-  const hooks = buildHooks(withoutScripts, lawsForAgent(blueprint, primary?.id))
-  issues.push(...hooks.issues)
-  if (hooks.hooks) {
-    files.push(
-      generatedFile(
-        `${CODEX_PLUGIN_ROOT}/hooks/hooks.json`,
-        stableJson({ hooks: hooks.hooks }),
-        'json',
-        'codex',
-        [],
-      ),
-    )
-  }
+  // --- Hooks, with their scripts reached through PLUGIN_ROOT (P9-35) -----------------------
+  const lowered = buildHooks(blueprint, lawsForAgent(blueprint, primary?.id), CODEX_PLUGIN_SCRIPTS)
+  issues.push(...lowered.issues)
+  const hooks = { ...(lowered.hooks ?? {}) }
+  // The instructions reach the model through SessionStart: plain stdout on that event is
+  // added as developer context. The first line says where the plugin is, so a reference the
+  // instructions name can be read from there.
+  hooks.SessionStart = [
+    ...(hooks.SessionStart ?? []),
+    {
+      hooks: [
+        {
+          type: 'command' as const,
+          command:
+            'printf \'%s\\n\\n\' "This plugin is installed at ${PLUGIN_ROOT}."; cat "${PLUGIN_ROOT}/instructions.md"',
+          statusMessage: `Loading the ${blueprint.name} instructions`,
+        },
+      ],
+    },
+  ]
+  const events = Object.fromEntries(Object.entries(hooks).sort(([a], [b]) => (a < b ? -1 : 1)))
+  files.push(
+    generatedFile(
+      `${CODEX_PLUGIN_ROOT}/hooks/hooks.json`,
+      stableJson({ hooks: events }),
+      'json',
+      'codex',
+      [],
+    ),
+  )
+  files.push(...hookScriptFiles(blueprint, CODEX_PLUGIN_SCRIPTS))
 
   // --- MCP servers: names of variables, never values -----------------------------------------
   const mcpTools = blueprint.tools.filter((tool) => tool.mcp)

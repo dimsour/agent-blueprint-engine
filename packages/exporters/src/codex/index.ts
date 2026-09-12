@@ -153,7 +153,7 @@ const pluginCapabilities: CapabilityMatrix = {
   hooks: {
     support: 'native',
     explanation:
-      "Hooks compile to the plugin's `hooks/hooks.json`. Hooks with a script are not emitted: Codex documents no variable a plugin hook could reach its own files by.",
+      "Hooks compile to the plugin's `hooks/hooks.json`, with scripts beside it run through `PLUGIN_ROOT`, and run in every session once the plugin's hooks are trusted with `/hooks`.",
   },
   permissions: {
     support: 'unsupported',
@@ -177,12 +177,12 @@ const pluginCapabilities: CapabilityMatrix = {
   ironLaws: {
     support: 'adapted',
     explanation:
-      'A Codex plugin has no instruction file. The persona and Iron Laws are the `guide` skill, loaded when asked or when its description matches rather than always.',
+      "A Codex plugin has no instruction file. The persona and Iron Laws are `instructions.md`, printed into every session by a SessionStart hook once the plugin's hooks are trusted; until then they are the `guide` skill, loaded when asked or when its description matches.",
   },
   references: {
     support: 'adapted',
     explanation:
-      'References attached to a skill are copied beside it; the others live beside the guide skill and are named from it.',
+      'References attached to a skill are copied beside it; the others live beside the guide skill and are named from the instructions, which say where the plugin is installed.',
   },
 }
 

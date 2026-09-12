@@ -12,6 +12,17 @@
         ]
       }
     ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "printf '%s\\n\\n' \"This plugin is installed at ${PLUGIN_ROOT}.\"; cat \"${PLUGIN_ROOT}/instructions.md\"",
+            "statusMessage": "Loading the .NET Testing Expert instructions"
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [

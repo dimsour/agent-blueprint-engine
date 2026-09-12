@@ -678,14 +678,34 @@ describe('codex plugin layout', () => {
     expect(paths.some((path) => path.includes('/agents/reviewer'))).toBe(false)
     const codex = issues.filter((issue) => issue.harnessId === 'codex')
     expect(codex.find((issue) => issue.ref?.id === 'reviewer')?.support).toBe('unsupported')
-    // A scripted hook has no way to reach its script from a plugin, so it is not emitted.
-    expect(codex.find((issue) => issue.ref?.id === 'run-tests-after-change')?.support).toBe(
-      'unsupported',
-    )
-    // The gate's Stop hook is still there; the scripted PostToolUse hook is not.
+    // A scripted hook reaches its script through PLUGIN_ROOT (P9-35).
+    expect(
+      codex.some(
+        (issue) => issue.ref?.id === 'run-tests-after-change' && issue.support === 'unsupported',
+      ),
+    ).toBe(false)
+    expect(paths).toContain('plugins/codex/hooks/scripts/run-tests-after-change.sh')
     const hooks = textOf(files.find((f) => f.path === 'plugins/codex/hooks/hooks.json'))
     expect(hooks).toContain('"Stop"')
-    expect(hooks).not.toContain('PostToolUse')
+    expect(hooks).toContain(
+      'bash \\"${PLUGIN_ROOT}/hooks/scripts/run-tests-after-change.sh\\"',
+    )
+  })
+
+  it('injects the instructions at session start and keeps them as the guide skill', async () => {
+    const { files, issues } = await asPlugin()
+    const hooks = JSON.parse(
+      textOf(files.find((f) => f.path === 'plugins/codex/hooks/hooks.json')),
+    ) as { hooks: { SessionStart: { hooks: { command: string }[] }[] } }
+    const command = hooks.hooks.SessionStart.at(-1)!.hooks[0]!.command
+    expect(command).toContain('This plugin is installed at ${PLUGIN_ROOT}.')
+    expect(command).toContain('cat "${PLUGIN_ROOT}/instructions.md"')
+    const instructions = textOf(files.find((f) => f.path === 'plugins/codex/instructions.md'))
+    const guide = textOf(files.find((f) => f.path === 'plugins/codex/skills/guide/SKILL.md'))
+    expect(instructions).toContain('## Iron Laws')
+    expect(guide).toContain('## Iron Laws')
+    const laws = issues.find((i) => i.harnessId === 'codex' && i.concept === 'ironLaws')
+    expect(laws?.adaptation).toBe('plugins/codex/instructions.md')
   })
 
   it('speaks the plugin invocation syntax in the workflow skills', async () => {

@@ -1075,10 +1075,21 @@ something, it says what and where that thing still exists.
 - Built: `permissionHandlers` over the lists `lowerPermissions` already produced, `AgentFileOptions.permissionMode`, the reworded matrix, the golden.
 - Not built: enforcing allow — by design, above; `hooks` and `mcpServers` on a plugin's agents, which Claude also ignores and the adapter never wrote.
 
+### P9-35 A Codex plugin that loads its instructions and runs its scripts (done)
+
+- Package: `packages/exporters` (`codex/plugin.ts`)
+- Depends on: P9-28
+- Description: P9-28 left two things out with a reason: hook scripts, because Codex documented no variable a plugin hook could reach its own files by, and an always-loaded instruction file, because a plugin had none. The plugin build reference now documents both doors: hook commands receive `PLUGIN_ROOT`, and plain stdout from a `SessionStart` hook is added as developer context, again after compaction. What the Claude plugin does the Codex plugin can now do too.
+- Acceptance: a hook with a script is emitted as `hooks/scripts/<id>.sh` and run as `bash "${PLUGIN_ROOT}/hooks/scripts/<id>.sh"`, with no unsupported issue; `instructions.md` is at the plugin root and a `SessionStart` hook prints the installation path and then the file; the `guide` skill stays, for a session whose hooks are not trusted; the matrix and the README say so, including that Codex skips a plugin's hooks until `/hooks` trusts them.
+- Verify: `pnpm --filter @agent-blueprint/exporters test`
+- Built: `CODEX_PLUGIN_SCRIPTS`, the SessionStart hook, `instructions.md` composed by the same call as the guide, the golden.
+- Not built: permissions as `PreToolUse` hooks, which P9-34 did for Claude — a Codex handler has a tool-name `matcher` but no `if`, so matching a command pattern would need a script that parses the hook's JSON input, which the compiler would be inventing. Recorded under Open questions.
+
 ### Open questions
 
-1. ~~**The logo needs a mark-only export.**~~ Settled: rather than crop by CSS, the cut is a script. `pnpm --filter web logo` measures nothing at run time — the rectangles live in `e2e/logo-assets.spec.ts`, taken from the artwork's alpha channel — and writes the three assets the app imports. A redrawn logo needs that one command and a re-measurement, and no component changes.
-2. **P9-03 removed the guided path**, which was the one thing in the product aimed at someone who has never built an agent system. P9-06 is the replacement and now has to carry it: until the tutorial exists, a first-time user reaches an empty editor with no idea what to add. Restoring the old wizard is not the fallback — it was a second, worse editor — but P9-06 is no longer optional polish. The steps are in the git history if the decision is ever revisited.
+1. **Permissions in a Codex plugin.** Codex hooks have `PreToolUse` with a `permissionDecision` output, as Claude's do, but filter by a regex on the tool name only; there is no `if` in permission-rule syntax. Enforcing `Bash(git push *)` from a plugin would need a script that reads the hook's JSON input and matches the command itself — with no JSON tool guaranteed on the machine — and one that fails closed. Left as the command policy in the instructions until Codex documents an argument filter.
+2. ~~**The logo needs a mark-only export.**~~ Settled: rather than crop by CSS, the cut is a script. `pnpm --filter web logo` measures nothing at run time — the rectangles live in `e2e/logo-assets.spec.ts`, taken from the artwork's alpha channel — and writes the three assets the app imports. A redrawn logo needs that one command and a re-measurement, and no component changes.
+3. **P9-03 removed the guided path**, which was the one thing in the product aimed at someone who has never built an agent system. P9-06 is the replacement and now has to carry it: until the tutorial exists, a first-time user reaches an empty editor with no idea what to add. Restoring the old wizard is not the fallback — it was a second, worse editor — but P9-06 is no longer optional polish. The steps are in the git history if the decision is ever revisited.
 
 ## Deferred by design
 
