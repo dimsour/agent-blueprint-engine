@@ -185,5 +185,18 @@ test.describe('screenshots', () => {
       .click()
     await expect(inspector).toContainText('Tests must pass')
     await shoot(page, 'gate-editor')
+
+    // The assistant and GitHub each get a part too, and the honest picture of each without
+    // a key or a token is Settings: where the endpoint is chosen and where the token is
+    // proved, one card each, scrolled to the card the part is about.
+    await page.goto('/settings')
+    await page
+      .getByRole('heading', { name: 'AI endpoint' })
+      .evaluate((heading) => heading.scrollIntoView({ block: 'start' }))
+    await shoot(page, 'settings-ai')
+    await page
+      .getByRole('heading', { name: 'GitHub' })
+      .evaluate((heading) => heading.scrollIntoView({ block: 'start' }))
+    await shoot(page, 'settings-github')
   })
 })

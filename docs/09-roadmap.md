@@ -1117,6 +1117,17 @@ something, it says what and where that thing still exists.
 - Found by the axe sweep: a `<pre>` that scrolls sideways is a scrollable region a keyboard must be able to reach. Each code block is focusable and named by the path it shows.
 - Not built: a link from each part to the matching field of an open project, which needs a project; a per-harness filter of the tables.
 
+### P9-39 The tutorial's contents stay in reach (done)
+
+- Package: `apps/web/src/components/tutorial/`, `apps/web/e2e/screenshots.spec.ts`, `apps/web/e2e/header.spec.ts`
+- Depends on: P9-38
+- Description: Reported from use: the two rows of links at the top of the tutorial were gone after the first screen, and a reader half-way down a page of twenty-two sections had no way to get anywhere but by scrolling. Also reported: the parts explained every kind of artifact and said nothing about the assistant or GitHub beyond the loop's one step each.
+- Acceptance: the contents are on screen wherever the reader is — beside the text on a wide screen, at its top on a narrow one — and mark the section on screen; a jump lands on the heading and not under the bar; the assistant and GitHub each have a part with the same shape as the others (definition, control, fields, picture, and for GitHub the README it writes); the axe sweep stays green in both themes.
+- Verify: `pnpm --filter web test:e2e header accessibility`, `pnpm --filter web screenshots`
+- Built: `TutorialNav`, a client component with a sticky sidebar from `lg` and a sticky "Jump to" bar below it, both driven by one `IntersectionObserver` that names the first section in reading order crossing the upper band of the viewport. Two parts added — **The assistant** (endpoint, presets, where the key lives, the operations, the review) and **GitHub** (the token proved first, the push preview and what blocks it, one commit never forced, opening a repository, plugin install commands) — and two pictures, the AI endpoint and GitHub cards of Settings. The e2e case jumps from the sidebar, checks the mark follows, narrows the viewport and jumps from the menu.
+- Found by the axe sweep: the section numbers in the sidebar at 70% opacity fell to 3.47:1 in the dark theme. Full opacity.
+- Not built: a "back to top" control, which the sidebar's first link already is; collapsing the loop while reading the parts.
+
 ### Open questions
 
 1. **Permissions in a Codex plugin.** Codex hooks have `PreToolUse` with a `permissionDecision` output, as Claude's do, but filter by a regex on the tool name only; there is no `if` in permission-rule syntax. Enforcing `Bash(git push *)` from a plugin would need a script that reads the hook's JSON input and matches the command itself — with no JSON tool guaranteed on the machine — and one that fails closed. Left as the command policy in the instructions until Codex documents an argument filter.

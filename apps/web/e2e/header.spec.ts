@@ -167,11 +167,10 @@ test.describe('the tutorial', () => {
 
     // Every concept of the docs/00 glossary that is an artifact, plus the ideas that cut
     // across them, each with what to press and what the harness gets.
-    for (const part of ['Agents', 'Permissions', 'Skills', 'Workflows', 'Hooks', 'Gates']) {
+    const parts = ['Agents', 'Permissions', 'Skills', 'Workflows', 'Hooks', 'Gates']
+    for (const part of [...parts, 'The assistant', 'GitHub']) {
       await expect(page.getByRole('heading', { level: 3, name: part })).toBeVisible()
     }
-    const parts = page.getByRole('navigation', { name: 'Parts' }).getByRole('link')
-    expect(await parts.count()).toBeGreaterThanOrEqual(10)
     await expect(page.getByRole('table').first()).toContainText('Claude Code')
 
     // Served through the optimizer, from the generated set, and every one of them described.
@@ -183,6 +182,34 @@ test.describe('the tutorial', () => {
       expect(await shot.getAttribute('src')).toContain('/_next/image')
       expect((await shot.getAttribute('alt'))?.length ?? 0).toBeGreaterThan(20)
     }
+  })
+
+  // The contents travel with the reader (P9-39): a sidebar beside the text on a wide
+  // screen, a menu at the top on a narrow one, and both say which section is on screen.
+  test('keeps the contents in reach and marks the section on screen', async ({ page }) => {
+    await page.goto('/tutorial')
+    const contents = page.getByRole('complementary', { name: 'Contents' })
+    await expect(contents).toBeVisible()
+    expect(await contents.getByRole('link').count()).toBeGreaterThanOrEqual(24)
+
+    await contents.getByRole('link', { name: /Hooks/ }).click()
+    await expect(page).toHaveURL(/#hook$/)
+    await expect(page.getByRole('heading', { level: 3, name: 'Hooks' })).toBeInViewport()
+    // Still beside the text after the jump, with the section it landed on marked.
+    await expect(contents).toBeInViewport()
+    await expect(contents.getByRole('link', { name: /Hooks/ })).toHaveAttribute(
+      'aria-current',
+      'location',
+    )
+
+    await page.setViewportSize({ width: 800, height: 900 })
+    await expect(contents).toBeHidden()
+    const jump = page.getByLabel('Jump to')
+    await expect(jump).toBeInViewport()
+    await jump.selectOption('gate')
+    await expect(page.getByRole('heading', { level: 3, name: 'Gates' })).toBeInViewport()
+    await expect(jump).toBeInViewport()
+    await expect(jump).toHaveValue('gate')
   })
 
   test('works with nothing stored, which is who it is for', async ({ page }) => {

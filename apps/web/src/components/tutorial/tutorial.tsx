@@ -1,5 +1,5 @@
 /**
- * The tutorial (P9-06, extended in P9-38).
+ * The tutorial (P9-06, extended in P9-38 and P9-39).
  *
  * The product explains itself to someone who already knows what a Blueprint is. This walks
  * the story in docs/00 for someone who does not: what to press, what happens, and a picture
@@ -35,12 +35,15 @@ import hookEditor from '@/assets/screenshots/hook-editor.png'
 import ironLawEditor from '@/assets/screenshots/iron-law-editor.png'
 import newProject from '@/assets/screenshots/new-project.png'
 import overviewGraph from '@/assets/screenshots/overview-graph.png'
+import settingsAi from '@/assets/screenshots/settings-ai.png'
+import settingsGithub from '@/assets/screenshots/settings-github.png'
 import sourceTab from '@/assets/screenshots/source-tab.png'
 import templateReview from '@/assets/screenshots/template-review.png'
 import workflowEditor from '@/assets/screenshots/workflow-editor.png'
 import workspace from '@/assets/screenshots/workspace.png'
 
 import { PageHeader } from '@/components/layout/page-header'
+import { TutorialNav } from '@/components/tutorial/tutorial-nav'
 import { Button } from '@/components/ui/button'
 
 interface Shot {
@@ -960,6 +963,49 @@ checks:
     shots: [],
   },
   {
+    id: 'ai',
+    title: 'The assistant',
+    definition:
+      'The assistant is the AI in the app, and it proposes rather than edits. Every operation it offers returns a ChangeSet — the creates, updates and deletes it would make — shown field by field before anything is applied. Nothing a model writes reaches the Blueprint without your review, and nothing here is compiled: what the harness gets is the Blueprint.',
+    press: 'AI, or Ctrl+/ — and Settings, to set the endpoint up',
+    body: [
+      'It talks to any endpoint that speaks the OpenAI chat protocol. Settings has a Provider list — OpenAI, the Anthropic compatibility endpoint, OpenRouter, Ollama, LM Studio, vLLM, Azure OpenAI, or a custom URL — then Base URL, Model and API key, and Save and test asks the endpoint two things: whether it answers, and whether it honours a JSON schema, which decides how structured output is requested from it. A model on your own machine works the same way; where the browser cannot reach it directly, the deployment’s proxy relays to allow-listed hosts only and logs nothing.',
+      'Keep the key says where the key lives: until this tab closes, or in this browser after a warning that anyone with the profile can read it. It is read by one module, is never written into a Blueprint, an export, a push or a log, and Forget credentials clears it. Nothing else this app stores about a project knows the key exists.',
+      'The panel offers what suits the selection and explains the rest. This artifact: the eight quick actions — improve, rewrite, more specific, add examples, add edge cases, add verification, simplify, make portable — Iron Laws for it, and a workflow for an agent. The Blueprint: Add a capability, which writes an agent with its skills, laws and workflow wired to what is already there; Draft the whole Blueprint; one new artifact; and Compound, which turns pasted notes, a transcript or a diff into skills, laws and references. Review: contradictions, what is missing, and quality, whose findings are badged AI beside the validator’s own. Fix with AI sits on any finding.',
+      'Every proposal goes through one review. First the summary, then what the operation could not honour — an artifact that would not parse, a reference to nothing, a duplicate law — because a review you believe covered everything must have. Then one row per change, marked + ~ −, showing only the fields whose value differs, word by word for short prose. Accept all, reject all, accept one, edit the proposal as the file it would become, regenerate, or apply exactly what you accepted with Ctrl+Enter. Output that looks like a secret is refused before it can enter a change.',
+    ],
+    fields: [
+      {
+        name: 'Provider',
+        text: 'Eight presets and custom. Each knows its base URL, its auth header and whether JSON schema works there.',
+      },
+      {
+        name: 'Save and test',
+        text: 'Stores the settings and probes the endpoint. The result says what the model supports and how long it took.',
+      },
+      {
+        name: 'Keep the key',
+        text: 'Until this tab closes, or in this browser. The second comes with a warning, and the choice is per key.',
+      },
+      {
+        name: 'Quick actions',
+        text: 'One-click improvements to the selected artifact. Each is a versioned prompt that carries the concept glossary, so a skill stays a skill.',
+      },
+      {
+        name: 'Apply',
+        text: 'Applies the accepted rows and no others. Rejected rows are listed afterwards with the reason.',
+      },
+    ],
+    shots: [
+      {
+        src: settingsAi,
+        alt: 'The AI endpoint card in Settings: Provider set to OpenAI, Base URL https://api.openai.com/v1, Model gpt-5-mini, a Stream the answer checkbox, a silence timeout in seconds, an empty API key field, Keep the key set to "Until this tab closes", and a Save and test button.',
+        caption:
+          'The endpoint is any URL that speaks the protocol. The key field is empty here, and it stays out of every file this app writes.',
+      },
+    ],
+  },
+  {
     id: 'targets',
     title: 'Targets, and where everything lands',
     definition:
@@ -1000,6 +1046,56 @@ checks:
     ],
     shots: [],
   },
+  {
+    id: 'github',
+    title: 'GitHub',
+    definition:
+      'GitHub is where a Blueprint goes to be used. A push writes the source directory and the compiled output to a branch in one commit, after showing what it would do; a repository’s blueprint/ opens back as a project. Both need a token, and the token is kept where the AI key is.',
+    press: 'GitHub in the top bar, or Open from GitHub on the dashboard',
+    body: [
+      'A personal access token pasted into Settings is checked with Save and check: the app asks GitHub who the token is before storing anything, and shows the account and what kind of token it is. Sign in with GitHub appears when the deployment registered an OAuth app; the token still ends up in the browser and nowhere else — never in a cookie, never in a URL, never on the server after the request. It lives beside the AI key, for this tab or for this browser after the warning, and Forget credentials clears both.',
+      'Push to GitHub is two steps, and the second is a preview. Choose a repository — one the token can reach, a URL, or a name that does not exist yet, which is created empty and private so the Blueprint is its first commit — and a branch, which the push creates when it is missing. Preview the changes then shows the plan before anything else can be pressed: every path that would be added, changed or removed, tagged in the colours a diff reads by; the compiler errors that block, because files compiled from a Blueprint the validator rejects would misrepresent it; the files on the branch this app did not write, skipped unless each is ticked; and anything shaped like a credential, which blocks until each is accepted.',
+      'The push is one tree, one commit and one move of the branch, never forced: a branch that moved while the preview was open is a conversation, not a race to win. A second push of an unchanged project says there is nothing to do. When a target was packaged as a plugin, the panel afterwards shows the install commands with the repository filled in, and the README that went up carries the same.',
+      'Open from GitHub reads a repository’s blueprint/ directory and hands it to the import preview a ZIP goes through: the same reader, the same diagnostics, and nothing stored until Open is pressed. Only the source is read — everything at the root is compiler output and is rebuilt the moment the project opens.',
+    ],
+    fields: [
+      {
+        name: 'Save and check',
+        text: 'Proves the token against the API before it is stored, so a typo fails here rather than mid-push.',
+      },
+      {
+        name: 'Repository, Branch',
+        text: 'Where the commit goes. Both can be new; a new repository is private by default.',
+      },
+      {
+        name: 'Preview the changes',
+        text: 'The plan: new, changed and removed paths, the blocking errors, the files not owned, and anything credential-shaped.',
+      },
+      {
+        name: 'Files this app did not write',
+        text: 'Left alone unless ticked. A README the branch had before the first push is one of them.',
+      },
+    ],
+    example: {
+      path: 'README.md of the pushed repository, when Claude Code was packaged as a plugin',
+      code: `## Installing
+
+**Claude Code:**
+
+\`\`\`
+/plugin marketplace add <owner>/<repo>
+/plugin install dotnet-testing-expert@dotnet-testing-expert
+\`\`\``,
+    },
+    shots: [
+      {
+        src: settingsGithub,
+        alt: 'The GitHub card in Settings: a Personal access token field with a note on which scopes a fine-grained and a classic token need, a Save and check button, and beneath it a Forget credentials button.',
+        caption:
+          'A pushed repository fills the placeholders in: the README and the success panel both name the real owner and repository.',
+      },
+    ],
+  },
 ]
 
 export function Tutorial() {
@@ -1010,195 +1106,200 @@ export function Tutorial() {
         description="From an empty browser to a repository your harness can read — and what each part of it is."
       />
 
-      {/* A landmark of its own: this route is one long read, and a screen reader should be
-          able to skip the header and get to it. */}
-      <main className="flex flex-col gap-12">
-        <section className="flex max-w-2xl flex-col gap-4">
-          <p className="text-sm leading-relaxed">
-            A <strong>Blueprint</strong> is the design of an agent system — its agents, the skills
-            they can reach, the workflows they follow, and the laws they may not break — kept in one
-            place and compiled into whatever each harness wants to read. The first half of this page
-            walks the whole of it once. The second takes the parts one at a time: what each one is,
-            which settings matter, how to add one, and what the compiler makes of it. Every picture
-            is of the real app, taken by a script, so none of them can be out of date.
-          </p>
-          <nav aria-label="Steps" className="flex flex-wrap gap-1.5">
-            {STEPS.map((step, index) => (
-              <a
-                key={step.id}
-                href={`#${step.id}`}
-                className="hover:border-accent hover:text-accent rounded-md border px-2 py-1 text-xs transition-colors"
-              >
-                <span className="text-muted-foreground mr-1.5 tabular-nums">{index + 1}</span>
-                {step.title}
-              </a>
-            ))}
-          </nav>
-          <nav aria-label="Parts" className="flex flex-wrap gap-1.5">
-            {CONCEPTS.map((concept) => (
-              <a
-                key={concept.id}
-                href={`#${concept.id}`}
-                className="hover:border-accent hover:text-accent rounded-md border px-2 py-1 text-xs transition-colors"
-              >
-                {concept.title}
-              </a>
-            ))}
-          </nav>
-          <div className="flex flex-wrap gap-2">
-            <Button variant="accent" asChild>
-              <Link href="/new">Create a Blueprint</Link>
-            </Button>
-            <Button variant="outline" asChild>
-              <Link href="/">Open a starter instead</Link>
-            </Button>
-          </div>
-        </section>
+      {/* The contents stay beside the text on a wide screen and at its top on a narrow one;
+          both mark the section the reader is in. */}
+      <div className="flex flex-col gap-6 lg:flex-row lg:gap-10">
+        <TutorialNav
+          groups={[
+            { id: 'loop', title: 'The loop', items: STEPS },
+            { id: 'parts', title: 'The parts', items: CONCEPTS },
+          ]}
+        />
 
-        <section aria-labelledby="loop" className="flex flex-col gap-8">
-          <div className="flex max-w-2xl flex-col gap-2">
-            <h2 id="loop" className="text-xl font-semibold tracking-tight">
-              The loop
-            </h2>
-            <p className="text-muted-foreground text-sm leading-relaxed">
-              Eleven steps from nothing to a repository. Each one names the control to press before
-              it says what happens.
+        {/* A landmark of its own: this route is one long read, and a screen reader should be
+            able to skip the header and get to it. */}
+        <main className="flex min-w-0 flex-1 flex-col gap-12">
+          <section className="flex max-w-2xl flex-col gap-4">
+            <p className="text-sm leading-relaxed">
+              A <strong>Blueprint</strong> is the design of an agent system — its agents, the skills
+              they can reach, the workflows they follow, and the laws they may not break — kept in
+              one place and compiled into whatever each harness wants to read. The first half of
+              this page walks the whole of it once. The second takes the parts one at a time — every
+              kind of artifact, then the assistant and GitHub: what each one is, which settings
+              matter, how to add one, and what the compiler makes of it. Every picture is of the
+              real app, taken by a script, so none of them can be out of date.
             </p>
-          </div>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="accent" asChild>
+                <Link href="/new">Create a Blueprint</Link>
+              </Button>
+              <Button variant="outline" asChild>
+                <Link href="/">Open a starter instead</Link>
+              </Button>
+            </div>
+          </section>
 
-          <ol className="flex flex-col gap-12">
-            {STEPS.map((step, index) => (
-              <li key={step.id} id={step.id} className="flex scroll-mt-6 flex-col gap-4">
-                <div className="flex max-w-2xl flex-col gap-2">
-                  <h3 className="flex items-baseline gap-2.5 text-lg font-semibold tracking-tight">
-                    <span className="text-muted-foreground text-sm tabular-nums">{index + 1}</span>
-                    {step.title}
-                  </h3>
-                  <Press>{step.press}</Press>
-                  <p className="text-muted-foreground text-sm leading-relaxed">{step.body}</p>
-                </div>
+          <section aria-labelledby="loop" className="flex flex-col gap-8">
+            <div className="flex max-w-2xl flex-col gap-2">
+              <h2
+                id="loop"
+                className="scroll-mt-16 text-xl font-semibold tracking-tight lg:scroll-mt-6"
+              >
+                The loop
+              </h2>
+              <p className="text-muted-foreground text-sm leading-relaxed">
+                Eleven steps from nothing to a repository. Each one names the control to press
+                before it says what happens.
+              </p>
+            </div>
 
-                {step.shots.map((shot) => (
-                  <Figure key={shot.alt} shot={shot} />
-                ))}
-              </li>
-            ))}
-          </ol>
-        </section>
-
-        <section aria-labelledby="parts" className="flex flex-col gap-8 border-t pt-10">
-          <div className="flex max-w-2xl flex-col gap-2">
-            <h2 id="parts" className="text-xl font-semibold tracking-tight">
-              The parts
-            </h2>
-            <p className="text-muted-foreground text-sm leading-relaxed">
-              The loop uses every kind of artifact once and says nothing about what is inside one.
-              This is the inside: the definition each kind answers to, the settings on its form and
-              what they decide, the file the project writes for it, and what each harness gets. The
-              vocabulary is the one the product fixes; a skill is never a rule and a permission is
-              never a tool.
-            </p>
-          </div>
-
-          <ol className="flex flex-col gap-14">
-            {CONCEPTS.map((concept) => (
-              <li key={concept.id} id={concept.id} className="flex scroll-mt-6 flex-col gap-4">
-                <div className="flex max-w-2xl flex-col gap-2">
-                  <h3 className="text-lg font-semibold tracking-tight">{concept.title}</h3>
-                  <p className="text-sm leading-relaxed">{concept.definition}</p>
-                  <Press>{concept.press}</Press>
-                  {concept.body.map((paragraph) => (
-                    <p key={paragraph} className="text-muted-foreground text-sm leading-relaxed">
-                      {paragraph}
-                    </p>
-                  ))}
-                </div>
-
-                {concept.fields.length > 0 ? (
-                  <dl className="grid max-w-2xl gap-x-4 gap-y-2 text-sm sm:grid-cols-[max-content_1fr]">
-                    {concept.fields.map((field) => (
-                      <div key={field.name} className="contents">
-                        <dt className="font-medium">{field.name}</dt>
-                        <dd className="text-muted-foreground leading-relaxed">{field.text}</dd>
-                      </div>
-                    ))}
-                  </dl>
-                ) : null}
-
-                {concept.shots.map((shot) => (
-                  <Figure key={shot.alt} shot={shot} />
-                ))}
-
-                {concept.example ? (
-                  <figure className="flex max-w-2xl flex-col gap-2">
-                    <figcaption className="text-muted-foreground font-mono text-xs">
-                      {concept.example.path}
-                    </figcaption>
-                    {/* Scrollable, so it must take focus for a keyboard to scroll it; the path is its name. */}
-                    <pre
-                      tabIndex={0}
-                      aria-label={concept.example.path}
-                      className="bg-muted overflow-x-auto rounded-md border p-3 font-mono text-xs leading-relaxed"
-                    >
-                      <code>{concept.example.code}</code>
-                    </pre>
-                  </figure>
-                ) : null}
-
-                {concept.compiles ? (
-                  <div className="max-w-2xl overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <caption className="text-muted-foreground pb-2 text-left text-xs">
-                        What it compiles to
-                      </caption>
-                      <thead>
-                        <tr className="text-muted-foreground border-b text-left text-xs">
-                          <th scope="col" className="py-1 pr-4 font-medium">
-                            Harness
-                          </th>
-                          <th scope="col" className="py-1 font-medium">
-                            Output
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {concept.compiles.map((row) => (
-                          <tr key={row.harness} className="border-b align-top last:border-0">
-                            <th
-                              scope="row"
-                              className="py-1.5 pr-4 text-left font-medium whitespace-nowrap"
-                            >
-                              {row.harness}
-                            </th>
-                            <td className="text-muted-foreground py-1.5 leading-relaxed">
-                              {row.output}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+            <ol className="flex flex-col gap-12">
+              {STEPS.map((step, index) => (
+                <li
+                  key={step.id}
+                  id={step.id}
+                  className="flex scroll-mt-16 flex-col gap-4 lg:scroll-mt-6"
+                >
+                  <div className="flex max-w-2xl flex-col gap-2">
+                    <h3 className="flex items-baseline gap-2.5 text-lg font-semibold tracking-tight">
+                      <span className="text-muted-foreground text-sm tabular-nums">
+                        {index + 1}
+                      </span>
+                      {step.title}
+                    </h3>
+                    <Press>{step.press}</Press>
+                    <p className="text-muted-foreground text-sm leading-relaxed">{step.body}</p>
                   </div>
-                ) : null}
-              </li>
-            ))}
-          </ol>
-        </section>
 
-        <footer className="flex flex-col gap-3 border-t pt-6">
-          <p className="text-muted-foreground max-w-2xl text-sm">
-            That is the whole loop, and every part of it. Everything else in the product is a
-            shorter way to do one of these: the command palette (Ctrl+K) reaches every action by
-            name, and each artifact is addressable, so a link to one opens on it. The full field
-            tables, the diagnostic codes and each harness&apos;s file conventions are in the docs
-            directory of the repository.
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <Button variant="accent" asChild>
-              <Link href="/new">Create a Blueprint</Link>
-            </Button>
-          </div>
-        </footer>
-      </main>
+                  {step.shots.map((shot) => (
+                    <Figure key={shot.alt} shot={shot} />
+                  ))}
+                </li>
+              ))}
+            </ol>
+          </section>
+
+          <section aria-labelledby="parts" className="flex flex-col gap-8 border-t pt-10">
+            <div className="flex max-w-2xl flex-col gap-2">
+              <h2
+                id="parts"
+                className="scroll-mt-16 text-xl font-semibold tracking-tight lg:scroll-mt-6"
+              >
+                The parts
+              </h2>
+              <p className="text-muted-foreground text-sm leading-relaxed">
+                The loop uses every kind of artifact once and says nothing about what is inside one.
+                This is the inside: the definition each kind answers to, the settings on its form
+                and what they decide, the file the project writes for it, and what each harness
+                gets. The vocabulary is the one the product fixes; a skill is never a rule and a
+                permission is never a tool.
+              </p>
+            </div>
+
+            <ol className="flex flex-col gap-14">
+              {CONCEPTS.map((concept) => (
+                <li
+                  key={concept.id}
+                  id={concept.id}
+                  className="flex scroll-mt-16 flex-col gap-4 lg:scroll-mt-6"
+                >
+                  <div className="flex max-w-2xl flex-col gap-2">
+                    <h3 className="text-lg font-semibold tracking-tight">{concept.title}</h3>
+                    <p className="text-sm leading-relaxed">{concept.definition}</p>
+                    <Press>{concept.press}</Press>
+                    {concept.body.map((paragraph) => (
+                      <p key={paragraph} className="text-muted-foreground text-sm leading-relaxed">
+                        {paragraph}
+                      </p>
+                    ))}
+                  </div>
+
+                  {concept.fields.length > 0 ? (
+                    <dl className="grid max-w-2xl gap-x-4 gap-y-2 text-sm sm:grid-cols-[max-content_1fr]">
+                      {concept.fields.map((field) => (
+                        <div key={field.name} className="contents">
+                          <dt className="font-medium">{field.name}</dt>
+                          <dd className="text-muted-foreground leading-relaxed">{field.text}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  ) : null}
+
+                  {concept.shots.map((shot) => (
+                    <Figure key={shot.alt} shot={shot} />
+                  ))}
+
+                  {concept.example ? (
+                    <figure className="flex max-w-2xl flex-col gap-2">
+                      <figcaption className="text-muted-foreground font-mono text-xs">
+                        {concept.example.path}
+                      </figcaption>
+                      {/* Scrollable, so it must take focus for a keyboard to scroll it; the path is its name. */}
+                      <pre
+                        tabIndex={0}
+                        aria-label={concept.example.path}
+                        className="bg-muted overflow-x-auto rounded-md border p-3 font-mono text-xs leading-relaxed"
+                      >
+                        <code>{concept.example.code}</code>
+                      </pre>
+                    </figure>
+                  ) : null}
+
+                  {concept.compiles ? (
+                    <div className="max-w-2xl overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <caption className="text-muted-foreground pb-2 text-left text-xs">
+                          What it compiles to
+                        </caption>
+                        <thead>
+                          <tr className="text-muted-foreground border-b text-left text-xs">
+                            <th scope="col" className="py-1 pr-4 font-medium">
+                              Harness
+                            </th>
+                            <th scope="col" className="py-1 font-medium">
+                              Output
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {concept.compiles.map((row) => (
+                            <tr key={row.harness} className="border-b align-top last:border-0">
+                              <th
+                                scope="row"
+                                className="py-1.5 pr-4 text-left font-medium whitespace-nowrap"
+                              >
+                                {row.harness}
+                              </th>
+                              <td className="text-muted-foreground py-1.5 leading-relaxed">
+                                {row.output}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : null}
+                </li>
+              ))}
+            </ol>
+          </section>
+
+          <footer className="flex flex-col gap-3 border-t pt-6">
+            <p className="text-muted-foreground max-w-2xl text-sm">
+              That is the whole loop, and every part of it. Everything else in the product is a
+              shorter way to do one of these: the command palette (Ctrl+K) reaches every action by
+              name, and each artifact is addressable, so a link to one opens on it. The full field
+              tables, the diagnostic codes and each harness&apos;s file conventions are in the docs
+              directory of the repository.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="accent" asChild>
+                <Link href="/new">Create a Blueprint</Link>
+              </Button>
+            </div>
+          </footer>
+        </main>
+      </div>
     </div>
   )
 }
