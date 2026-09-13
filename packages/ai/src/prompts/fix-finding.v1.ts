@@ -122,7 +122,7 @@ function evidence(finding: FindingBrief): string | undefined {
  * per code and a reader — human or model — working down a list needs each entry to stand on
  * its own. The remedy and the invariant are the two that earn their repetition.
  */
-function finding(entry: FindingBrief, index: number): string {
+export function findingSection(entry: FindingBrief, index: number): string {
   return [
     `### ${index + 1}. ${entry.code} — ${entry.summary}`,
     '',
@@ -187,7 +187,7 @@ ${WORKED_EXAMPLE}`,
         '',
         '## The findings',
         '',
-        input.findings.map(finding).join('\n\n'),
+        input.findings.map(findingSection).join('\n\n'),
         ...section(
           'What you may write',
           [

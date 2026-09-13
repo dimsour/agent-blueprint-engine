@@ -19,6 +19,7 @@ import {
   evaluate,
   findContradictions,
   findMissing,
+  fixBlueprint,
   generateArtifact,
   generateBlueprint,
   improveArtifact,
@@ -151,6 +152,21 @@ export const ASSISTANT_ACTIONS: AssistantAction[] = [
           // selected" and "something else selected" are the same case.
         }),
       ),
+  },
+  {
+    id: 'fix-blueprint',
+    label: 'Fix the Blueprint',
+    hint: 'Everything the validator raised, decided with the whole design in view — an orphan wired in, deleted, or kept, each with the reason. Nothing is applied until you accept it.',
+    group: 'The Blueprint',
+    field: {
+      label: 'Anything it should know',
+      placeholder: 'Optional — "the deterministic-tests law is wanted; bind it to the reviewer".',
+      required: false,
+      rows: 2,
+    },
+    unavailable: always,
+    run: async (deps, ctx, input) =>
+      changes(await fixBlueprint(deps, input.text ? { ...ctx, instruction: input.text } : ctx)),
   },
   {
     id: 'generate-blueprint',

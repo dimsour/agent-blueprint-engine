@@ -112,7 +112,7 @@ const EXTRA_KINDS: Record<string, readonly EntityKind[]> = {
 }
 
 /** Findings about nothing in particular, where the fix is a new artifact of a stated kind. */
-function kindsFor(diagnostic: Diagnostic): readonly EntityKind[] {
+export function kindsFor(diagnostic: Diagnostic): readonly EntityKind[] {
   const named: EntityKind[] = []
   if (diagnostic.ref) named.push(diagnostic.ref.kind)
   for (const related of diagnostic.related ?? []) named.push(related.kind)
@@ -207,7 +207,7 @@ function sourceOf(blueprint: Blueprint, ref: EntityRef): string | undefined {
   return entity ? renderEntity(ref.kind, entity) : undefined
 }
 
-interface Outcome {
+export interface Outcome {
   /**
    * The findings `validateBlueprint` can decide at all, by fingerprint.
    *
@@ -231,7 +231,7 @@ interface Outcome {
  * the finding standing earns one more attempt with the validator's own words; one that clears
  * the finding but breaks something else says so in the review rather than being found later.
  */
-function outcomeOf(
+export function outcomeOf(
   blueprint: Blueprint,
   diagnostics: readonly Diagnostic[],
   assembly: Assembly,
@@ -265,7 +265,7 @@ function outcomeOf(
  * different law with the same warning. A new error is: a fix that breaks the Blueprint is
  * worse than no fix.
  */
-function complaintsFrom(diagnostics: readonly Diagnostic[], outcome: Outcome): string[] {
+export function complaintsFrom(diagnostics: readonly Diagnostic[], outcome: Outcome): string[] {
   const lines: string[] = []
   for (const diagnostic of diagnostics) {
     if (!outcome.standing.has(fingerprint(diagnostic))) continue
@@ -279,7 +279,7 @@ function complaintsFrom(diagnostics: readonly Diagnostic[], outcome: Outcome): s
 }
 
 /** One finding, with everything the catalogue and the rules already know about its code. */
-function briefOf(diagnostic: Diagnostic): FindingBrief {
+export function briefOf(diagnostic: Diagnostic): FindingBrief {
   const guidance = guidanceFor(diagnostic)
   const invariant = invariantFor(diagnostic.code)
   return {
@@ -299,7 +299,7 @@ function briefOf(diagnostic: Diagnostic): FindingBrief {
 }
 
 /** Every artifact the findings name, each once, as its source file. */
-function artifactsNamedBy(blueprint: Blueprint, diagnostics: readonly Diagnostic[]): string {
+export function artifactsNamedBy(blueprint: Blueprint, diagnostics: readonly Diagnostic[]): string {
   const seen = new Set<string>()
   const rendered: string[] = []
   for (const diagnostic of diagnostics) {
@@ -314,7 +314,11 @@ function artifactsNamedBy(blueprint: Blueprint, diagnostics: readonly Diagnostic
 }
 
 /** What the user is told about a batch: which of the findings this actually closes. */
-function verdictOf(diagnostics: readonly Diagnostic[], outcome: Outcome, empty: boolean): string[] {
+export function verdictOf(
+  diagnostics: readonly Diagnostic[],
+  outcome: Outcome,
+  empty: boolean,
+): string[] {
   if (empty) {
     return [
       diagnostics.length === 1
@@ -515,7 +519,7 @@ export async function fixFindings(
  * kind is missing an answer. Anything less certain is reported rather than guessed at, because
  * guessing here overwrites the wrong artifact silently.
  */
-function draftsFrom(
+export function draftsFrom(
   blueprint: Blueprint,
   diagnostics: readonly Diagnostic[],
   proposals: readonly { kind: EntityKind; artifact: unknown; note?: string | undefined }[],
@@ -653,6 +657,40 @@ function onlyWhatWasAsked(
   if (restored.length > 0) {
     notes.push(
       `Put back ${restored.join(', ')} on "${id}", which came back empty and was not what the ${about.length === 1 ? 'finding was' : 'findings were'} about.`,
+    )
+  }
+  return merged
+}
+
+/**
+ * The weaker rule on its own, for an artifact no finding is about (P9-40).
+ *
+ * The whole-Blueprint fix returns agents that hold orphans, and nothing in the findings names
+ * those agents, so there is no allow-list to hold the model to. What still holds is that a
+ * field it left empty or out cannot have been the fix: it comes back from the original, and the
+ * note says so. Only for an artifact that exists — a create has nothing to restore.
+ */
+export function restoringEmptied(
+  blueprint: Blueprint,
+  kind: EntityKind,
+  proposed: unknown,
+  notes: string[],
+): unknown {
+  const id = idOf(proposed)
+  if (id === undefined || !isRecord(proposed)) return proposed
+  const original = findEntity(blueprint, kind, id)
+  if (!original) return proposed
+
+  const merged: Record<string, unknown> = { ...(original as unknown as Record<string, unknown>) }
+  const restored: string[] = []
+  for (const [field, value] of Object.entries(proposed)) {
+    if (field === 'id') continue
+    if (isEmpty(value) && !isEmpty(merged[field])) restored.push(field)
+    else merged[field] = value
+  }
+  if (restored.length > 0) {
+    notes.push(
+      `Put back ${restored.join(', ')} on "${id}", which came back empty and was not what any finding was about.`,
     )
   }
   return merged

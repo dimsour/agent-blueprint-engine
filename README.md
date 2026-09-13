@@ -57,7 +57,9 @@ endpoint, OpenRouter, Azure, or Ollama, LM Studio and vLLM on your own machine. 
 (`⌘/`) drafts a whole Blueprint, adds a capability (an agent with its skills, laws and
 workflow, wired to what exists), improves the selected artifact with one of eight quick
 actions, turns notes or a transcript into reusable knowledge, finds contradictions and what is
-missing, gives a second opinion on the score, and offers to fix any finding. Every output is a
+missing, gives a second opinion on the score, offers to fix any finding, and can put the whole
+Blueprint right — every finding decided with the design in view, an orphan wired in or deleted
+with the reason said. Every output is a
 ChangeSet reviewed field by field — accept, reject or edit each change — before anything is
 applied; a model never edits the Blueprint silently, and output that looks like a secret is
 refused before it can enter one.

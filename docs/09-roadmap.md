@@ -1129,6 +1129,16 @@ something, it says what and where that thing still exists.
 - Reported from use, fixed: every jump pushed a hash entry, so **Back** walked through the sections visited before it left the page. A plain click on a contents link now replaces the address; a modified click still gets the real link.
 - Not built: a "back to top" control, which the sidebar's first link already is; collapsing the loop while reading the parts.
 
+### P9-40 Fix the Blueprint (done)
+
+- Package: `packages/ai` (`operations/fix-blueprint.ts`, `prompts/fix-blueprint.v1.ts`, `schemas/outputs.ts`), `apps/web/src/lib/ai/actions.ts`
+- Depends on: P9-13, P9-17, P9-18
+- Description: Reported from use: the assistant could fix one finding or one dimension, and neither could answer the question a reader of the health bar actually has — "there are orphan Iron Laws; why, does anything need them, is it safe to delete them?". The per-finding fix attaches an orphan to an agent because that clears the warning; whether it should be attached, duplicates a law the agent has, or forbids something nothing does, needs the whole Blueprint in view, and one honest answer is a deletion the per-finding fix never proposes.
+- Acceptance: a **Fix the Blueprint** action in the assistant's _The Blueprint_ group, available whatever is selected; it takes everything both passes raise, asks for a decision per finding with the reason, and returns one ChangeSet with creates, updates and deletions; the reasons are the first notes of the review; a deletion is honoured only for an artifact nothing refers to, of an orphanable kind, never an agent, and a refusal names who refers to it; an artifact returned half empty gets its fields back; nothing above a suggestion raised costs no request; the proposal is checked against the validator as every fix is.
+- Verify: `pnpm --filter @agent-blueprint/ai test`, `pnpm --filter web test`
+- Built: `fixBlueprint` and the `fix-blueprint` v1 prompt, sharing the single fix's briefs, rendering, half-empty protection and throwaway check; the connections section, from the dependency graph, that tells the model what an orphan is not used by and which agent holds which of its kind; `restoringEmptied` for artifacts no finding is about; the twelve-most-severe batch with the rest named for a second pass. Six tests over a replayed model.
+- Not built: a control on the health bar itself (the assistant is one keystroke away); a per-decision accept that is separate from the op it produced — a decision to keep produces no op, and is a note.
+
 ### Open questions
 
 1. **Permissions in a Codex plugin.** Codex hooks have `PreToolUse` with a `permissionDecision` output, as Claude's do, but filter by a regex on the tool name only; there is no `if` in permission-rule syntax. Enforcing `Bash(git push *)` from a plugin would need a script that reads the hook's JSON input and matches the command itself — with no JSON tool guaranteed on the machine — and one that fails closed. Left as the command policy in the instructions until Codex documents an argument filter.

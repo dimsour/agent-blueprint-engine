@@ -35,6 +35,7 @@ describe('every prompt', () => {
       'find-contradictions',
       'find-missing',
       'fix-finding',
+      'fix-blueprint',
       'evaluate',
       'compound',
       'judge-requirements',

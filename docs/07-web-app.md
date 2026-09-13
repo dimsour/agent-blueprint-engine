@@ -247,8 +247,8 @@ A dialog over the workspace, opened from the top bar, the palette or the shortcu
   the header says so; with nothing selected they are listed, disabled, and say "Select an
   artifact first" rather than disappearing.
 - Actions are the operations in docs/06, grouped as **This artifact** (the eight quick actions,
-  Iron Laws, a workflow for an agent), **The Blueprint** (add a capability, draft the whole
-  thing, one new artifact, turn notes into knowledge) and **Review** (contradictions, what is
+  Iron Laws, a workflow for an agent), **The Blueprint** (add a capability, fix the
+  Blueprint, draft the whole thing, one new artifact, turn notes into knowledge) and **Review** (contradictions, what is
   missing, quality). One entry per action in `lib/ai/actions.ts` puts each of them in the
   panel and in the palette, so adding an operation cannot reach one surface and miss the other.
 - **Add a capability** (P9-15) is the multi-artifact action: a brief in, and the agent, its
@@ -258,6 +258,12 @@ A dialog over the workspace, opened from the top bar, the palette or the shortcu
   primary agent, which _Draft the whole Blueprint_ does and says so in its hint. With an agent
   selected, what it creates is held from that agent unless the answer writes an agent of its
   own.
+- **Fix the Blueprint** (P9-40) is the whole-Blueprint counterpart of _Fix with AI_: everything
+  the validator and the evaluation raise, decided on with the design in view — change, create,
+  delete or keep, each with its reason as the first notes of the review (docs/06). The case it
+  exists for is the orphan: why nothing refers to it, whether anything needs it, and whether it
+  is safe to delete, which the graph decides rather than the model. Deletions appear as `−` rows
+  like any other op, and nothing is applied until accepted.
 - A ChangeSet goes to the review above. Findings are listed with an `AI` badge and their code,
   and every ref navigates. A quality review is per dimension, next to the artifacts it names.
 - With no endpoint configured the panel is a link to Settings, not a spinner that fails later.

@@ -218,6 +218,41 @@ export function fixFindingOutputSchema<K extends EntityKind>(kinds: readonly K[]
   })
 }
 
+export const FIX_DECISIONS = ['change', 'create', 'delete', 'keep'] as const
+
+/** What the model decided about one finding, and why. Shown with the review, one line each. */
+export const fixDecisionSchema = z.object({
+  code: z.string().min(1),
+  ref: aiRefSchema.optional(),
+  action: z.enum(FIX_DECISIONS),
+  reason: z.string().min(1),
+})
+
+export type FixDecision = z.infer<typeof fixDecisionSchema>
+
+/**
+ * The answer to "put the whole Blueprint right" (P9-40).
+ *
+ * The single-finding answer plus two things it has no room for: a decision per finding, so the
+ * reasoning reaches the reviewer and not only the diff, and deletions, which the single fix
+ * never proposes because a finding about one artifact is never cleared by removing another. The
+ * kind of a deletion is a string rather than the narrowed enum: an unknown kind is refused with a
+ * note, where an enum would fail the whole answer for one bad line.
+ */
+export function fixBlueprintOutputSchema<K extends EntityKind>(kinds: readonly K[]) {
+  return z.object({
+    decisions: z.array(fixDecisionSchema).default([]),
+    artifacts: z.array(proposalUnion(kinds)).default([]),
+    deletions: z
+      .array(
+        z.object({ kind: z.string().min(1), id: z.string().min(1), reason: z.string().min(1) }),
+      )
+      .default([]),
+    /** What the Blueprint looks like after this, in a sentence or two. */
+    note: z.string().optional(),
+  })
+}
+
 /**
  * A coherent set of artifacts added to a Blueprint that already exists (P9-15).
  *

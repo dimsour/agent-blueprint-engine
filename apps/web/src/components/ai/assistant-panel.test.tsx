@@ -292,3 +292,59 @@ describe('Add a capability', () => {
     expect(after.settings.primaryAgentId).toBe(before.settings.primaryAgentId)
   })
 })
+
+describe('Fix the Blueprint', () => {
+  /** The fixture with one Iron Law no agent holds: the orphan the action exists for. */
+  async function loadWithOrphan() {
+    const { blueprint } = await parseProject(readFixtureFiles('dotnet-testing-expert'))
+    const orphaned = {
+      ...blueprint,
+      agents: blueprint.agents.map((agent) => ({
+        ...agent,
+        ironLawIds: agent.ironLawIds.filter((id) => id !== 'deterministic-tests'),
+      })),
+    }
+    useWorkspace.getState().load('test', orphaned)
+    return orphaned
+  }
+
+  it('shows the decision with its reason, and deletes only once accepted', async () => {
+    configure()
+    const before = await loadWithOrphan()
+    const reason =
+      'Nothing here runs against time or the network; the law forbids what nothing does.'
+    endpointAnswers({
+      decisions: [
+        {
+          code: 'BP-ORPHAN-003',
+          ref: { kind: 'iron-law', id: 'deterministic-tests' },
+          action: 'delete',
+          reason,
+        },
+      ],
+      artifacts: [],
+      deletions: [{ kind: 'iron-law', id: 'deterministic-tests', reason }],
+      note: 'One law fewer.',
+    })
+    const user = userEvent.setup()
+    render(<AssistantPanel open onOpenChange={() => {}} />)
+
+    // Available with nothing selected: it is about the whole Blueprint.
+    await user.click(screen.getByRole('button', { name: 'Fix the Blueprint' }))
+    await user.click(screen.getByRole('button', { name: 'Ask' }))
+
+    const list = await screen.findByRole('list', { name: 'Proposed changes' })
+    expect(within(list).getAllByRole('listitem')).toHaveLength(1)
+    expect(within(list).getByText('Removed')).toBeInTheDocument()
+    // The reasoning reaches the reviewer before the diff does.
+    expect(screen.getByText(new RegExp(`BP-ORPHAN-003 .* — delete: ${reason}`))).toBeInTheDocument()
+
+    // Nothing has happened yet.
+    expect(useWorkspace.getState().blueprint!.ironLaws).toHaveLength(before.ironLaws.length)
+
+    await user.click(screen.getByRole('button', { name: /^Apply/ }))
+    const after = useWorkspace.getState().blueprint!
+    expect(after.ironLaws).toHaveLength(before.ironLaws.length - 1)
+    expect(after.ironLaws.find((law) => law.id === 'deterministic-tests')).toBeUndefined()
+  })
+})

@@ -43,6 +43,7 @@ describe('documentation', () => {
       'create-iron-laws': 'createIronLawsFor',
       'find-contradictions': 'findContradictions',
       'find-missing': 'findMissing',
+      'fix-blueprint': 'fixBlueprint',
       'fix-finding': 'fixFinding',
       evaluate: 'evaluate',
       compound: 'compound',
