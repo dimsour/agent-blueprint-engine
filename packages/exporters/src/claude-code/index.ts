@@ -14,7 +14,7 @@ import { composeInstructions, lawsForAgent, primaryAgentOf } from '../shared/ins
 import { code } from '../shared/markdown'
 import { CLAUDE_PHRASING } from '../shared/phrasing'
 import { emitSkillDir, renderReference } from '../shared/skill-dir'
-import { emitWorkflowSkill } from '../shared/workflow-skill'
+import { emitWorkflowSkill, workflowSkillDescription } from '../shared/workflow-skill'
 import {
   type CapabilityMatrix,
   type CompatibilityIssue,
@@ -237,7 +237,7 @@ export const claudeCodeAdapter: HarnessAdapter<ClaudeCodeOptions> = {
       const { body, notes } = emitWorkflowSkill(workflow, blueprint, CLAUDE_PHRASING)
       const frontmatter: Frontmatter = {
         name: workflow.id,
-        description: workflow.description ?? workflow.name,
+        description: workflowSkillDescription(workflow),
         'user-invocable': true,
         ...(workflow.argumentHint ? { 'argument-hint': workflow.argumentHint } : {}),
       }

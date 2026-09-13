@@ -14,7 +14,7 @@ import { composeInstructions, type InstructionsResult, primaryAgentOf } from './
 import { code, Markdown } from './markdown'
 import { type Phrasing, SHARED_PHRASING } from './phrasing'
 import { emitSkillDir, renderReference } from './skill-dir'
-import { emitWorkflowSkill } from './workflow-skill'
+import { emitWorkflowSkill, workflowSkillDescription } from './workflow-skill'
 import { generatedFile, type GeneratedFile } from '../types'
 
 /** Codex caps concatenated instructions at 32 KiB; the portable file stays under 30 KiB. */
@@ -137,7 +137,7 @@ export function emitPortableSkillSet(
       generatedFile(
         `${options.root}/${workflow.id}/SKILL.md`,
         markdownWithFrontmatter(
-          { name: workflow.id, description: workflow.description ?? workflow.name },
+          { name: workflow.id, description: workflowSkillDescription(workflow) },
           body,
           `blueprint/workflows/${workflow.id}.md`,
         ),

@@ -13,21 +13,25 @@ interface HarnessUsage {
   /** Where the harness picks the repository up. */
   entry: string
   /** How the user runs a compiled workflow. */
-  workflow: (workflowId: string) => string
+  command: (id: string) => string
+  /** How the user runs a skill offered as a command; absent when the menu lists no skills. */
+  skill?: (id: string) => string
   notes?: string[]
 }
 
 const USAGE: Record<HarnessId, HarnessUsage> = {
   'claude-code': {
     entry: '`CLAUDE.md` plus `.claude/` (skills, agents, rules, settings).',
-    workflow: (id) => `/${id}`,
+    command: (id) => `/${id}`,
+    skill: (id) => `/${id}`,
     notes: [
       'Hooks and permissions are in `.claude/settings.json`; review them before trusting the project.',
     ],
   },
   codex: {
     entry: '`AGENTS.md` plus `.agents/skills/` and `.codex/`.',
-    workflow: (id) => `$${id}`,
+    command: (id) => `$${id}`,
+    skill: (id) => `$${id}`,
     notes: [
       'Codex reads `.codex/config.toml` only for trusted projects; trust it once with `/trust` or add it to `~/.codex/config.toml`.',
       'Hooks and multi-agent support are behind `[features]` flags, which the generated config sets.',
@@ -35,7 +39,8 @@ const USAGE: Record<HarnessId, HarnessUsage> = {
   },
   copilot: {
     entry: '`AGENTS.md` plus `.github/` (instructions, skills, agents, prompts, hooks).',
-    workflow: (id) => `/${id}`,
+    command: (id) => `/${id}`,
+    skill: (id) => `/${id}`,
     notes: [
       'Hooks are in `.github/hooks/blueprint.json`; review them before trusting the project.',
       'Memory is not supported, and per-command permissions are guidance rather than a boundary; both are described in `AGENTS.md` only.',
@@ -44,7 +49,7 @@ const USAGE: Record<HarnessId, HarnessUsage> = {
   },
   opencode: {
     entry: '`AGENTS.md` plus `.agents/skills/`, `opencode.json` and `.opencode/`.',
-    workflow: (id) => `/${id}`,
+    command: (id) => `/${id}`,
     notes: [
       'Permissions are enforced by `opencode.json`; read it before trusting the project, and remember that the last matching pattern wins.',
       'Hooks and gates are not enforced: they need a plugin, which is TypeScript rather than configuration. They are described in `AGENTS.md` and in the workflow skills.',
@@ -52,7 +57,7 @@ const USAGE: Record<HarnessId, HarnessUsage> = {
   },
   pi: {
     entry: '`AGENTS.md` plus `.agents/skills/`, `.pi/prompts/` and `.pi/settings.json`.',
-    workflow: (id) => `/${id}`,
+    command: (id) => `/${id}`,
     notes: [
       'Pi runs one agent; steps that delegate ask the same session to adopt another persona, so the isolation the Blueprint asks for is not there.',
       'Permissions are a tool allowlist in `.pi/settings.json`. Pi has no ask, no per-command rules and no network tool, so the rest of the policy is guidance in `AGENTS.md`.',
@@ -100,7 +105,8 @@ function usageOf(blueprint: Blueprint, target: HarnessId, plugin: boolean): Harn
     case 'claude-code':
       return {
         entry: 'a plugin at `plugins/claude-code/`, listed in `.claude-plugin/marketplace.json`.',
-        workflow: (id) => `/${blueprint.id}:${id}`,
+        command: (id) => `/${blueprint.id}:${id}`,
+        skill: (id) => `/${blueprint.id}:${id}`,
         notes: [
           'Hooks are in `plugins/claude-code/hooks/hooks.json`; review them before installing. The deny and ask rules are among them, as PreToolUse hooks; what the Blueprint allowed is left to the project that installs the plugin.',
         ],
@@ -108,7 +114,8 @@ function usageOf(blueprint: Blueprint, target: HarnessId, plugin: boolean): Harn
     case 'codex':
       return {
         entry: 'a plugin at `plugins/codex/`, listed in `.agents/plugins/marketplace.json`.',
-        workflow: (id) => `$${blueprint.id}:${id}`,
+        command: (id) => `$${blueprint.id}:${id}`,
+        skill: (id) => `$${blueprint.id}:${id}`,
         notes: [
           'Hooks are in `plugins/codex/hooks/hooks.json`; review them, then trust them with `/hooks` — until then Codex skips them. The persona and Iron Laws are loaded at session start by one of those hooks, and are also the `guide` skill. Subagents, permissions and memory are not part of a Codex plugin.',
         ],
@@ -116,7 +123,8 @@ function usageOf(blueprint: Blueprint, target: HarnessId, plugin: boolean): Harn
     case 'copilot':
       return {
         entry: 'a plugin at `plugins/copilot/`, listed in `.github/plugin/marketplace.json`.',
-        workflow: (id) => `/${id}`,
+        command: (id) => `/${id}`,
+        skill: (id) => `/${id}`,
         notes: [
           'Hooks are in `plugins/copilot/com.github.copilot/hooks/hooks.json`; review them before installing. Memory is not supported, and per-command permissions are guidance rather than a boundary; both are described in the guide rule of the plugin only.',
           'Any MCP server the plugin lists needs its variables set in the environment Copilot runs in; the plugin carries their names, never a value.',
@@ -175,14 +183,40 @@ export function emitReadme(
     }
   }
 
-  if (blueprint.workflows.length > 0) {
-    md.heading(2, 'Workflows')
+  // Claude Code, Codex and Copilot list workflows and skills in one command menu; this
+  // table is that menu before the export is installed. A skill not offered as a command is
+  // not in it, and a harness whose menu has no skills (OpenCode, Pi) shows none.
+  const commands = [
+    ...blueprint.workflows.map((workflow) => ({
+      name: workflow.name,
+      kind: 'Workflow',
+      description: workflow.description ?? '',
+      on: (target: HarnessId) => code(usage(target).command(workflow.id)),
+    })),
+    ...blueprint.skills
+      .filter((skill) => skill.invocation.userInvocable)
+      .map((skill) => ({
+        name: skill.name,
+        kind: 'Skill',
+        description: skill.description ?? '',
+        on: (target: HarnessId) => {
+          const invoke = usage(target).skill
+          return invoke ? code(invoke(skill.id)) : '—'
+        },
+      })),
+  ]
+  if (commands.length > 0) {
+    md.heading(2, 'Commands')
+    md.paragraph(
+      'What the command menu of each harness offers from this repository. A skill is listed when the Blueprint offers it as a command and the harness lists skills in its menu; the other skills load on their own when their activation matches.',
+    )
     md.table(
-      ['Workflow', 'What it does', ...targets.map((target) => HARNESS_LABELS[target])],
-      blueprint.workflows.map((workflow) => [
-        workflow.name,
-        workflow.description ?? '',
-        ...targets.map((target) => code(usage(target).workflow(workflow.id))),
+      ['Command', 'Kind', 'What it does', ...targets.map((target) => HARNESS_LABELS[target])],
+      commands.map((command) => [
+        command.name,
+        command.kind,
+        command.description,
+        ...targets.map((target) => command.on(target)),
       ]),
     )
   }

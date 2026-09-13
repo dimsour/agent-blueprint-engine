@@ -36,6 +36,15 @@ interface RenderContext {
   notes: { message: string; nodeId?: string }[]
 }
 
+/**
+ * The description of the skill a workflow compiles to. Every harness lists skills and
+ * workflows in one command menu, by name and description, so the description says which
+ * this is: a person choosing between `/write-tests` and `/xunit` sees "Workflow:" on one.
+ */
+export function workflowSkillDescription(workflow: Workflow): string {
+  return `Workflow: ${workflow.description ?? workflow.name}`
+}
+
 export function emitWorkflowSkill(
   workflow: Workflow,
   blueprint: Blueprint,

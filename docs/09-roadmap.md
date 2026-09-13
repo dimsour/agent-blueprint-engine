@@ -1024,6 +1024,7 @@ something, it says what and where that thing still exists.
 - Verify: `pnpm --filter @agent-blueprint/exporters test`
 - Built: `skillInvocationSchema`, the two frontmatter extras in the Claude adapter, the Argument line in `activationBlock`, the Usage section in `emitWorkflowSkill` through `phrasing.workflowInvocation`.
 - Not built: named arguments (`arguments: [name]` with `$name` substitution), which only Claude Code documents; a menu flag for Codex, which has none.
+- Reported from use afterwards: the `/` menu of an installed export listed every workflow and every skill alike, and nothing before installing said what the menu would hold. Two things now: the README has a `Commands` table — the workflows and the skills offered as commands, with the kind and the invocation on each target, and a blank where a harness lists no skills (OpenCode, Pi) — and the skill a workflow compiles to carries the description `Workflow: <description>`, so the menu tells the two apart. The switch that keeps a knowledge skill out of the menu is the one from this task, "Offered as a command" on the skill form.
 
 ### P9-32 An agent's budget (done)
 

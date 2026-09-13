@@ -28,7 +28,7 @@ import { type ScriptLocation, shellQuote } from '../shared/hooks'
 import { composeInstructions, lawsForAgent, primaryAgentOf } from '../shared/instructions'
 import { type Phrasing } from '../shared/phrasing'
 import { emitSkillDir, renderReference } from '../shared/skill-dir'
-import { emitWorkflowSkill } from '../shared/workflow-skill'
+import { emitWorkflowSkill, workflowSkillDescription } from '../shared/workflow-skill'
 import {
   type CompatibilityIssue,
   type CompileResult,
@@ -217,7 +217,7 @@ export function compilePlugin(blueprint: Blueprint, options: ClaudeCodeOptions):
     const { body, notes } = emitWorkflowSkill(workflow, blueprint, phrasing)
     const frontmatter: Frontmatter = {
       name: workflow.id,
-      description: workflow.description ?? workflow.name,
+      description: workflowSkillDescription(workflow),
       'user-invocable': true,
       ...(workflow.argumentHint ? { 'argument-hint': workflow.argumentHint } : {}),
     }

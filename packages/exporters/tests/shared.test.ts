@@ -12,6 +12,7 @@ import {
   buildManifestFor,
   CLAUDE_PHRASING,
   compileBlueprint,
+  emitReadme,
   emitWorkflowSkill,
   firstSentence,
   generatedHeader,
@@ -180,6 +181,50 @@ describe('walkWorkflow', () => {
       ])
     }
     expect(walk.unreachable).toEqual([])
+  })
+})
+
+/**
+ * The README says what the command menu will show: the workflows and the skills offered as
+ * commands, in each harness's syntax, with the harnesses that list no skills left blank.
+ */
+describe('emitReadme commands', () => {
+  const textOf = (file: { content: string | Uint8Array }) =>
+    typeof file.content === 'string' ? file.content : new TextDecoder().decode(file.content)
+
+  it('lists workflows and the skills offered as commands, per harness', async () => {
+    const blueprint = await loadFixture()
+    blueprint.skills.find((skill) => skill.id === 'xunit')!.invocation.userInvocable = false
+    const readme = textOf(emitReadme(blueprint, ['claude-code', 'codex', 'opencode']))
+    const rows = readme
+      .split('\n')
+      .filter(
+        (line) =>
+          line.startsWith('| ') && !line.startsWith('| Command') && !line.startsWith('| ---'),
+      )
+    expect(rows).toEqual([
+      '| Write Unit Tests | Workflow | From a request to the finished, verified test file. | `/write-tests` | `$write-tests` | `/write-tests` |',
+      '| Review Unit Tests | Workflow | Review an existing test suite for coverage gaps, brittleness and readability. | `/review-tests` | `$review-tests` | `/review-tests` |',
+      '| Test Design | Skill | Choose what to test and how - behaviour over implementation, edge cases, failure paths, and readable arrange-act-assert structure. | `/test-design` | `$test-design` | — |',
+      '| FluentAssertions | Skill | Express assertions with FluentAssertions so failures read as sentences. | `/fluent-assertions` | `$fluent-assertions` | — |',
+    ])
+    expect(readme).not.toContain('| xUnit |')
+  })
+
+  it('labels a workflow skill so the menu tells it from a skill', async () => {
+    const blueprint = await loadFixture()
+    const { files } = compileBlueprint(blueprint, { targets: ['claude-code', 'codex'] })
+    for (const path of [
+      '.claude/skills/write-tests/SKILL.md',
+      '.agents/skills/write-tests/SKILL.md',
+    ]) {
+      const skill = textOf(files.find((file) => file.path === path)!)
+      expect(skill).toContain(
+        'description: "Workflow: From a request to the finished, verified test file."',
+      )
+    }
+    const xunit = textOf(files.find((file) => file.path === '.claude/skills/xunit/SKILL.md')!)
+    expect(xunit).not.toContain('Workflow:')
   })
 })
 

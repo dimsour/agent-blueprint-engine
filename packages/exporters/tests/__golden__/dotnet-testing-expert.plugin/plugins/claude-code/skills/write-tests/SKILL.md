@@ -1,6 +1,6 @@
 ---
 name: write-tests
-description: From a request to the finished, verified test file.
+description: "Workflow: From a request to the finished, verified test file."
 user-invocable: true
 ---
 

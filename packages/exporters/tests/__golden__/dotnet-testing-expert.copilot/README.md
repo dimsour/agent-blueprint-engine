@@ -11,12 +11,17 @@ This repository is an AI agent configuration compiled from a Blueprint. Clone it
 - `blueprint/` — the source of truth. Every other file is generated from it.
 - GitHub Copilot — `AGENTS.md` plus `.github/` (instructions, skills, agents, prompts, hooks).
 
-## Workflows
+## Commands
 
-| Workflow | What it does | GitHub Copilot |
-| --- | --- | --- |
-| Write Unit Tests | From a request to the finished, verified test file. | `/write-tests` |
-| Review Unit Tests | Review an existing test suite for coverage gaps, brittleness and readability. | `/review-tests` |
+What the command menu of each harness offers from this repository. A skill is listed when the Blueprint offers it as a command and the harness lists skills in its menu; the other skills load on their own when their activation matches.
+
+| Command | Kind | What it does | GitHub Copilot |
+| --- | --- | --- | --- |
+| Write Unit Tests | Workflow | From a request to the finished, verified test file. | `/write-tests` |
+| Review Unit Tests | Workflow | Review an existing test suite for coverage gaps, brittleness and readability. | `/review-tests` |
+| xUnit | Skill | Write idiomatic xUnit tests - facts, theories, fixtures, collections and async patterns. | `/xunit` |
+| Test Design | Skill | Choose what to test and how - behaviour over implementation, edge cases, failure paths, and readable arrange-act-assert structure. | `/test-design` |
+| FluentAssertions | Skill | Express assertions with FluentAssertions so failures read as sentences. | `/fluent-assertions` |
 
 ## Before you trust it
 
