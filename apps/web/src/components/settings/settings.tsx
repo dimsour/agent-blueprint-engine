@@ -5,8 +5,9 @@
  *
  * Everything Agent Blueprint stores is local, which is easy to say and hard to believe
  * without seeing it. So this page lists the projects and drafts that exist, says roughly how
- * much room they take, and gives a way to remove them. The AI endpoint sits here too, with
- * its key kept where the user chose and nowhere else; the GitHub token arrives with pushing.
+ * much room they take, and gives a way to remove them. The editor's preferences follow. The
+ * AI endpoint sits here too, with its key kept where the user chose and nowhere else; the
+ * GitHub token arrives with pushing.
  */
 import { Trash2Icon } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
@@ -14,6 +15,7 @@ import { toast } from 'sonner'
 
 import { PageHeader } from '@/components/layout/page-header'
 import { AISettings } from '@/components/settings/ai-settings'
+import { EditorSettings } from '@/components/settings/editor-settings'
 import { GitHubSettings } from '@/components/settings/github-settings'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/primitives'
@@ -126,6 +128,14 @@ export function Settings({ oauthAvailable }: { oauthAvailable: boolean }) {
           <Trash2Icon />
           Remove every local project
         </Button>
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <h2 className="text-sm font-semibold">Editor</h2>
+        <p className="text-muted-foreground text-sm">
+          How the workspace treats an edit. Stored in this browser with the other preferences.
+        </p>
+        <EditorSettings />
       </section>
 
       <section className="flex flex-col gap-3">

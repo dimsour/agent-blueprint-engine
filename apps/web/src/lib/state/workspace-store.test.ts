@@ -1,6 +1,7 @@
 import { readStarterFiles } from '@agent-blueprint/templates'
 import { beforeEach, describe, expect, it } from 'vitest'
 
+import { EDITOR_SETTINGS_KEY } from '@/lib/editor-settings'
 import { IndexedDbStore, parseProject, resetDbForTests } from '@/lib/storage'
 
 import {
@@ -125,6 +126,27 @@ describe('saving', () => {
 
     // The save wrote "first"; "second" is not on disk, so the workspace is still dirty.
     expect(useWorkspace.getState().dirty).toBe(true)
+  })
+
+  it('waits for Save when autosave is off, and still saves on Save', async () => {
+    localStorage.setItem(EDITOR_SETTINGS_KEY, JSON.stringify({ autosave: false }))
+    try {
+      const store = new IndexedDbStore()
+      const blueprint = await loadStarter()
+      useWorkspace.getState().upsert('skill', { ...blueprint.skills[0]!, description: 'kept' })
+
+      // What autosave would have done by now: nothing, and nothing pending either.
+      await useWorkspace.getState().flushPending(store)
+      expect(useWorkspace.getState().dirty).toBe(true)
+      const path = `blueprint/skills/${blueprint.skills[0]!.id}/SKILL.md`
+      expect((await store.open('test-project'))?.[path] ?? '').not.toContain('kept')
+
+      await useWorkspace.getState().save(store)
+      expect(useWorkspace.getState().dirty).toBe(false)
+      expect((await store.open('test-project'))?.[path]).toContain('kept')
+    } finally {
+      localStorage.removeItem(EDITOR_SETTINGS_KEY)
+    }
   })
 
   it('reports a failure instead of pretending the project is saved', async () => {

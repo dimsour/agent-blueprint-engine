@@ -26,6 +26,7 @@ import { TopBar } from '@/components/layout/top-bar'
 import { ProjectTree } from '@/components/tree/project-tree'
 import { Button } from '@/components/ui/button'
 import { validateNow } from '@/lib/actions'
+import { readEditorSettings } from '@/lib/editor-settings'
 import { useUrlState } from '@/lib/use-url-state'
 import { entityOf, hasPreview } from '@/lib/artifact-source'
 import { useShortcuts } from '@/lib/shortcuts'
@@ -67,6 +68,17 @@ export function Workspace({ projectId }: { projectId: string }) {
       return true
     },
   })
+
+  // With autosave off, an edit lives only in this tab until Save; closing the tab must ask.
+  // With it on, the pending write goes out within the debounce, and asking would be noise.
+  useEffect(() => {
+    const guard = (event: BeforeUnloadEvent) => {
+      if (!useWorkspace.getState().dirty || readEditorSettings().autosave) return
+      event.preventDefault()
+    }
+    window.addEventListener('beforeunload', guard)
+    return () => window.removeEventListener('beforeunload', guard)
+  }, [])
 
   useEffect(() => {
     let cancelled = false

@@ -1096,6 +1096,16 @@ something, it says what and where that thing still exists.
 - Built: `compileCopilotPlugin`, the agent and instruction emitters moved to `copilot/emit.ts` so both layouts share them, `PLUGIN_LAYOUT_TARGETS` naming all three harnesses, the golden `dotnet-testing-expert.copilot-plugin`. On the way: the Claude plugin's rule pointer rendered with doubled backticks, since the composer wrapped an already-formatted location; the location is Markdown now.
 - Not built: hook scripts in the plugin, until Copilot documents `PLUGIN_ROOT` for hooks as it does for MCP and LSP servers; prompt files under `com.github.copilot/commands/`, whose format is not documented; a plugin for OpenCode or Pi, which still have no marketplace.
 
+### P9-37 Autosave as a choice (done)
+
+- Package: `apps/web` (`lib/editor-settings.ts`, `components/settings/editor-settings.tsx`, `lib/state/workspace-store.ts`, `components/workspace/workspace.tsx`)
+- Depends on: P3-05
+- Description: Reported from use: every edit wrote itself to the project about a second later, with no way to try something and walk away from it. Autosave was the right default and the wrong constant.
+- Acceptance: Settings has an Editor section with "Save edits automatically", on by default and stored with the other preferences (`ab:settings:editor`); off, an edit marks the workspace unsaved and nothing but Save writes it; the store reads the preference when the edit lands, so the change applies without a reload; closing the tab with something unsaved and autosave off asks first; the help text says leaving the project drops the edit.
+- Verify: `pnpm --filter web test`
+- Built: `readEditorSettings` / `writeEditorSettings`, the `EditorSettings` card, the read in `scheduleWork`, the `beforeunload` guard.
+- Not built: a prompt on in-app navigation away from an unsaved project, which the router has no hook for without a custom link; a per-project setting.
+
 ### Open questions
 
 1. **Permissions in a Codex plugin.** Codex hooks have `PreToolUse` with a `permissionDecision` output, as Claude's do, but filter by a regex on the tool name only; there is no `if` in permission-rule syntax. Enforcing `Bash(git push *)` from a plugin would need a script that reads the hook's JSON input and matches the command itself — with no JSON tool guaranteed on the machine — and one that fails closed. Left as the command policy in the instructions until Codex documents an argument filter.

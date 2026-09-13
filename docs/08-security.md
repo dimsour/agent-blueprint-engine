@@ -18,6 +18,7 @@ This document sets the rules for handling credentials and secrets in Agent Bluep
 | AI API key                                   | `sessionStorage` | `localStorage` with a warning | `ab:credentials:ai`        |
 | GitHub token (PAT or OAuth)                  | `sessionStorage` | `localStorage` with a warning | `ab:credentials:github`    |
 | UI preferences (theme)                       | `localStorage`   |                               | `ab:ui:theme`              |
+| Editor preferences (autosave)                | `localStorage`   |                               | `ab:settings:editor`       |
 | Panel widths                                 | `localStorage`   |                               | `react-resizable-panels:*` |
 | Project drafts                               | IndexedDB        |                               | database `agent-blueprint` |
 

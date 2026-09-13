@@ -7,7 +7,8 @@
  * undo: selecting a different artifact is not something a user expects ⌘Z to reverse.
  *
  * Validation and autosave are debounced because both run on every keystroke in the Markdown
- * editor. Tests call `flushPending` instead of waiting.
+ * editor. Tests call `flushPending` instead of waiting. Autosave is a preference
+ * (`lib/editor-settings`), read when an edit lands: off, an edit waits for Save.
  *
  * The store is a module singleton that outlives client-side navigation, so switching
  * projects has to be explicit about three things: the pending autosave belongs to the
@@ -39,6 +40,7 @@ import {
 import { create, useStore } from 'zustand'
 import { temporal, type TemporalState as ZundoTemporalState } from 'zundo'
 
+import { readEditorSettings } from '@/lib/editor-settings'
 import { saveProject } from '@/lib/storage'
 import type { ProjectStore } from '@/lib/storage'
 
@@ -197,6 +199,7 @@ export const useWorkspace = create<WorkspaceState>()(
         }, VALIDATION_DEBOUNCE_MS)
 
         if (autosaveTimer) clearTimeout(autosaveTimer)
+        if (!readEditorSettings().autosave) return
         autosaveTimer = setTimeout(() => {
           autosaveTimer = undefined
           void get().save()
