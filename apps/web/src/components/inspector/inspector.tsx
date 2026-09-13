@@ -127,6 +127,11 @@ function ArtifactInspector({ selection }: { selection: EntityRef }) {
           title="Used by"
           empty="Nothing refers to this artifact."
           items={relations.dependents}
+          {...(relations.appliesToAll
+            ? {
+                note: 'Applies to every agent: its scope puts it in every compiled instruction file, whether or not an agent lists it.',
+              }
+            : {})}
         />
 
         <section className="flex flex-col gap-2">
@@ -166,10 +171,13 @@ function RelationList({
   title,
   empty,
   items,
+  note,
 }: {
   title: string
   empty: string
   items: readonly RelatedArtifact[]
+  /** A use the graph has no edge for, said in place of "nothing" or above the list. */
+  note?: string
 }) {
   const select = useWorkspace((state) => state.select)
 
@@ -179,8 +187,11 @@ function RelationList({
         {title}
         {items.length > 0 ? <span className="ml-1 tabular-nums">{items.length}</span> : null}
       </SectionTitle>
+      {note ? <p className="text-muted-foreground text-sm">{note}</p> : null}
       {items.length === 0 ? (
-        <p className="text-muted-foreground text-sm">{empty}</p>
+        note ? null : (
+          <p className="text-muted-foreground text-sm">{empty}</p>
+        )
       ) : (
         <ul aria-label={title} className="flex flex-col">
           {items.map((item) => (

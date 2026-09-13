@@ -59,6 +59,12 @@ export interface ArtifactRelations {
   /** Artifacts that point at this one; the answer to "what breaks if I delete it". */
   readonly dependents: readonly RelatedArtifact[]
   readonly isPrimaryAgent: boolean
+  /**
+   * A law or rule whose scope is "all": in every agent's compiled instructions without any
+   * agent pointing at it. The graph has no edge for that, and "nothing refers to this" would
+   * be the wrong thing to say about it (P9-40).
+   */
+  readonly appliesToAll: boolean
 }
 
 function nameOf(blueprint: Blueprint, ref: EntityRef): string | undefined {
@@ -96,9 +102,14 @@ function collapse(
 /** Everything the inspector needs to say about one artifact's place in the Blueprint. */
 export function relationsOf(blueprint: Blueprint, ref: EntityRef): ArtifactRelations {
   const graph = buildDependencyGraph(blueprint)
+  const scoped =
+    ref.kind === 'iron-law' || ref.kind === 'rule'
+      ? (findEntity(blueprint, ref.kind, ref.id) as { scope?: { all: boolean } } | undefined)
+      : undefined
   return {
     dependencies: collapse(blueprint, graph.dependenciesOf(ref), 'out'),
     dependents: collapse(blueprint, graph.dependentsOf(ref), 'in'),
     isPrimaryAgent: ref.kind === 'agent' && graph.primaryAgentId === ref.id,
+    appliesToAll: scoped?.scope?.all === true,
   }
 }

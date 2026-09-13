@@ -258,6 +258,7 @@ A dialog over the workspace, opened from the top bar, the palette or the shortcu
   primary agent, which _Draft the whole Blueprint_ does and says so in its hint. With an agent
   selected, what it creates is held from that agent unless the answer writes an agent of its
   own.
+- The inspector's **Used by** says "Applies to every agent" for a law or rule whose scope is all (P9-40): the graph has no edge for a scope, so the list would otherwise read "Nothing refers to this artifact" about a law that is in every compiled file — which is the wording that sent people to fix what was not broken.
 - **Fix the Blueprint** (P9-40) is the whole-Blueprint counterpart of _Fix with AI_: everything
   the validator and the evaluation raise, decided on with the design in view — change, create,
   delete or keep, each with its reason as the first notes of the review (docs/06). The case it

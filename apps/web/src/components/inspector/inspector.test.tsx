@@ -57,6 +57,25 @@ describe('Inspector', () => {
     expect(within(usedBy).getByText('Write Unit Tests')).toBeInTheDocument()
   })
 
+  // A law that applies to all is compiled for every agent with no agent pointing at it (P9-40);
+  // "nothing refers to this" was true of the graph and false of the Blueprint.
+  it('says a global law is used by every agent rather than by nothing', async () => {
+    const blueprint = await load()
+    const unlisted = {
+      ...blueprint,
+      agents: blueprint.agents.map((agent) => ({
+        ...agent,
+        ironLawIds: agent.ironLawIds.filter((id) => id !== 'deterministic-tests'),
+      })),
+    }
+    useWorkspace.getState().load('test', unlisted)
+    useWorkspace.getState().select({ kind: 'iron-law', id: 'deterministic-tests' })
+    render(<Inspector />)
+
+    expect(screen.getByText(/Applies to every agent/)).toBeInTheDocument()
+    expect(screen.queryByText('Nothing refers to this artifact.')).not.toBeInTheDocument()
+  })
+
   it('lists what an agent depends on', async () => {
     await load()
     select({ kind: 'agent', id: 'testing-expert' })
