@@ -39,7 +39,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/overlays'
-import { Badge, Input } from '@/components/ui/primitives'
+import { Badge, Input, type Severity } from '@/components/ui/primitives'
 import { readGitHubToken } from '@/lib/github/auth'
 import { GitHubError, viewer } from '@/lib/github/client'
 import { type FileChange, planPush, type PushPlan, writesFor } from '@/lib/github/plan'
@@ -491,10 +491,14 @@ function Pushed({
   )
 }
 
-const KIND_LABELS: Record<FileChange['kind'], string> = {
-  add: 'new',
-  update: 'changed',
-  delete: 'removed',
+/**
+ * What each kind of change looks like in the list: the colours a diff reads by, so a glance
+ * says what a push adds, rewrites and takes away before the paths are read.
+ */
+export const CHANGE_BADGES: Record<FileChange['kind'], { label: string; variant: Severity }> = {
+  add: { label: 'new', variant: 'success' },
+  update: { label: 'changed', variant: 'warning' },
+  delete: { label: 'removed', variant: 'danger' },
 }
 
 function Preview({
@@ -545,8 +549,8 @@ function Preview({
         <ul aria-label="Changes" className="flex max-h-56 flex-col gap-0.5 overflow-auto text-sm">
           {plan.changes.map((change) => (
             <li key={change.path} className="flex items-baseline gap-2">
-              <Badge variant={change.kind === 'delete' ? 'danger' : 'outline'}>
-                {KIND_LABELS[change.kind]}
+              <Badge variant={CHANGE_BADGES[change.kind].variant} className="w-16 justify-center">
+                {CHANGE_BADGES[change.kind].label}
               </Badge>
               <span className="min-w-0 flex-1 truncate font-mono text-xs">{change.path}</span>
               {change.handEdited ? (

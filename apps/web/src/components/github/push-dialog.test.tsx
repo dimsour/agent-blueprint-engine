@@ -11,7 +11,7 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { PushDialog } from '@/components/github/push-dialog'
+import { CHANGE_BADGES, PushDialog } from '@/components/github/push-dialog'
 import { byteLength, encodeUtf8, type ProjectFile, toBase64 } from '@agent-blueprint/core'
 
 import { gitBlobSha } from '@/lib/github/tree'
@@ -181,6 +181,14 @@ afterEach(() => {
   globalThis.fetch = realFetch
 })
 
+describe('the change tags', () => {
+  it('use the colours a diff reads by', () => {
+    expect(CHANGE_BADGES.add).toEqual({ label: 'new', variant: 'success' })
+    expect(CHANGE_BADGES.update).toEqual({ label: 'changed', variant: 'warning' })
+    expect(CHANGE_BADGES.delete).toEqual({ label: 'removed', variant: 'danger' })
+  })
+})
+
 describe('pushing to GitHub', () => {
   it('asks for a token before anything else', async () => {
     await load()
@@ -213,6 +221,10 @@ describe('pushing to GitHub', () => {
     const changes = await screen.findByRole('list', { name: 'Changes' })
     expect(within(changes).getByText('blueprint/blueprint.yaml')).toBeInTheDocument()
     expect(within(changes).getByText('CLAUDE.md')).toBeInTheDocument()
+    // Every file is new to an empty repository, and the tag says so in the colour a diff uses.
+    const tags = within(changes).getAllByText('new')
+    expect(tags.length).toBeGreaterThan(0)
+    for (const tag of tags) expect(tag.className).toContain('text-success')
 
     await user.click(screen.getByRole('button', { name: /Push/ }))
 
