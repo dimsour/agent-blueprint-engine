@@ -23,7 +23,7 @@ the browser and never reach a Blueprint, an export, a push or a log.
 
 **Design.** Every artifact has a visual form and a source tab showing the project file itself,
 with a Markdown preview. Workflows are edited as the drawing they are. Ten starter Blueprints
-and 29 artifact templates give you something to open rather than an empty editor, a command
+and 36 artifact templates give you something to open rather than an empty editor, a command
 palette (`⌘K`) creates, navigates and validates, and `/tutorial` walks the whole loop and then
 every kind of artifact — what it is, how to add one, and what each harness gets.
 
@@ -89,7 +89,7 @@ pnpm format                                       # prettier
 | `packages/core`      | `@agent-blueprint/core`      | canonical model, project format, validation, evaluation, dependency graph, change-sets |
 | `packages/exporters` | `@agent-blueprint/exporters` | the five harness adapters and the compile pipeline                                     |
 | `packages/ai`        | `@agent-blueprint/ai`        | OpenAI-compatible client producing reviewable change-sets                              |
-| `packages/templates` | `@agent-blueprint/templates` | 29 artifact templates and 10 starter blueprints                                        |
+| `packages/templates` | `@agent-blueprint/templates` | 36 artifact templates and 10 starter blueprints                                        |
 | `packages/fixtures`  | `@agent-blueprint/fixtures`  | sample projects used by tests everywhere                                               |
 | `docs/`              |                              | the specification set                                                                  |
 
@@ -100,7 +100,12 @@ blueprint/            the Blueprint: one Markdown or YAML file per artifact
 CLAUDE.md .claude/    compiled for Claude Code
 AGENTS.md .agents/    compiled, shared by Codex, Copilot, OpenCode and Pi
 .codex/ .github/ .opencode/ .pi/    the rest of each harness's own tree
+plugins/<harness>/    instead of the above, when a target is packaged as a plugin
 ```
+
+A Claude Code, Codex or Copilot target can be packaged as a plugin rather than compiled into
+the repository root: the repository then carries the plugin and a marketplace file, and installs
+into any project with the commands the push dialog and the README show.
 
 ## Documentation
 
@@ -118,6 +123,7 @@ Phases P0 to P8 are complete: the model, the compiler, the templates, the web ID
 the trust surfaces, the AI layer, GitHub, and the hardening pass — all five adapters full,
 binary assets carried end to end, the UI checked against WCAG 2.1 AA in both themes, a
 200-artifact project measured rather than assumed, and the docs/00 story walked in one test.
+P9, the interface, is in progress: small fixes and fine-tuning from use.
 [docs/09-roadmap.md](docs/09-roadmap.md) is the backlog and says what each phase actually built.
 
 Working in this repository with an AI agent? Start at [AGENTS.md](AGENTS.md).
