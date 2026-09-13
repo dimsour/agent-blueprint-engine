@@ -43,6 +43,7 @@ import {
   artifactsNamedBy,
   briefOf,
   complaintsFrom,
+  draftsFrom,
   fixabilityOf,
   kindsFor,
   outcomeOf,
@@ -141,11 +142,33 @@ function connectionsOf(
         `  - uses ${uses.map((edge) => `${nameOf(edge.to)} (${edge.relation})`).join(', ')}`,
       )
     }
+    const scope = scopeOf(ctx, ref)
+    if (scope) lines.push(`  - ${scope}`)
     if (usedBy.length === 0 && ORPHANABLE_KINDS.includes(ref.kind)) {
       lines.push(...holdersOf(ctx, ref.kind))
     }
   }
   return lines.join('\n')
+}
+
+/**
+ * What a law's or a rule's own scope reaches. The compiler reads this, not the agents' lists,
+ * to decide whose instructions it goes into, so it is the first thing to say about one.
+ */
+function scopeOf(ctx: OperationContext, ref: EntityRef): string | undefined {
+  if (ref.kind !== 'iron-law' && ref.kind !== 'rule') return undefined
+  const entity = findEntity(ctx.blueprint, ref.kind, ref.id) as
+    { scope: { all: boolean; agentIds: string[]; workflowIds: string[] } } | undefined
+  if (!entity) return undefined
+  const { scope } = entity
+  if (scope.all) return 'its scope applies it to every agent, so it is in every compiled file'
+  const reaches = [
+    ...scope.agentIds.map((id) => `the agent "${id}"`),
+    ...scope.workflowIds.map((id) => `the workflow "${id}"`),
+  ]
+  return reaches.length === 0
+    ? 'its scope names no agent and no workflow and is not set to all, so it reaches no compiled file'
+    : `its scope applies it to ${reaches.join(', ')}`
 }
 
 /** Which agents hold which artifacts of a kind, so the model can see where an orphan fits. */
@@ -309,11 +332,20 @@ export async function fixBlueprint(
     answered = value.artifacts.length > 0 || value.deletions.length > 0
 
     const attemptNotes: string[] = []
-    const drafts: Draft[] = value.artifacts.map((proposal) => ({
-      kind: proposal.kind,
-      value: restoringEmptied(ctx.blueprint, proposal.kind, proposal.artifact, attemptNotes),
-      ...(proposal.note !== undefined ? { note: proposal.note } : {}),
-    }))
+    // Two guards, in order. Whatever came back empty is restored first, for every artifact
+    // that exists — the agent returned to hold an orphan has no finding to say which of its
+    // fields were in play. Then the single fix's own rule: an artifact a finding names may
+    // change the fields that code is about and no other, so a law asked about its scope does
+    // not come back with its severity raised (reported from use).
+    const drafts: Draft[] = draftsFrom(
+      ctx.blueprint,
+      batch,
+      value.artifacts.map((proposal) => ({
+        ...proposal,
+        artifact: restoringEmptied(ctx.blueprint, proposal.kind, proposal.artifact, attemptNotes),
+      })),
+      attemptNotes,
+    )
     const assembly = assembleChangeSet({
       blueprint: ctx.blueprint,
       source: 'ai',

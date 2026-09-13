@@ -422,11 +422,11 @@ Blueprint operations (all pure; they return new objects)
 
 Dependencies
 
-| Signature                                   | Description                                                                                            |
-| ------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `buildDependencyGraph(bp): DependencyGraph` | `nodes`, `edges`, `dangling`, `primaryAgentId`, `dependenciesOf(ref)`, `dependentsOf(ref)`, `has(ref)` |
-| `impactOf(graph, ref): ImpactReport`        | `direct`, `transitive` dependents, `isPrimaryAgent`                                                    |
-| `findOrphans(graph): EntityRef[]`           | Unreferenced entities of `ORPHANABLE_KINDS`                                                            |
+| Signature                                    | Description                                                                                            |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `buildDependencyGraph(bp): DependencyGraph`  | `nodes`, `edges`, `dangling`, `primaryAgentId`, `dependenciesOf(ref)`, `dependentsOf(ref)`, `has(ref)` |
+| `impactOf(graph, ref): ImpactReport`         | `direct`, `transitive` dependents, `isPrimaryAgent`                                                    |
+| `findOrphans(graph, blueprint): EntityRef[]` | Unused entities of `ORPHANABLE_KINDS`; a law or rule is used by its own scope (docs/05 §5)             |
 
 Project format
 

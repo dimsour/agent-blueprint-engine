@@ -18,7 +18,11 @@ beforeAll(async () => {
   fixture = await loadFixture()
 })
 
-/** The fixture with one Iron Law no agent holds any more. */
+/**
+ * The fixture with one Iron Law nothing uses: no agent lists it, and its scope reaches nothing
+ * — the compiler reads the scope (P9-40), so a law that applies to all is never an orphan.
+ * Both the orphan rule and BP-LAW-001 fire on it, which is what a real one looks like.
+ */
 function withOrphanLaw(): Blueprint {
   return {
     ...fixture,
@@ -26,6 +30,11 @@ function withOrphanLaw(): Blueprint {
       ...agent,
       ironLawIds: agent.ironLawIds.filter((id) => id !== 'deterministic-tests'),
     })),
+    ironLaws: fixture.ironLaws.map((law) =>
+      law.id === 'deterministic-tests'
+        ? { ...law, scope: { all: false, agentIds: [], workflowIds: [] } }
+        : law,
+    ),
   }
 }
 
@@ -51,8 +60,12 @@ describe('fixBlueprint', () => {
     await fixBlueprint({ client }, { blueprint: withOrphanLaw() })
     const asked = userMessage(sent)
     expect(asked).toContain('BP-ORPHAN-003')
+    expect(asked).toContain('BP-LAW-001')
     expect(asked).toContain('the iron law "deterministic-tests":')
     expect(asked).toContain('used by nothing')
+    expect(asked).toContain(
+      'its scope names no agent and no workflow and is not set to all, so it reaches no compiled file',
+    )
     expect(asked).toContain(
       'the agent "testing-expert" holds the iron laws: never-fake-verification, no-implementation-details',
     )
@@ -72,6 +85,12 @@ describe('fixBlueprint', () => {
             ref: { kind: 'iron-law', id: 'deterministic-tests' },
             action: 'delete',
             reason,
+          },
+          {
+            code: 'BP-LAW-001',
+            ref: { kind: 'iron-law', id: 'deterministic-tests' },
+            action: 'delete',
+            reason: 'Goes with the deletion above.',
           },
         ],
         artifacts: [],
@@ -95,7 +114,7 @@ describe('fixBlueprint', () => {
     )
     // And the validator's word that it worked.
     expect(result.notes.join('\n')).toContain(
-      'Checked: applying this clears BP-ORPHAN-003 on "deterministic-tests".',
+      'Checked: applying this clears BP-LAW-001 on "deterministic-tests", BP-ORPHAN-003 on "deterministic-tests".',
     )
     const applied = applyChangeSet(blueprint, result.changeSet).blueprint
     expect(findEntity(applied, 'iron-law', 'deterministic-tests')).toBeUndefined()
@@ -104,30 +123,31 @@ describe('fixBlueprint', () => {
   it('wires an orphan into the agent instead, and gives back what the agent lost on the way', async () => {
     const blueprint = withOrphanLaw()
     const agent = blueprint.agents[0]!
-    const { client } = replayClient([
-      JSON.stringify({
-        decisions: [
-          {
-            code: 'BP-ORPHAN-003',
-            ref: { kind: 'iron-law', id: 'deterministic-tests' },
-            action: 'change',
-            reason: 'The agent writes tests, so the law binds it; it was never listed.',
+    // The law's own empty scope stays raised, so the operation asks once more; the same answer
+    // twice is no better, and the first is kept.
+    const wired = JSON.stringify({
+      decisions: [
+        {
+          code: 'BP-ORPHAN-003',
+          ref: { kind: 'iron-law', id: 'deterministic-tests' },
+          action: 'change',
+          reason: 'The agent writes tests, so the law binds it; it was never listed.',
+        },
+      ],
+      artifacts: [
+        {
+          kind: 'agent',
+          artifact: {
+            ...agent,
+            ironLawIds: [...agent.ironLawIds, 'deterministic-tests'],
+            // The classic half-empty answer: the wiring done, the skills dropped.
+            skillIds: [],
           },
-        ],
-        artifacts: [
-          {
-            kind: 'agent',
-            artifact: {
-              ...agent,
-              ironLawIds: [...agent.ironLawIds, 'deterministic-tests'],
-              // The classic half-empty answer: the wiring done, the skills dropped.
-              skillIds: [],
-            },
-          },
-        ],
-        deletions: [],
-      }),
-    ])
+        },
+      ],
+      deletions: [],
+    })
+    const { client } = replayClient([wired, wired])
     const result = await fixBlueprint({ client }, { blueprint })
 
     expect(result.changeSet.ops).toHaveLength(1)
@@ -137,7 +157,60 @@ describe('fixBlueprint', () => {
     expect(after.ironLawIds).toContain('deterministic-tests')
     expect(after.skillIds).toEqual(agent.skillIds)
     expect(result.notes.join('\n')).toContain(`Put back skillIds on "${agent.id}"`)
-    expect(result.notes.join('\n')).toContain('Checked: applying this clears BP-ORPHAN-003')
+    // The list clears the orphan; the law's own empty scope is a separate finding, and the
+    // verdict says so rather than claiming the whole batch.
+    expect(result.notes.join('\n')).toContain(
+      'Checked: applying this clears 1 of 2 — BP-ORPHAN-003 on "deterministic-tests".',
+    )
+    expect(result.notes.join('\n')).toContain(
+      'Still raised after this change: BP-LAW-001 on "deterministic-tests".',
+    )
+  })
+
+  // Reported from use: asked about a law's scope, a model returned the law with its severity
+  // raised as well. The finding is about `scope`, so that is the field that may change.
+  it('lets a named artifact change only the fields its findings are about', async () => {
+    const blueprint = withOrphanLaw()
+    const law = blueprint.ironLaws.find((candidate) => candidate.id === 'deterministic-tests')!
+    const { client } = replayClient([
+      JSON.stringify({
+        decisions: [
+          {
+            code: 'BP-ORPHAN-003',
+            ref: { kind: 'iron-law', id: 'deterministic-tests' },
+            action: 'change',
+            reason: 'The testing expert writes the tests this governs.',
+          },
+          {
+            code: 'BP-LAW-001',
+            ref: { kind: 'iron-law', id: 'deterministic-tests' },
+            action: 'change',
+            reason: 'Same change.',
+          },
+        ],
+        artifacts: [
+          {
+            kind: 'iron-law',
+            artifact: {
+              ...law,
+              scope: { all: false, agentIds: ['testing-expert'], workflowIds: [] },
+              severity: 'critical',
+            },
+          },
+        ],
+        deletions: [],
+      }),
+    ])
+    const result = await fixBlueprint({ client }, { blueprint })
+
+    const applied = applyChangeSet(blueprint, result.changeSet).blueprint
+    const after = findEntity(applied, 'iron-law', 'deterministic-tests')!
+    expect(after.scope.agentIds).toEqual(['testing-expert'])
+    expect(after.severity).toBe(law.severity)
+    expect(result.notes.join('\n')).toContain('Kept severity on "deterministic-tests"')
+    expect(result.notes.join('\n')).toContain(
+      'Checked: applying this clears BP-LAW-001 on "deterministic-tests", BP-ORPHAN-003 on "deterministic-tests".',
+    )
   })
 
   it('refuses to delete what something still refers to, and says who', async () => {

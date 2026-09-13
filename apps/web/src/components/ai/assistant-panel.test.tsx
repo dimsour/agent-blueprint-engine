@@ -303,6 +303,12 @@ describe('Fix the Blueprint', () => {
         ...agent,
         ironLawIds: agent.ironLawIds.filter((id) => id !== 'deterministic-tests'),
       })),
+      // A law that applies to all is compiled for all and is no orphan; this one reaches nothing.
+      ironLaws: blueprint.ironLaws.map((law) =>
+        law.id === 'deterministic-tests'
+          ? { ...law, scope: { all: false, agentIds: [], workflowIds: [] } }
+          : law,
+      ),
     }
     useWorkspace.getState().load('test', orphaned)
     return orphaned

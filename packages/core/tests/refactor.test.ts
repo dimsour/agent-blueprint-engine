@@ -99,12 +99,49 @@ describe('dependency graph', () => {
 
   it('finds orphans', async () => {
     const bp = await loadFixture()
-    expect(findOrphans(buildDependencyGraph(bp))).toEqual([])
+    expect(findOrphans(buildDependencyGraph(bp), bp)).toEqual([])
     const withOrphan = structuredClone(bp)
     withOrphan.references.push({ ...bp.references[0]!, id: 'unused-reference', name: 'Unused' })
-    expect(findOrphans(buildDependencyGraph(withOrphan))).toEqual([
+    expect(findOrphans(buildDependencyGraph(withOrphan), withOrphan)).toEqual([
       { kind: 'reference', id: 'unused-reference' },
     ])
+  })
+
+  // The compiler reads a law's scope, not the agent's list (P9-40): what applies to every
+  // agent, or to a named one, is in the compiled files whether or not an agent lists it.
+  it('does not call a law an orphan while its scope reaches an agent', async () => {
+    const bp = structuredClone(await loadFixture())
+    const unlisted = (b: typeof bp) => {
+      for (const agent of b.agents) {
+        agent.ironLawIds = agent.ironLawIds.filter((id) => id !== 'deterministic-tests')
+      }
+      return b.ironLaws.find((law) => law.id === 'deterministic-tests')!
+    }
+    const orphans = (b: typeof bp) => findOrphans(buildDependencyGraph(b), b)
+
+    // Applies to everything, listed by nobody: compiled for everyone, so not an orphan.
+    const global = unlisted(structuredClone(bp))
+    expect(global.scope.all).toBe(true)
+    expect(orphans(bp)).toEqual([])
+
+    // Applies to one named agent: compiled for that agent, so not an orphan either.
+    const named = structuredClone(bp)
+    unlisted(named).scope = { all: false, agentIds: ['testing-expert'], workflowIds: [] }
+    expect(orphans(named)).toEqual([])
+
+    // Applies to nothing and is listed by nobody: nothing compiles it. That is an orphan.
+    const nowhere = structuredClone(bp)
+    unlisted(nowhere).scope = { all: false, agentIds: [], workflowIds: [] }
+    expect(orphans(nowhere)).toEqual([{ kind: 'iron-law', id: 'deterministic-tests' }])
+
+    // Applies to nothing but an agent lists it: the graph still counts the list.
+    const listed = structuredClone(bp)
+    listed.ironLaws.find((law) => law.id === 'deterministic-tests')!.scope = {
+      all: false,
+      agentIds: [],
+      workflowIds: [],
+    }
+    expect(orphans(listed)).toEqual([])
   })
 })
 

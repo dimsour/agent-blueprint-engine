@@ -55,7 +55,7 @@ describe('a 200-artifact Blueprint', () => {
 
   it('finds orphans in under 50ms', () => {
     const graph = buildDependencyGraph(blueprint)
-    expect(msPerCall(() => findOrphans(graph))).toBeLessThan(50)
+    expect(msPerCall(() => findOrphans(graph, blueprint))).toBeLessThan(50)
   })
 
   it('evaluates in under 200ms', () => {

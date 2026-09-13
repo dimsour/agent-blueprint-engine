@@ -32,7 +32,7 @@ export function healthSummary(
 ): HealthSummary {
   const counts = summarizeDiagnostics(report.diagnostics)
   const orphanCounts = new Map<EntityKind, number>()
-  for (const ref of findOrphans(buildDependencyGraph(blueprint))) {
+  for (const ref of findOrphans(buildDependencyGraph(blueprint), blueprint)) {
     orphanCounts.set(ref.kind, (orphanCounts.get(ref.kind) ?? 0) + 1)
   }
 

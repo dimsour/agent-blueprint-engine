@@ -127,14 +127,33 @@ export const ORPHANABLE_KINDS: readonly EntityKind[] = [
 ]
 
 /**
- * Entities nothing points to. Agents are roots and are never orphans here (an agent
- * without a workflow is a semantic validation rule); hooks, requirements and scenarios are
- * global by nature.
+ * Entities nothing uses. Agents are roots and are never orphans here (an agent without a
+ * workflow is a semantic validation rule); hooks, requirements and scenarios are global by
+ * nature.
+ *
+ * "Uses" means what the compiler means. A skill, gate or tool is used when something points
+ * at it. An Iron Law or a rule is different: its own `scope` is what the compiler reads to
+ * decide whose instructions it goes into — every agent's when `scope.all`, the named ones
+ * otherwise — and an agent's `ironLawIds` is not consulted (`lawsForAgent`). So a law nothing
+ * lists but that applies to everything is in every compiled file, and calling it an orphan
+ * sent people to "set its scope to all agents", which was already true and changed nothing
+ * (P9-40). A law is an orphan only when its scope reaches nothing *and* no agent lists it —
+ * which is also when `BP-LAW-001` says it applies to nothing.
  */
-export function findOrphans(graph: DependencyGraph): EntityRef[] {
-  return graph.nodes.filter(
-    (ref) => ORPHANABLE_KINDS.includes(ref.kind) && graph.dependentsOf(ref).length === 0,
-  )
+export function findOrphans(graph: DependencyGraph, blueprint: Blueprint): EntityRef[] {
+  return graph.nodes.filter((ref) => {
+    if (!ORPHANABLE_KINDS.includes(ref.kind)) return false
+    if (graph.dependentsOf(ref).length > 0) return false
+    if (ref.kind !== 'iron-law' && ref.kind !== 'rule') return true
+    const scoped = getCollection(blueprint, ref.kind).find((entity) => entity.id === ref.id)
+    if (!scoped) return true
+    const { scope } = scoped as { scope: Blueprint['ironLaws'][number]['scope'] }
+    if (scope.all) return false
+    // A scope naming an agent or a workflow is an outgoing edge; one that resolved is a use.
+    return !graph
+      .dependenciesOf(ref)
+      .some((edge) => edge.relation === 'scoped-to-agent' || edge.relation === 'scoped-to-workflow')
+  })
 }
 
 function uniqueRefs(refs: EntityRef[]): EntityRef[] {

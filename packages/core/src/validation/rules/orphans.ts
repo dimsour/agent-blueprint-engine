@@ -35,10 +35,11 @@ const ADVICE: Partial<Record<EntityKind, string>> = {
 
 export const orphanedArtifacts: ValidationRule = {
   code: 'BP-ORPHAN-001',
-  description: 'Artifacts nothing references are never compiled into a harness.',
-  check({ graph }) {
+  description:
+    'Artifacts nothing uses are never compiled into a harness; a law or rule is used by its own scope.',
+  check({ graph, blueprint }) {
     const out: Diagnostic[] = []
-    for (const ref of findOrphans(graph)) {
+    for (const ref of findOrphans(graph, blueprint)) {
       const code = ORPHAN_CODES[ref.kind]
       if (code === undefined) continue
       const label = ENTITY_KIND_INFO[ref.kind].label.toLowerCase()

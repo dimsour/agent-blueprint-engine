@@ -104,7 +104,7 @@ export function overviewGraph(
   const graph = buildDependencyGraph(blueprint)
   const diagnostics = options.diagnostics ?? []
   const wanted = options.kinds ? new Set(options.kinds) : undefined
-  const orphans = new Set(findOrphans(graph).map(refKey))
+  const orphans = new Set(findOrphans(graph, blueprint).map(refKey))
   const worst = severityByRef(diagnostics)
 
   const nodes = graph.nodes
