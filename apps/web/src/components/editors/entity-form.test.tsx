@@ -129,6 +129,45 @@ describe('EntityForm', () => {
     expect(law?.severity).toBe('critical')
   })
 
+  // The compiler reads a law's scope, and until P9-40 only the YAML tab could set it.
+  it('scopes an Iron Law to named agents, and back to everyone', async () => {
+    await load()
+    const user = userEvent.setup()
+    render(<EntityForm selection={{ kind: 'iron-law', id: 'never-fake-verification' }} />)
+    const law = () =>
+      useWorkspace.getState().blueprint?.ironLaws.find((l) => l.id === 'never-fake-verification')
+
+    const everyone = screen.getByRole('checkbox', { name: 'Applies to every agent' })
+    expect(everyone).toBeChecked()
+    expect(screen.queryByText('Governs these agents')).not.toBeInTheDocument()
+
+    await user.click(everyone)
+    expect(law()?.scope.all).toBe(false)
+    // Named nobody yet: the pickers appear, and the validator will say so until one is picked.
+    await user.click(screen.getByRole('button', { name: 'React Expert' }))
+    expect(law()?.scope.agentIds).toEqual(['react-expert'])
+
+    await user.click(everyone)
+    expect(law()?.scope.all).toBe(true)
+    // The names are kept, not wiped: switching back and forth is not a reason to lose them.
+    expect(law()?.scope.agentIds).toEqual(['react-expert'])
+  })
+
+  it("switches an Iron Law's enforcement on and off", async () => {
+    await load()
+    const user = userEvent.setup()
+    render(<EntityForm selection={{ kind: 'iron-law', id: 'never-fake-verification' }} />)
+    const law = () =>
+      useWorkspace.getState().blueprint?.ironLaws.find((l) => l.id === 'never-fake-verification')
+
+    const gate = screen.getByRole('checkbox', { name: /^Gate/ })
+    expect(gate).not.toBeChecked()
+    await user.click(gate)
+    expect(law()?.enforcement).toContain('gate')
+    await user.click(screen.getByRole('checkbox', { name: /^Hook/ }))
+    expect(law()?.enforcement).not.toContain('hook')
+  })
+
   it('creates a linked artifact from inside a picker, without leaving the form', async () => {
     await load()
     const user = userEvent.setup()

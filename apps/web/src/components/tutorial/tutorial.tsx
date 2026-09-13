@@ -662,8 +662,12 @@ activation:
         text: 'critical, high or medium. Critical is what the harness hears first; the evaluation weighs it most.',
       },
       {
+        name: 'Scope',
+        text: 'Applies to every agent, or off that, the agents and workflows it governs. This is what the compiler reads to decide whose instructions the law goes into.',
+      },
+      {
         name: 'Enforcement',
-        text: 'instruction, hook, gate — any combination. Each adapter uses what its harness supports and reports the rest.',
+        text: 'Instruction, Hook, Gate — any combination. Each adapter uses what its harness supports and reports the rest.',
       },
       {
         name: 'Applies to',
@@ -714,7 +718,7 @@ enforcement:
     shots: [
       {
         src: ironLawEditor,
-        alt: 'The Never Fake Verification iron law open in the editor: the rule, its rationale, the field for what to do if it cannot be honoured, severity set to critical, category testing, and lists of examples and counterexamples.',
+        alt: 'The Never Fake Verification iron law open in the editor: the rule, its rationale, the field for what to do if it cannot be honoured, severity set to critical, category testing, and, in the inspector beside it, Used by reading "Applies to every agent: its scope puts it in every compiled instruction file".',
         caption:
           'The rationale and the counterexamples are what make it a law. Without them it is a rule with a stern voice.',
       },

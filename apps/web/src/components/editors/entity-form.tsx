@@ -15,6 +15,8 @@ import {
   AGENT_ROLES,
   EFFORT_LEVEL_INFO,
   EFFORT_LEVELS,
+  ENFORCEMENT_MECHANISM_INFO,
+  ENFORCEMENT_MECHANISMS,
   ENTITY_KIND_INFO,
   GATE_CRITERION_KIND_INFO,
   GATE_CRITERION_KINDS,
@@ -588,6 +590,39 @@ function KindFields({ kind, entity, blueprint, update, hint }: KindFieldProps) {
             describe={GOVERNANCE_CATEGORY_INFO}
             onChange={(category) => update({ category })}
           />
+          <ScopeFields entity={entity} blueprint={blueprint} update={update} hint={hint} />
+          <Field
+            label="Enforcement"
+            help="How far the harness goes. Instruction is the persona and every law gets it; hook adds a check when the agent wants to stop; gate means a workflow gate names it."
+            {...hint('enforcement')}
+          >
+            <div className="flex flex-col gap-1.5">
+              {ENFORCEMENT_MECHANISMS.map((mechanism) => {
+                const chosen = list('enforcement')
+                const info = ENFORCEMENT_MECHANISM_INFO[mechanism]
+                return (
+                  <label key={mechanism} className="flex items-start gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      className="mt-1"
+                      checked={chosen.includes(mechanism)}
+                      onChange={(event) =>
+                        update({
+                          enforcement: event.target.checked
+                            ? [...chosen, mechanism]
+                            : chosen.filter((current) => current !== mechanism),
+                        })
+                      }
+                    />
+                    <span>
+                      <span className="font-medium">{info.label}</span>
+                      <span className="text-muted-foreground"> — {info.description}</span>
+                    </span>
+                  </label>
+                )
+              })}
+            </div>
+          </Field>
           <StringListField
             label="Examples"
             values={list('examples')}
@@ -630,6 +665,7 @@ function KindFields({ kind, entity, blueprint, update, hint }: KindFieldProps) {
             describe={GOVERNANCE_CATEGORY_INFO}
             onChange={(category) => update({ category })}
           />
+          <ScopeFields entity={entity} blueprint={blueprint} update={update} hint={hint} />
           <StringListField
             label="Applies to"
             values={list('paths')}
@@ -1012,5 +1048,70 @@ function CriteriaFields({
         </Button>
       </div>
     </Field>
+  )
+}
+
+interface Scope {
+  all: boolean
+  agentIds: string[]
+  workflowIds: string[]
+}
+
+/**
+ * Who an Iron Law or a rule governs (P9-40).
+ *
+ * The compiler reads this — not the agents' lists — to decide whose instructions it goes
+ * into, and until P9-40 the form did not show it: the only way to scope a law was the YAML
+ * tab, and the orphan warning's remedy named a control nobody could find. Off "every agent",
+ * the two pickers name the agents and workflows; naming none is what `BP-LAW-001` flags.
+ */
+function ScopeFields({
+  entity,
+  blueprint,
+  update,
+  hint,
+}: {
+  entity: Record<string, unknown>
+  blueprint: Blueprint
+  update: (patch: Record<string, unknown>) => void
+  hint: Hint
+}) {
+  const scope: Scope = {
+    all: true,
+    agentIds: [],
+    workflowIds: [],
+    ...((entity['scope'] as Partial<Scope> | undefined) ?? {}),
+  }
+  const set = (next: Partial<Scope>) => update({ scope: { ...scope, ...next } })
+
+  return (
+    <>
+      <CheckboxField
+        label="Scope"
+        checked={scope.all}
+        text="Applies to every agent"
+        help="What the compiler reads to decide whose instructions this goes into. On, it is in every agent's; off, only the agents and workflows named below get it."
+        onChange={(all) => set({ all })}
+        {...hint('scope')}
+      />
+      {scope.all ? null : (
+        <>
+          <RefListField
+            label="Governs these agents"
+            selected={scope.agentIds}
+            options={optionsFor(blueprint, 'agent')}
+            onChange={(agentIds) => set({ agentIds })}
+            help="Compiled into these agents' instructions and no others."
+          />
+          <RefListField
+            label="Governs these workflows"
+            selected={scope.workflowIds}
+            options={optionsFor(blueprint, 'workflow')}
+            onChange={(workflowIds) => set({ workflowIds })}
+            help="Written into the orchestration skill of these workflows."
+          />
+        </>
+      )}
+    </>
   )
 }

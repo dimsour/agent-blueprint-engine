@@ -258,6 +258,7 @@ A dialog over the workspace, opened from the top bar, the palette or the shortcu
   primary agent, which _Draft the whole Blueprint_ does and says so in its hint. With an agent
   selected, what it creates is held from that agent unless the answer writes an agent of its
   own.
+- An Iron Law's form has **Scope** — _Applies to every agent_, or off that, _Governs these agents_ and _Governs these workflows_ — and **Enforcement** (Instruction, Hook, Gate); a rule's form has Scope beside its paths (P9-40). Both fields existed in the model and were reachable only from the YAML tab, which is how a warning could name a control nobody could find.
 - The inspector's **Used by** says "Applies to every agent" for a law or rule whose scope is all (P9-40): the graph has no edge for a scope, so the list would otherwise read "Nothing refers to this artifact" about a law that is in every compiled file — which is the wording that sent people to fix what was not broken.
 - **Fix the Blueprint** (P9-40) is the whole-Blueprint counterpart of _Fix with AI_: everything
   the validator and the evaluation raise, decided on with the design in view — change, create,
