@@ -6,19 +6,26 @@ Agent Blueprint is a visual IDE for designing, validating and compiling AI agent
 describe agents, skills, workflows, iron laws, rules, hooks, gates, tools, references and
 memory once, as a _Blueprint_; the compiler turns that Blueprint into the files each AI coding
 harness expects, and the validator tells you what is missing, contradictory or unsupported
-before you ship it.
+before you ship it. Bring your own OpenAI-compatible endpoint and a model drafts, improves and
+reviews the Blueprint with you — every proposal a change you read before it is applied. Connect
+GitHub and the finished repository is one push away, previewed before anything is written, and
+a repository's `blueprint/` opens back as a project.
 
 Everything happens in the browser. There is no server, no account and no database: a project
 lives in IndexedDB, in a folder on your disk, in a ZIP, or in a Git repository, and the two
-optional route handlers are stateless relays that exist only to work around browser limits.
+optional route handlers are stateless relays that exist only to work around browser limits —
+one for AI endpoints that refuse browser calls, one for GitHub sign-in. Keys and tokens stay in
+the browser and never reach a Blueprint, an export, a push or a log.
 
 ![The workspace](apps/web/src/assets/screenshots/workspace.png)
 
 ## What it does
 
 **Design.** Every artifact has a visual form and a source tab showing the project file itself,
-with a Markdown preview. Workflows are edited as the drawing they are. A ten-step wizard builds
-a first Blueprint from templates, and a command palette (`⌘K`) creates, navigates and validates.
+with a Markdown preview. Workflows are edited as the drawing they are. Ten starter Blueprints
+and 29 artifact templates give you something to open rather than an empty editor, a command
+palette (`⌘K`) creates, navigates and validates, and `/tutorial` walks the whole loop and then
+every kind of artifact — what it is, how to add one, and what each harness gets.
 
 **Validate.** Structural, semantic, orphan, contradiction and requirement rules, each with a
 stable code and a navigable reference. The health bar opens the findings behind every count.
@@ -32,13 +39,28 @@ deterministic: same Blueprint in, same bytes out.
 
 ![Compatibility](apps/web/src/assets/screenshots/compatibility.png)
 
-**Ship.** Export a deterministic ZIP of the source and the compiled output, write to a folder,
-or push to GitHub — one tree, one commit, never forced, with a preview of every path that would
-be added, changed or removed, and a secret scan in front of it.
+**Ship.** Export a deterministic ZIP of the source and the compiled output, or write straight
+back to a folder on disk.
 
-**Improve, optionally.** Bring your own OpenAI-compatible endpoint and the app can draft a
-Blueprint, improve an artifact, find contradictions or give a second opinion on the score.
-Every AI output is a ChangeSet reviewed field by field before anything is applied.
+**Push to GitHub.** A personal access token, proved against the API before it is stored, or
+sign-in through an OAuth app the deployment registers. A push shows its plan first — every
+path that would be added, changed or removed, the compiler errors that block it, the files it
+does not own and will not overwrite unasked, and anything shaped like a credential, which
+blocks until accepted — then makes one tree, one commit and one move of the branch, never
+forced. A repository can be new, created private from the dialog, and any repository's
+`blueprint/` opens back as a project through the same import preview a ZIP goes through. A
+target packaged as a plugin comes with the install commands for the repository it was pushed
+to.
+
+**Work with a model.** Any OpenAI-compatible endpoint — OpenAI, the Anthropic compatibility
+endpoint, OpenRouter, Azure, or Ollama, LM Studio and vLLM on your own machine. The assistant
+(`⌘/`) drafts a whole Blueprint, adds a capability (an agent with its skills, laws and
+workflow, wired to what exists), improves the selected artifact with one of eight quick
+actions, turns notes or a transcript into reusable knowledge, finds contradictions and what is
+missing, gives a second opinion on the score, and offers to fix any finding. Every output is a
+ChangeSet reviewed field by field — accept, reject or edit each change — before anything is
+applied; a model never edits the Blueprint silently, and output that looks like a secret is
+refused before it can enter one.
 
 ## Getting started
 
