@@ -1106,6 +1106,17 @@ something, it says what and where that thing still exists.
 - Built: `readEditorSettings` / `writeEditorSettings`, the `EditorSettings` card, the read in `scheduleWork`, the `beforeunload` guard.
 - Not built: a prompt on in-app navigation away from an unsaved project, which the router has no hook for without a custom link; a per-project setting.
 
+### P9-38 The tutorial explains the parts (done)
+
+- Package: `apps/web/src/components/tutorial/`, `apps/web/e2e/screenshots.spec.ts`, `apps/web/e2e/header.spec.ts`
+- Depends on: P9-06
+- Description: Reported from use: the tutorial walked the loop and stopped there. A reader who had followed it could make a project and compile it, and still not know what an agent is as opposed to a skill, what a permission decides, how a hook fires or what "adapted" costs. The docs know, in `docs/00`, `docs/02` and `docs/04`, but the docs are in the repository and the reader is in the app.
+- Acceptance: `/tutorial` has a second half that takes every kind of artifact on its own, plus the project on disk and the compile targets; each part gives the docs/00 definition, the control that adds one, the fields in the form's own labels and what they decide, a source file as the project writes it (a starter's, or a marked excerpt), and what each harness gets; every technical claim is one the code makes; the pictures are generated; the axe sweep stays green in both themes.
+- Verify: `pnpm --filter web test:e2e header accessibility`, `pnpm --filter web screenshots`
+- Built: eleven parts under an **h2** of their own, with the loop's eleven steps under another and both rows of navigation up top. The screenshot script grew from fourteen shots to nineteen — the agent, its permission grid scrolled to its top, a law, a hook and a gate, all from the React Expert starter. Ten code blocks: the directory layout, then the agent, its permission block, a skill's frontmatter, an excerpt of a workflow graph, a law, a hook, a gate and a requirement from the starters, and one MCP tool written for the page, since no starter has one, and labelled as such.
+- Found by the axe sweep: a `<pre>` that scrolls sideways is a scrollable region a keyboard must be able to reach. Each code block is focusable and named by the path it shows.
+- Not built: a link from each part to the matching field of an open project, which needs a project; a per-harness filter of the tables.
+
 ### Open questions
 
 1. **Permissions in a Codex plugin.** Codex hooks have `PreToolUse` with a `permissionDecision` output, as Claude's do, but filter by a regex on the tool name only; there is no `if` in permission-rule syntax. Enforcing `Bash(git push *)` from a plugin would need a script that reads the hook's JSON input and matches the command itself — with no JSON tool guaranteed on the machine — and one that fails closed. Left as the command policy in the instructions until Codex documents an argument filter.

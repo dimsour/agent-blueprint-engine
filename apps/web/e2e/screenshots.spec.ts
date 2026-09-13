@@ -148,5 +148,42 @@ test.describe('screenshots', () => {
     await page.getByRole('banner').getByRole('button', { name: 'GitHub' }).click()
     await expect(page.getByRole('dialog')).toBeVisible()
     await shoot(page, 'github')
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+
+    // The second half of the tutorial takes the parts one at a time, and the detail it
+    // explains lives in the forms, so the pictures are of the forms: the agent's, down to
+    // its permission grid, then a law, a hook and a gate from the same starter.
+    const inspector = page.getByRole('complementary', { name: 'Inspector' })
+    await tree(page)
+      .getByRole('button', { name: /^React Expert(,|$)/ })
+      .click()
+    await expect(inspector).toContainText('React Expert')
+    await shoot(page, 'agent-editor')
+
+    // The grid sits far down the form. Its field is taller than the pane, so it is scrolled
+    // to its top rather than merely into view, which would show only its last rows.
+    await page
+      .getByRole('columnheader', { name: 'Operation' })
+      .evaluate((cell) => cell.closest('table')?.parentElement?.scrollIntoView({ block: 'start' }))
+    await shoot(page, 'agent-permissions')
+
+    await tree(page)
+      .getByRole('button', { name: /^Never Fake Verification(,|$)/ })
+      .click()
+    await expect(inspector).toContainText('Never Fake Verification')
+    await shoot(page, 'iron-law-editor')
+
+    await tree(page)
+      .getByRole('button', { name: /^Run tests after change(,|$)/ })
+      .click()
+    await expect(inspector).toContainText('Run tests after change')
+    await shoot(page, 'hook-editor')
+
+    await tree(page)
+      .getByRole('button', { name: /^Tests must pass(,|$)/ })
+      .click()
+    await expect(inspector).toContainText('Tests must pass')
+    await shoot(page, 'gate-editor')
   })
 })

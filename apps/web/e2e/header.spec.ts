@@ -152,14 +152,27 @@ test.describe('the tutorial', () => {
   test('walks the whole story, with a picture of each step', async ({ page }) => {
     await page.goto('/tutorial')
 
+    // Two halves: the loop, then the parts (P9-38).
+    await expect(page.getByRole('heading', { level: 2, name: 'The loop' })).toBeVisible()
+    await expect(page.getByRole('heading', { level: 2, name: 'The parts' })).toBeVisible()
+
     // Every beat of the docs/00 story, in order.
     const steps = ['Start', 'Describe', 'Review', 'See the graph', 'Connect', 'Improve']
     for (const step of steps) {
-      await expect(page.getByRole('heading', { level: 2, name: step })).toBeVisible()
+      await expect(page.getByRole('heading', { level: 3, name: step })).toBeVisible()
     }
     for (const step of ['Validate', 'Save', 'Compile', 'Push', 'Use it']) {
-      await expect(page.getByRole('heading', { level: 2, name: step })).toBeVisible()
+      await expect(page.getByRole('heading', { level: 3, name: step })).toBeVisible()
     }
+
+    // Every concept of the docs/00 glossary that is an artifact, plus the ideas that cut
+    // across them, each with what to press and what the harness gets.
+    for (const part of ['Agents', 'Permissions', 'Skills', 'Workflows', 'Hooks', 'Gates']) {
+      await expect(page.getByRole('heading', { level: 3, name: part })).toBeVisible()
+    }
+    const parts = page.getByRole('navigation', { name: 'Parts' }).getByRole('link')
+    expect(await parts.count()).toBeGreaterThanOrEqual(10)
+    await expect(page.getByRole('table').first()).toContainText('Claude Code')
 
     // Served through the optimizer, from the generated set, and every one of them described.
     const shots = page.getByRole('main').getByRole('img')
@@ -182,7 +195,7 @@ test.describe('the tutorial', () => {
     })
     await page.reload()
 
-    await expect(page.getByRole('heading', { level: 2, name: 'Start' })).toBeVisible()
+    await expect(page.getByRole('heading', { level: 3, name: 'Start' })).toBeVisible()
     await expect(page.getByRole('main').getByRole('img').first()).toBeVisible()
   })
 })
