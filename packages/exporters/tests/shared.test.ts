@@ -211,6 +211,16 @@ describe('emitReadme commands', () => {
     expect(readme).not.toContain('| xUnit |')
   })
 
+  it('credits the product, with its address, at the top and at the end', async () => {
+    const blueprint = await loadFixture()
+    const readme = textOf(emitReadme(blueprint, ['claude-code']))
+    const link = '[Agent Blueprint](https://github.com/dimsour/agent-blueprint-engine)'
+    expect(readme).toContain(`compiled from a Blueprint with ${link}.`)
+    expect(readme.trimEnd().split('\n').at(-1)).toBe(
+      `Created with ${link} — design once, test it, compile it everywhere. Open source under the Apache License 2.0.`,
+    )
+  })
+
   it('labels a workflow skill so the menu tells it from a skill', async () => {
     const blueprint = await loadFixture()
     const { files } = compileBlueprint(blueprint, { targets: ['claude-code', 'codex'] })

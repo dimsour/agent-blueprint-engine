@@ -4,7 +4,7 @@
 
 An expert .NET agent that writes and reviews high-quality xUnit unit tests.
 
-This repository is an AI agent configuration compiled from a Blueprint. Clone it, open it with any of the harnesses below, and the agent is configured.
+This repository is an AI agent configuration compiled from a Blueprint with [Agent Blueprint](https://github.com/dimsour/agent-blueprint-engine).
 
 ## What is here
 
@@ -41,3 +41,5 @@ What the command menu of each harness offers from this repository. A skill is li
 ## Changing the agent
 
 Edit the Blueprint, not the generated files: open this repository in Agent Blueprint, or edit the Markdown and YAML under `blueprint/` directly and recompile. Generated files are overwritten on the next export, and `blueprint/build-manifest.json` records which files the compiler owns.
+
+Created with [Agent Blueprint](https://github.com/dimsour/agent-blueprint-engine) — design once, test it, compile it everywhere. Open source under the Apache License 2.0.

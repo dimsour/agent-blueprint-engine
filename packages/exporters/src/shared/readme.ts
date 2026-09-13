@@ -6,7 +6,7 @@ import type { Blueprint, HarnessId } from '@agent-blueprint/core'
 import { HARNESS_LABELS } from '@agent-blueprint/core'
 
 import { generatedFile, type GeneratedFile } from '../types'
-import { withHeader } from './header'
+import { AGENT_BLUEPRINT_URL, withHeader } from './header'
 import { code, Markdown } from './markdown'
 
 interface HarnessUsage {
@@ -155,7 +155,7 @@ export function emitReadme(
   md.heading(1, blueprint.name)
   md.paragraph(blueprint.description)
   md.paragraph(
-    'This repository is an AI agent configuration compiled from a Blueprint. Clone it, open it with any of the harnesses below, and the agent is configured.',
+    `This repository is an AI agent configuration compiled from a Blueprint with [Agent Blueprint](${AGENT_BLUEPRINT_URL}).`,
   )
 
   md.heading(2, 'What is here')
@@ -232,6 +232,12 @@ export function emitReadme(
   md.heading(2, 'Changing the agent')
   md.paragraph(
     'Edit the Blueprint, not the generated files: open this repository in Agent Blueprint, or edit the Markdown and YAML under `blueprint/` directly and recompile. Generated files are overwritten on the next export, and `blueprint/build-manifest.json` records which files the compiler owns.',
+  )
+
+  // The credit: who made the tool, and where to get it. On a repository someone finds through
+  // its harness rather than through the app, this is the only line that says so.
+  md.paragraph(
+    `Created with [Agent Blueprint](${AGENT_BLUEPRINT_URL}) — design once, test it, compile it everywhere. Open source under the Apache License 2.0.`,
   )
 
   return generatedFile('README.md', withHeader('blueprint/', md.render()), 'markdown', 'shared', [])
