@@ -187,7 +187,9 @@ test.describe('the tutorial', () => {
   // The contents travel with the reader (P9-39): a sidebar beside the text on a wide
   // screen, a menu at the top on a narrow one, and both say which section is on screen.
   test('keeps the contents in reach and marks the section on screen', async ({ page }) => {
-    await page.goto('/tutorial')
+    await page.goto('/')
+    await page.getByRole('link', { name: 'How it works' }).click()
+    await expect(page).toHaveURL(/\/tutorial$/)
     const contents = page.getByRole('complementary', { name: 'Contents' })
     await expect(contents).toBeVisible()
     expect(await contents.getByRole('link').count()).toBeGreaterThanOrEqual(24)
@@ -201,6 +203,14 @@ test.describe('the tutorial', () => {
       'aria-current',
       'location',
     )
+
+    // Jumping around the page leaves no history behind: Back is the page the reader came
+    // from, not the last section they looked at.
+    await contents.getByRole('link', { name: /Gates/ }).click()
+    await expect(page).toHaveURL(/#gate$/)
+    await page.getByRole('link', { name: 'Back' }).click()
+    await expect(page).toHaveURL(/\/$/)
+    await page.goto('/tutorial')
 
     await page.setViewportSize({ width: 800, height: 900 })
     await expect(contents).toBeHidden()

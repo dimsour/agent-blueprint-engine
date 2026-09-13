@@ -1126,6 +1126,7 @@ something, it says what and where that thing still exists.
 - Verify: `pnpm --filter web test:e2e header accessibility`, `pnpm --filter web screenshots`
 - Built: `TutorialNav`, a client component with a sticky sidebar from `lg` and a sticky "Jump to" bar below it, both driven by one `IntersectionObserver` that names the first section in reading order crossing the upper band of the viewport. Two parts added — **The assistant** (endpoint, presets, where the key lives, the operations, the review) and **GitHub** (the token proved first, the push preview and what blocks it, one commit never forced, opening a repository, plugin install commands) — and two pictures, the AI endpoint and GitHub cards of Settings. The e2e case jumps from the sidebar, checks the mark follows, narrows the viewport and jumps from the menu.
 - Found by the axe sweep: the section numbers in the sidebar at 70% opacity fell to 3.47:1 in the dark theme. Full opacity.
+- Reported from use, fixed: every jump pushed a hash entry, so **Back** walked through the sections visited before it left the page. A plain click on a contents link now replaces the address; a modified click still gets the real link.
 - Not built: a "back to top" control, which the sidebar's first link already is; collapsing the loop while reading the parts.
 
 ### Open questions

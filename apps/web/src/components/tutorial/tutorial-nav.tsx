@@ -11,7 +11,7 @@
  *
  * The one client component on a page that otherwise reads nothing: it needs the scroll.
  */
-import { useEffect, useMemo, useState } from 'react'
+import { type MouseEvent, useEffect, useMemo, useState } from 'react'
 
 import { cn } from '@/lib/utils'
 
@@ -65,9 +65,20 @@ export function TutorialNav({ groups }: { groups: NavGroup[] }) {
   // The menu lists sections only; between two halves, it shows its placeholder.
   const currentItem = groups.some((group) => group.id === current) ? '' : (current ?? '')
 
+  // A jump replaces the address rather than adding to the history: every link is still a
+  // real one, so a middle click or a copied address gets the section, but a plain click must
+  // not leave a trail of #hook, #gate, #github behind it for Back to walk through one at a
+  // time before it reaches the page the reader came from.
   const jump = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ block: 'start' })
     history.replaceState(null, '', `#${id}`)
+  }
+  const follow = (id: string) => (event: MouseEvent<HTMLAnchorElement>) => {
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) {
+      return
+    }
+    event.preventDefault()
+    jump(id)
   }
 
   return (
@@ -81,6 +92,7 @@ export function TutorialNav({ groups }: { groups: NavGroup[] }) {
           <nav key={group.id} aria-label={group.title} className="mb-5 flex flex-col gap-0.5">
             <a
               href={`#${group.id}`}
+              onClick={follow(group.id)}
               className={cn(
                 'mb-1 text-xs font-semibold tracking-wide uppercase',
                 current === group.id ? 'text-accent' : 'text-muted-foreground',
@@ -92,6 +104,7 @@ export function TutorialNav({ groups }: { groups: NavGroup[] }) {
               <a
                 key={item.id}
                 href={`#${item.id}`}
+                onClick={follow(item.id)}
                 aria-current={current === item.id ? 'location' : undefined}
                 className={cn(
                   'flex items-baseline gap-2 rounded-md border-l-2 py-1 pr-2 pl-2.5 text-sm transition-colors',
