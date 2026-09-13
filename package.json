@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "description": "Agent Blueprint — a visual IDE for designing, validating and compiling AI agent systems.",
+  "license": "Apache-2.0",
   "packageManager": "pnpm@10.34.5",
   "engines": {
     "node": ">=22"

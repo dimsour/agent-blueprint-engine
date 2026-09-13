@@ -127,3 +127,10 @@ P9, the interface, is in progress: small fixes and fine-tuning from use.
 [docs/09-roadmap.md](docs/09-roadmap.md) is the backlog and says what each phase actually built.
 
 Working in this repository with an AI agent? Start at [AGENTS.md](AGENTS.md).
+
+## Licence
+
+Apache License 2.0 — see [LICENSE](LICENSE) and [NOTICE](NOTICE). Use it, change it, ship it,
+commercially or not; keep the copyright, the licence and the NOTICE file with any copy or
+derivative, and mark the files you changed. If Agent Blueprint is part of something you sell, a
+visible mention is appreciated and not required.

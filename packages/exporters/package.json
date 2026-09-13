@@ -2,6 +2,7 @@
   "name": "@agent-blueprint/exporters",
   "version": "0.1.0",
   "private": true,
+  "license": "Apache-2.0",
   "description": "Harness adapters that compile a Blueprint into Claude Code, Codex, Copilot, OpenCode and Pi files.",
   "type": "module",
   "sideEffects": false,

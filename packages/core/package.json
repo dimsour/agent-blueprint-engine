@@ -2,6 +2,7 @@
   "name": "@agent-blueprint/core",
   "version": "0.1.0",
   "private": true,
+  "license": "Apache-2.0",
   "description": "Canonical Blueprint model, schemas, project format, validation, dependencies, migrations and change-sets.",
   "type": "module",
   "sideEffects": false,

@@ -2,6 +2,7 @@
   "name": "@agent-blueprint/ai",
   "version": "0.1.0",
   "private": true,
+  "license": "Apache-2.0",
   "description": "OpenAI-compatible AI client, prompts and operations that produce reviewable ChangeSets.",
   "type": "module",
   "sideEffects": false,
